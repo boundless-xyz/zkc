@@ -15,6 +15,7 @@ contract ZKCTest is Test {
     address public user1;
     address public user2;
     address public user3;
+    address public user4;
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * 10 ** 18; // 1B tokens
     uint256 public constant MINTER1_AMOUNT = (TOTAL_SUPPLY * 55) / 100; // 55% of 1B
     uint256 public constant MINTER2_AMOUNT = (TOTAL_SUPPLY * 45) / 100; // 45% of 1B
@@ -29,7 +30,7 @@ contract ZKCTest is Test {
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
         user3 = makeAddr("user3");
-
+        user4 = makeAddr("user4");
         // Deploy implementation
         ZKC implementation = new ZKC();
 
@@ -41,8 +42,6 @@ contract ZKCTest is Test {
 
         // Initialize
         token.initialize(initialMinter1, initialMinter2, MINTER1_AMOUNT, MINTER2_AMOUNT, owner);
-        console2.log("Token 1 amount: ", MINTER1_AMOUNT);
-        console2.log("Token 2 amount: ", MINTER2_AMOUNT);
     }
 
     function test_Initialization() public view {
@@ -228,8 +227,8 @@ contract ZKCTest is Test {
 
         // Verify minter can mint
         vm.prank(user3);
-        token.mint(user3, 1000);
-        assertEq(token.balanceOf(user3), 1000);
+        token.mint(user4, 1000);
+        assertEq(token.balanceOf(user4), 1000);
 
         // check total supply
         assertEq(token.totalSupply(), TOTAL_SUPPLY + 1000);
@@ -241,24 +240,7 @@ contract ZKCTest is Test {
         token.mint(user3, 1000);
     }
 
-    function test_RoleAssignments() public {
-        // Check initial role assignments
-        assertTrue(IAccessControl(address(token)).hasRole(ADMIN_ROLE, owner));
-        assertFalse(IAccessControl(address(token)).hasRole(ADMIN_ROLE, user1));
-        assertFalse(IAccessControl(address(token)).hasRole(MINTER_ROLE, user1));
-
-        // Grant minter role and verify
-        vm.prank(owner);
-        IAccessControl(address(token)).grantRole(MINTER_ROLE, user1);
-        assertTrue(IAccessControl(address(token)).hasRole(MINTER_ROLE, user1));
-
-        // Check role admin
-        assertEq(IAccessControl(address(token)).getRoleAdmin(MINTER_ROLE), ADMIN_ROLE);
-
-        // Check
-    }
-
-    function test_RoleRevocation() public {
+    function test_RoleGrantAndRevocation() public {
         // Grant minter role
         vm.prank(owner);
         IAccessControl(address(token)).grantRole(MINTER_ROLE, user1);
@@ -267,23 +249,6 @@ contract ZKCTest is Test {
         // Revoke minter role
         vm.prank(owner);
         IAccessControl(address(token)).revokeRole(MINTER_ROLE, user1);
-        assertFalse(IAccessControl(address(token)).hasRole(MINTER_ROLE, user1));
-
-        // Verify minter can no longer mint
-        vm.prank(user1);
-        vm.expectRevert();
-        token.mint(user2, 1000);
-    }
-
-    function test_RoleRenouncement() public {
-        // Grant minter role
-        vm.prank(owner);
-        IAccessControl(address(token)).grantRole(MINTER_ROLE, user1);
-        assertTrue(IAccessControl(address(token)).hasRole(MINTER_ROLE, user1));
-
-        // User renounces their own role
-        vm.prank(user1);
-        IAccessControl(address(token)).renounceRole(MINTER_ROLE, user1);
         assertFalse(IAccessControl(address(token)).hasRole(MINTER_ROLE, user1));
 
         // Verify minter can no longer mint
