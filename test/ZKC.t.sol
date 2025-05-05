@@ -15,7 +15,7 @@ contract ZKCTest is Test {
     address public user1;
     address public user2;
     address public user3;
-    uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * 10**18; // 1B tokens
+    uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * 10 ** 18; // 1B tokens
     uint256 public constant MINTER1_AMOUNT = (TOTAL_SUPPLY * 55) / 100; // 55% of 1B
     uint256 public constant MINTER2_AMOUNT = (TOTAL_SUPPLY * 45) / 100; // 45% of 1B
 
@@ -32,21 +32,15 @@ contract ZKCTest is Test {
 
         // Deploy implementation
         ZKC implementation = new ZKC();
-        
+
         // Deploy proxy
         token = ZKC(address(new ERC1967Proxy(address(implementation), "")));
 
         ADMIN_ROLE = token.ADMIN_ROLE();
         MINTER_ROLE = token.MINTER_ROLE();
-        
+
         // Initialize
-        token.initialize(
-            initialMinter1,
-            initialMinter2,
-            MINTER1_AMOUNT,
-            MINTER2_AMOUNT,
-            owner
-        );
+        token.initialize(initialMinter1, initialMinter2, MINTER1_AMOUNT, MINTER2_AMOUNT, owner);
         console2.log("Token 1 amount: ", MINTER1_AMOUNT);
         console2.log("Token 2 amount: ", MINTER2_AMOUNT);
     }
@@ -72,13 +66,13 @@ contract ZKCTest is Test {
     function test_InitialMinting() public {
         address[] memory recipients = new address[](2);
         uint256[] memory amounts = new uint256[](2);
-        
+
         // Minter 1 mints their full allocation
         recipients[0] = user1;
         recipients[1] = user2;
         amounts[0] = MINTER1_AMOUNT / 2;
         amounts[1] = MINTER1_AMOUNT / 2;
-        
+
         vm.prank(initialMinter1);
         token.initialMint(recipients, amounts);
         assertEq(token.balanceOf(user1), MINTER1_AMOUNT / 2);
@@ -90,7 +84,7 @@ contract ZKCTest is Test {
         recipients[1] = user3;
         amounts[0] = MINTER2_AMOUNT / 2;
         amounts[1] = MINTER2_AMOUNT / 2;
-        
+
         vm.prank(initialMinter2);
         token.initialMint(recipients, amounts);
         assertEq(token.balanceOf(user2), MINTER1_AMOUNT / 2 + MINTER2_AMOUNT / 2);
@@ -103,7 +97,7 @@ contract ZKCTest is Test {
     function test_InitialMintersCannotOvermint() public {
         address[] memory recipients = new address[](1);
         uint256[] memory amounts = new uint256[](1);
-        
+
         // Verify initialMinters have no special role
         assertFalse(IAccessControl(address(token)).hasRole(MINTER_ROLE, initialMinter1));
         assertFalse(IAccessControl(address(token)).hasRole(MINTER_ROLE, initialMinter2));
@@ -137,7 +131,7 @@ contract ZKCTest is Test {
     function test_InitialMintersCanPartialMint() public {
         address[] memory recipients = new address[](1);
         uint256[] memory amounts = new uint256[](1);
-        
+
         // Verify initialMinters have no special role
         assertFalse(IAccessControl(address(token)).hasRole(MINTER_ROLE, initialMinter1));
         assertFalse(IAccessControl(address(token)).hasRole(MINTER_ROLE, initialMinter2));
@@ -147,7 +141,7 @@ contract ZKCTest is Test {
         // Minter 1 mints half their allocation
         recipients[0] = user1;
         amounts[0] = MINTER1_AMOUNT / 2;
-        
+
         vm.prank(initialMinter1);
         token.initialMint(recipients, amounts);
         assertEq(token.balanceOf(user1), MINTER1_AMOUNT / 2);
@@ -156,7 +150,7 @@ contract ZKCTest is Test {
         // Minter 1 mints remaining half
         // check they can't overmint
         uint256[] memory overMintAmounts1 = new uint256[](1);
-        overMintAmounts1[0] = MINTER1_AMOUNT / 2 + 1; 
+        overMintAmounts1[0] = MINTER1_AMOUNT / 2 + 1;
         vm.prank(initialMinter1);
         vm.expectRevert();
         token.initialMint(recipients, overMintAmounts1);
@@ -171,7 +165,7 @@ contract ZKCTest is Test {
         // Test initialMinter2 partial minting
         recipients[0] = user2;
         amounts[0] = MINTER2_AMOUNT / 2;
-        
+
         vm.prank(initialMinter2);
         token.initialMint(recipients, amounts);
         assertEq(token.balanceOf(user2), MINTER2_AMOUNT / 2);
@@ -181,7 +175,7 @@ contract ZKCTest is Test {
         vm.prank(initialMinter2);
         vm.expectRevert();
         uint256[] memory overMintAmounts2 = new uint256[](1);
-        overMintAmounts2[0] = MINTER2_AMOUNT / 2 + 1; 
+        overMintAmounts2[0] = MINTER2_AMOUNT / 2 + 1;
         token.initialMint(recipients, overMintAmounts2);
 
         // Check they can mint the remaining
@@ -213,7 +207,7 @@ contract ZKCTest is Test {
         // Complete initial minting
         address[] memory recipients = new address[](1);
         uint256[] memory amounts = new uint256[](1);
-        
+
         recipients[0] = user1;
         amounts[0] = MINTER1_AMOUNT;
         vm.prank(initialMinter1);
@@ -259,9 +253,9 @@ contract ZKCTest is Test {
         assertTrue(IAccessControl(address(token)).hasRole(MINTER_ROLE, user1));
 
         // Check role admin
-        assertEq(IAccessControl(address(token)).getRoleAdmin(MINTER_ROLE), ADMIN_ROLE); 
+        assertEq(IAccessControl(address(token)).getRoleAdmin(MINTER_ROLE), ADMIN_ROLE);
 
-        // Check 
+        // Check
     }
 
     function test_RoleRevocation() public {
@@ -314,4 +308,4 @@ contract ZKCTest is Test {
         vm.expectRevert();
         IAccessControl(address(token)).grantRole(MINTER_ROLE, user1);
     }
-} 
+}
