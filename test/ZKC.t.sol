@@ -16,8 +16,8 @@ contract ZKCTest is Test {
     address public user2;
     address public user3;
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * 10**18; // 1B tokens
-    uint256 public constant MINTER1_AMOUNT = (TOTAL_SUPPLY * 45) / 100; // 45% of 1B
-    uint256 public constant MINTER2_AMOUNT = (TOTAL_SUPPLY * 55) / 100; // 55% of 1B
+    uint256 public constant MINTER1_AMOUNT = (TOTAL_SUPPLY * 55) / 100; // 55% of 1B
+    uint256 public constant MINTER2_AMOUNT = (TOTAL_SUPPLY * 45) / 100; // 45% of 1B
 
     bytes32 public ADMIN_ROLE;
     bytes32 public MINTER_ROLE;
@@ -47,6 +47,8 @@ contract ZKCTest is Test {
             MINTER2_AMOUNT,
             owner
         );
+        console2.log("Token 1 amount: ", MINTER1_AMOUNT);
+        console2.log("Token 2 amount: ", MINTER2_AMOUNT);
     }
 
     function test_Initialization() public view {
@@ -60,6 +62,7 @@ contract ZKCTest is Test {
 
         // Verify initial role assignments
         assertTrue(IAccessControl(address(token)).hasRole(ADMIN_ROLE, owner));
+
         assertFalse(IAccessControl(address(token)).hasRole(ADMIN_ROLE, initialMinter1));
         assertFalse(IAccessControl(address(token)).hasRole(ADMIN_ROLE, initialMinter2));
         assertFalse(IAccessControl(address(token)).hasRole(MINTER_ROLE, initialMinter1));
@@ -93,9 +96,11 @@ contract ZKCTest is Test {
         assertEq(token.balanceOf(user2), MINTER1_AMOUNT / 2 + MINTER2_AMOUNT / 2);
         assertEq(token.balanceOf(user3), MINTER2_AMOUNT / 2);
         assertEq(token.initialMinter2Remaining(), 0);
+
+        assertEq(token.totalSupply(), TOTAL_SUPPLY);
     }
 
-    function test_CannotOvermint() public {
+    function test_InitialMintersCannotOvermint() public {
         address[] memory recipients = new address[](1);
         uint256[] memory amounts = new uint256[](1);
         
@@ -129,7 +134,7 @@ contract ZKCTest is Test {
         token.initialMint(recipients, amounts);
     }
 
-    function test_PartialMinting() public {
+    function test_InitialMintersCanPartialMint() public {
         address[] memory recipients = new address[](1);
         uint256[] memory amounts = new uint256[](1);
         
@@ -224,41 +229,22 @@ contract ZKCTest is Test {
 
         // Grant minter role and verify
         vm.prank(owner);
-        IAccessControl(address(token)).grantRole(MINTER_ROLE, user1);
-        assertTrue(IAccessControl(address(token)).hasRole(MINTER_ROLE, user1));
+        IAccessControl(address(token)).grantRole(MINTER_ROLE, user3);
+        assertTrue(IAccessControl(address(token)).hasRole(MINTER_ROLE, user3));
 
         // Verify minter can mint
-        vm.prank(user1);
+        vm.prank(user3);
         token.mint(user3, 1000);
         assertEq(token.balanceOf(user3), 1000);
+
+        // check total supply
+        assertEq(token.totalSupply(), TOTAL_SUPPLY + 1000);
 
         // Verify non-minter cannot mint
         assertFalse(IAccessControl(address(token)).hasRole(MINTER_ROLE, user2));
         vm.prank(user2);
         vm.expectRevert();
         token.mint(user3, 1000);
-
-        // check total supply
-        assertEq(token.totalSupply(), TOTAL_SUPPLY + 1000);
-    }
-
-    function test_TotalSupplyAfterInitialMinting() public {
-        address[] memory recipients = new address[](1);
-        uint256[] memory amounts = new uint256[](1);
-        
-        // Minter 1 mints their full allocation
-        recipients[0] = user1;
-        amounts[0] = MINTER1_AMOUNT;
-        vm.prank(initialMinter1);
-        token.initialMint(recipients, amounts);
-
-        // Minter 2 mints their full allocation
-        recipients[0] = user2;
-        amounts[0] = MINTER2_AMOUNT;
-        vm.prank(initialMinter2);
-        token.initialMint(recipients, amounts);
-
-        assertEq(token.totalSupply(), TOTAL_SUPPLY);
     }
 
     function test_RoleAssignments() public {
@@ -273,7 +259,9 @@ contract ZKCTest is Test {
         assertTrue(IAccessControl(address(token)).hasRole(MINTER_ROLE, user1));
 
         // Check role admin
-        assertEq(IAccessControl(address(token)).getRoleAdmin(MINTER_ROLE), ADMIN_ROLE);
+        assertEq(IAccessControl(address(token)).getRoleAdmin(MINTER_ROLE), ADMIN_ROLE); 
+
+        // Check 
     }
 
     function test_RoleRevocation() public {
