@@ -39,10 +39,10 @@ contract DeployZKC is Script {
         address implementation = address(new ZKC());
         console2.log("Deployed ZKC implementation to: ", implementation);
         ERC1967Proxy proxy = new ERC1967Proxy{salt: salt}(
-                implementation,
-                abi.encodeCall(
-                    ZKC.initialize, (initialMinter1, initialMinter2, initialMinter1Amount, initialMinter2Amount, owner)
-                )
+            implementation,
+            abi.encodeCall(
+                ZKC.initialize, (initialMinter1, initialMinter2, initialMinter1Amount, initialMinter2Amount, owner)
+            )
         );
         address zkc = address(proxy);
         console2.log("Deployed ZKC to: ", zkc);
