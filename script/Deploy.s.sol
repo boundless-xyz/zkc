@@ -9,19 +9,19 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 /**
  * Sample Usage (addresses are Anvil default accounts):
  *
-
-export ADMIN="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-export INITIAL_MINTER_1="0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-export INITIAL_MINTER_2="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
-export TOTAL_INITIAL_SUPPLY="1000000000000000000000000000"
-export INITIAL_MINTER_1_AMOUNT="550000000000000000000000000"
-export INITIAL_MINTER_2_AMOUNT="450000000000000000000000000"
-export SALT="0x0000000000000000000000000000000000000000000000000000000000000001"
-
-forge script script/Deploy.s.sol:DeployZKC \
-    --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-    --broadcast \
-    --rpc-url http://127.0.0.1:8545
+ *
+ * export ADMIN="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+ * export INITIAL_MINTER_1="0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+ * export INITIAL_MINTER_2="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+ * export TOTAL_INITIAL_SUPPLY="1000000000000000000000000000"
+ * export INITIAL_MINTER_1_AMOUNT="550000000000000000000000000"
+ * export INITIAL_MINTER_2_AMOUNT="450000000000000000000000000"
+ * export SALT="0x0000000000000000000000000000000000000000000000000000000000000001"
+ *
+ * forge script script/Deploy.s.sol:DeployZKC \
+ *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *     --broadcast \
+ *     --rpc-url http://127.0.0.1:8545
  */
 contract DeployZKC is Script {
     function setUp() public {}
@@ -41,16 +41,18 @@ contract DeployZKC is Script {
         address implementation = address(new ZKC{salt: 0x0}());
         console2.log("Deployed ZKC implementation to: ", implementation);
 
-        bytes32 initCodeHash = keccak256(abi.encodePacked(
-            type(ERC1967Proxy).creationCode,
-            abi.encode(
-                implementation,
-                abi.encodeCall(
-                    ZKC.initialize,
-                    (initialMinter1, initialMinter2, initialMinter1Amount, initialMinter2Amount, admin)
+        bytes32 initCodeHash = keccak256(
+            abi.encodePacked(
+                type(ERC1967Proxy).creationCode,
+                abi.encode(
+                    implementation,
+                    abi.encodeCall(
+                        ZKC.initialize,
+                        (initialMinter1, initialMinter2, initialMinter1Amount, initialMinter2Amount, admin)
+                    )
                 )
             )
-        ));
+        );
         console2.log("initCodeHash: ");
         console2.logBytes32(initCodeHash);
 
@@ -58,8 +60,7 @@ contract DeployZKC is Script {
         ERC1967Proxy proxy = new ERC1967Proxy{salt: salt}(
             implementation,
             abi.encodeCall(
-                ZKC.initialize,
-                (initialMinter1, initialMinter2, initialMinter1Amount, initialMinter2Amount, admin)
+                ZKC.initialize, (initialMinter1, initialMinter2, initialMinter1Amount, initialMinter2Amount, admin)
             )
         );
         address zkc = address(proxy);
