@@ -9,7 +9,7 @@ import {ZKC} from "../src/ZKC.sol";
  *
  * # Address of the already deployed ZKC contract
  * export ZKC_ADDRESS="0x000006c2A22ff4A44ff1f5d0F2ed65F781F55555"
- * 
+ *
  * # Comma-separated list of recipient addresses
  * export RECIPIENTS="0x139Ce48CD89155a443786FFBE32185Bb50Ae2b69"
  * # Comma-separated list of amounts (in ZKC, not wei)
