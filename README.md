@@ -1,10 +1,10 @@
-# ZKC
+# ZKC Token and Staking Contracts
 
-## Deployment
+## Token Deployment
 
 ### 0x000006c2A22ff4A44ff1f5d0F2ed65F781F55555
 
-Deployed by 0x139Ce48CD89155a443786FFBE32185Bb50Ae2b6 from [commit](http://github.com/boundless-xyz/zkc/commit/61f488f73c3a371f0329cb9d492fb77a5b3d745f) with config:
+Deployed by 0x139Ce48CD89155a443786FFBE32185Bb50Ae2b6 from [commit](http://github.com/boundless-xyz/zkc/commit/61f488f73c3a371f0329cb9d492fb77a5b3d745f) on ETH L1 with config:
 
 ```
 export ADMIN="0x3886eEaf95AA2bDDdf0C924925e290291f70447F"
@@ -15,3 +15,7 @@ export INITIAL_MINTER_1_AMOUNT="550000000000000000000000000"
 export INITIAL_MINTER_2_AMOUNT="450000000000000000000000000"
 export SALT="0x139ce48cd89155a443786ffbe32185bb50ae2b69f4aee41b0b7eab02dfb6ff33"
 ```
+
+## Staking Contract Deployment
+
+### TODO: Currently in development
