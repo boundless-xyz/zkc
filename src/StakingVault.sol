@@ -160,35 +160,6 @@ contract StakingVault is
         veZkcToken.burn(tokenId);
     }
 
-    function getVotingPower(address user) external view returns (uint256) {
-        return veZkcToken.getCurrentVotingPower(user);
-    }
-
-    function getRewardPower(address user) external view returns (uint256) {
-        return veZkcToken.getRewardPower(user);
-    }
-    
-    function getMinLockWeeks() external pure returns (uint256) {
-        return 4; // MIN_LOCK_WEEKS
-    }
-    
-    function getMaxLockWeeks() external pure returns (uint256) {
-        return 52; // MAX_LOCK_WEEKS
-    }
-    
-    function weeksToSeconds(uint256 numWeeks) external pure returns (uint256) {
-        return numWeeks * 1 weeks;
-    }
-    
-    function secondsToWeeks(uint256 seconds_) external pure returns (uint256) {
-        return seconds_ / 1 weeks;
-    }
-    
-    // Get voting power for a given amount and lock weeks
-    function getVotingPowerForWeeks(uint256 amount, uint256 lockWeeks) external pure returns (uint256) {
-        // Calculate voting power: amount * lockWeeks / MAX_LOCK_WEEKS
-        return amount * lockWeeks / 52; // 52 is MAX_LOCK_WEEKS
-    }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
 }

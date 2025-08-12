@@ -84,7 +84,7 @@ contract E2ETest is Test {
         vm.startPrank(alice);
         
         zkc.approve(address(stakingVault), STAKE_AMOUNT);
-        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 208); // 208 weeks = 4 years
+        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 52); // 52 weeks = 1 year
 
         // Check balances
         assertEq(zkc.balanceOf(alice), STAKE_AMOUNT * 9); // 10 - 1
@@ -94,7 +94,7 @@ contract E2ETest is Test {
         // Check voting power (should be full amount for max lock)
         uint256 expectedPower = STAKE_AMOUNT; // No multipliers, just amount for max lock
         assertEq(veZkcToken.votingPower(tokenId), expectedPower);
-        assertEq(stakingVault.getVotingPower(alice), expectedPower);
+        assertEq(veZkcToken.getCurrentVotingPower(alice), expectedPower);
         
         vm.stopPrank();
     }
@@ -103,21 +103,21 @@ contract E2ETest is Test {
         vm.startPrank(alice);
         
         zkc.approve(address(stakingVault), STAKE_AMOUNT);
-        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 208); // 208 weeks = 4 years
+        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 52); // 52 weeks = 1 year
 
         // Check initial voting power (full amount for max lock)
         uint256 initialPower = veZkcToken.votingPower(tokenId);
         assertEq(initialPower, STAKE_AMOUNT);
 
-        // Fast forward 2 years (half the lock period)
-        vm.warp(block.timestamp + 104 weeks);
+        // Fast forward 26 weeks (half the lock period)
+        vm.warp(block.timestamp + 26 weeks);
 
         // Voting power should be approximately half
         uint256 halfTimePower = veZkcToken.votingPower(tokenId);
         assertApproxEqRel(halfTimePower, STAKE_AMOUNT / 2, 0.01e18); // 1% tolerance
 
         // Fast forward to end of lock period
-        vm.warp(block.timestamp + 104 weeks);
+        vm.warp(block.timestamp + 26 weeks);
 
         // Voting power should be zero
         uint256 endPower = veZkcToken.votingPower(tokenId);
@@ -130,10 +130,10 @@ contract E2ETest is Test {
         vm.startPrank(alice);
         
         zkc.approve(address(stakingVault), STAKE_AMOUNT * 2);
-        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 208); // 208 weeks
+        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 52); // 52 weeks
 
-        // Fast forward 104 weeks (half the lock period)
-        vm.warp(block.timestamp + 104 weeks);
+        // Fast forward 26 weeks (half the lock period)
+        vm.warp(block.timestamp + 26 weeks);
 
         uint256 powerBeforeAdd = veZkcToken.votingPower(tokenId);
         console.log("Power before adding stake:", powerBeforeAdd);
@@ -221,7 +221,7 @@ contract E2ETest is Test {
         vm.startPrank(alice);
         
         zkc.approve(address(stakingVault), STAKE_AMOUNT);
-        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 208); // Max lock weeks
+        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 52); // Max lock weeks
         
         // Test delegation
         assertEq(veZkcToken.delegates(alice), alice); // Auto-delegates to self
@@ -242,10 +242,10 @@ contract E2ETest is Test {
         // Bob stakes and delegates to self
         vm.startPrank(bob);
         zkc.approve(address(stakingVault), STAKE_AMOUNT * 2);
-        uint256 bobTokenId = stakingVault.stake(STAKE_AMOUNT * 2, 104); // 104 weeks = 2 years = half max
+        uint256 bobTokenId = stakingVault.stake(STAKE_AMOUNT * 2, 26); // 26 weeks = half max
         
         // Bob's voting power should be auto-delegated to self already
-        uint256 bobOwnPower = STAKE_AMOUNT; // (2000 * 104) / 208 = 1000
+        uint256 bobOwnPower = STAKE_AMOUNT; // (2000 * 26) / 52 = 1000
         
         // Total should be Alice's delegated power + Bob's own power
         uint256 totalExpectedPower = expectedPower + bobOwnPower;
@@ -260,7 +260,7 @@ contract E2ETest is Test {
         vm.startPrank(alice);
         
         zkc.approve(address(stakingVault), STAKE_AMOUNT);
-        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 208); // Max lock weeks
+        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 52); // Max lock weeks
         
         // Record initial block and voting power
         uint256 initialBlock = block.number;
@@ -304,23 +304,23 @@ contract E2ETest is Test {
         vm.startPrank(alice);
         
         zkc.approve(address(stakingVault), STAKE_AMOUNT);
-        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 208); // Max lock weeks
+        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 52); // Max lock weeks
 
         // Note: veZKC auto-delegates to self in _updateVotingPower during minting
         // Check reward power matches voting power (both use same formula now)
         uint256 expectedInitialPower = STAKE_AMOUNT; // No multipliers, just amount for max lock
         assertEq(veZkcToken.getRewardPower(alice), expectedInitialPower);
         assertEq(veZkcToken.getVotes(alice), expectedInitialPower);
-        assertEq(stakingVault.getRewardPower(alice), expectedInitialPower);
-        assertEq(stakingVault.getVotingPower(alice), expectedInitialPower);
+        assertEq(veZkcToken.getRewardPower(alice), expectedInitialPower);
+        assertEq(veZkcToken.getCurrentVotingPower(alice), expectedInitialPower);
 
         // Fast forward and check decay affects both equally
-        vm.warp(block.timestamp + 104 weeks); // Half the lock time
+        vm.warp(block.timestamp + 26 weeks); // Half the lock time
 
         // Note: getVotes() returns checkpointed values, which don't auto-update with time decay
         // The actual individual voting power decays correctly
         uint256 actualRewardPower = veZkcToken.getRewardPower(alice);
-        uint256 actualVotingPower = stakingVault.getVotingPower(alice);
+        uint256 actualVotingPower = veZkcToken.getCurrentVotingPower(alice);
         uint256 checkpointedVotes = veZkcToken.getVotes(alice);
         
         console.log("After 104 weeks:");
@@ -374,7 +374,7 @@ contract E2ETest is Test {
         assertGt(power2, power1);
 
         // Total voting power should be sum of all positions
-        uint256 totalPower = stakingVault.getVotingPower(alice);
+        uint256 totalPower = veZkcToken.getCurrentVotingPower(alice);
         assertEq(totalPower, power1 + power2 + power3);
 
         vm.stopPrank();
@@ -395,7 +395,7 @@ contract E2ETest is Test {
         console.log("Power before extending lock:", powerBeforeExtend);
         
         // Should have ~50% power remaining (26 weeks remaining out of original 52)
-        uint256 expectedPowerBefore = STAKE_AMOUNT * 26 weeks / (208 weeks);
+        uint256 expectedPowerBefore = STAKE_AMOUNT * 26 weeks / (52 weeks);
         assertApproxEqRel(powerBeforeExtend, expectedPowerBefore, 0.01e18);
 
         // Extend by 1 week (now have 27 weeks total remaining)
@@ -405,7 +405,7 @@ contract E2ETest is Test {
         console.log("Power after extending by 1 week:", powerAfterExtend);
 
         // After extending by 1 week, should have power for 27 weeks remaining
-        uint256 expectedPowerAfter = STAKE_AMOUNT * 27 weeks / (208 weeks);
+        uint256 expectedPowerAfter = STAKE_AMOUNT * 27 weeks / (52 weeks);
         assertApproxEqRel(powerAfterExtend, expectedPowerAfter, 0.01e18);
 
         // Check that lock end was extended by 1 week
@@ -424,15 +424,15 @@ contract E2ETest is Test {
         // Fast forward 26 weeks (6 months)
         vm.warp(block.timestamp + 26 weeks);
 
-        // Extend to a specific end time (104 weeks from now = 2 years from now)
-        uint256 newTargetEndTime = block.timestamp + 104 weeks;
+        // Extend to a specific end time (52 weeks from now = 1 year from now)
+        uint256 newTargetEndTime = block.timestamp + 52 weeks;
         stakingVault.extendLockToTime(tokenId, newTargetEndTime);
 
         uint256 powerAfterExtend = veZkcToken.votingPower(tokenId);
         console.log("Power after extending to specific time:", powerAfterExtend);
 
-        // After extending, should have power for 104 weeks remaining
-        uint256 expectedPower = STAKE_AMOUNT * 104 weeks / (208 weeks); // 50% of max
+        // After extending, should have power for 52 weeks remaining
+        uint256 expectedPower = STAKE_AMOUNT; // 100% of max
         assertApproxEqRel(powerAfterExtend, expectedPower, 0.01e18);
 
         // Check that lock end was updated to target time (rounded down to week)
@@ -452,23 +452,23 @@ contract E2ETest is Test {
         uint256 tokenId4 = stakingVault.stake(STAKE_AMOUNT, 4);   // 4 weeks (minimum)
         uint256 tokenId26 = stakingVault.stake(STAKE_AMOUNT, 26); // 26 weeks (~6 months)
         uint256 tokenId52 = stakingVault.stake(STAKE_AMOUNT, 52); // 52 weeks (1 year)
-        uint256 tokenId208 = stakingVault.stake(STAKE_AMOUNT, 208); // 208 weeks (4 years, max)
+        uint256 tokenIdMax = stakingVault.stake(STAKE_AMOUNT, 52); // 52 weeks (1 year, max)
         
         // Check voting powers (natural scaling based on lock duration)
-        uint256 power4 = veZkcToken.votingPower(tokenId4);     // 1000 * 4/208
-        uint256 power26 = veZkcToken.votingPower(tokenId26);   // 1000 * 26/208
-        uint256 power52 = veZkcToken.votingPower(tokenId52);   // 1000 * 52/208
-        uint256 power208 = veZkcToken.votingPower(tokenId208); // 1000 * 208/208 = 1000
+        uint256 power4 = veZkcToken.votingPower(tokenId4);     // 1000 * 4/52
+        uint256 power26 = veZkcToken.votingPower(tokenId26);   // 1000 * 26/52
+        uint256 power52 = veZkcToken.votingPower(tokenId52);   // 1000 * 52/52
+        uint256 power52Max = veZkcToken.votingPower(tokenIdMax); // 1000 * 52/52 = 1000
         
-        assertEq(power4, STAKE_AMOUNT * 4 / 208);     // ~19
-        assertEq(power26, STAKE_AMOUNT * 26 / 208);   // 125
-        assertEq(power52, STAKE_AMOUNT * 52 / 208);   // 250
-        assertEq(power208, STAKE_AMOUNT);             // 1000
+        assertEq(power4, STAKE_AMOUNT * 4 / 52);     // ~77
+        assertEq(power26, STAKE_AMOUNT * 26 / 52);   // 500
+        assertEq(power52, STAKE_AMOUNT * 52 / 52);   // 1000
+        assertEq(power52Max, STAKE_AMOUNT);             // 1000
         
         console.log("4 week power:", power4);
         console.log("26 week power:", power26);
         console.log("52 week power:", power52);
-        console.log("208 week power:", power208);
+        console.log("52 week power:", power52Max);
         
         vm.stopPrank();
     }
@@ -485,14 +485,14 @@ contract E2ETest is Test {
         uint256 powerBefore = veZkcToken.votingPower(tokenId);
         console.log("Power before upgrade:", powerBefore);
         
-        // Extend to max time from now (208 weeks from current timestamp)
-        uint256 maxLockEndTime = block.timestamp + 208 weeks;
+        // Extend to max time from now (52 weeks from current timestamp)
+        uint256 maxLockEndTime = block.timestamp + 52 weeks;
         stakingVault.extendLockToTime(tokenId, maxLockEndTime);
         
         uint256 powerAfter = veZkcToken.votingPower(tokenId);
         console.log("Power after upgrade:", powerAfter);
         
-        // Should now have full power (amount * 208/208 = amount) - allow small precision error
+        // Should now have full power (amount * 52/52 = amount) - allow small precision error
         assertApproxEqRel(powerAfter, STAKE_AMOUNT, 0.01e18); // 1% tolerance
         
         // Try to reduce lock end time (should fail)
@@ -515,8 +515,8 @@ contract E2ETest is Test {
         uint256 powerBefore = veZkcToken.votingPower(tokenId);
         console.log("Power with 4 weeks remaining:", powerBefore);
         
-        // Expected power with 4 weeks remaining: amount * 4/208
-        uint256 expectedPowerBefore = STAKE_AMOUNT * 4 / 208;
+        // Expected power with 4 weeks remaining: amount * 4/52
+        uint256 expectedPowerBefore = STAKE_AMOUNT * 4 / 52;
         assertApproxEqRel(powerBefore, expectedPowerBefore, 0.01e18);
         
         // Extend by just 1 week (now should have 5 weeks total remaining)
@@ -525,8 +525,8 @@ contract E2ETest is Test {
         uint256 powerAfter = veZkcToken.votingPower(tokenId);
         console.log("Power after extending by 1 week:", powerAfter);
         
-        // Expected power with 5 weeks remaining: amount * 5/208
-        uint256 expectedPowerAfter = STAKE_AMOUNT * 5 / 208;
+        // Expected power with 5 weeks remaining: amount * 5/52
+        uint256 expectedPowerAfter = STAKE_AMOUNT * 5 / 52;
         assertApproxEqRel(powerAfter, expectedPowerAfter, 0.01e18);
         
         // Verify we can extend by very small amounts multiple times
@@ -534,7 +534,7 @@ contract E2ETest is Test {
         stakingVault.extendLockByWeeks(tokenId, 1); // Now 7 weeks
         
         uint256 powerAfterMultipleExtensions = veZkcToken.votingPower(tokenId);
-        uint256 expectedPowerFinal = STAKE_AMOUNT * 7 / 208;
+        uint256 expectedPowerFinal = STAKE_AMOUNT * 7 / 52;
         assertApproxEqRel(powerAfterMultipleExtensions, expectedPowerFinal, 0.01e18);
         
         vm.stopPrank();
@@ -546,15 +546,15 @@ contract E2ETest is Test {
         zkc.approve(address(stakingVault), STAKE_AMOUNT * 4);
         
         // Test that week constants are correctly returned
-        assertEq(stakingVault.getMinLockWeeks(), 4);    // Min 4 weeks
-        assertEq(stakingVault.getMaxLockWeeks(), 208);  // Max 208 weeks
+        assertEq(veZkcToken.MIN_LOCK_WEEKS(), 4);    // Min 4 weeks
+        assertEq(veZkcToken.MAX_LOCK_WEEKS(), 52);  // Max 52 weeks
         
         // Test week conversions
-        assertEq(stakingVault.weeksToSeconds(4), 4 weeks);
-        assertEq(stakingVault.secondsToWeeks(208 weeks), 208);
+        assertEq(veZkcToken.weeksToSeconds(4), 4 weeks);
+        assertEq(veZkcToken.secondsToWeeks(52 weeks), 52);
         
         // Test that voting power scales with lock weeks
-        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 208); // Max lock
+        uint256 tokenId = stakingVault.stake(STAKE_AMOUNT, 52); // Max lock
         
         uint256 expectedPower = STAKE_AMOUNT; // Full amount for max lock
         assertEq(veZkcToken.votingPower(tokenId), expectedPower);
@@ -566,7 +566,7 @@ contract E2ETest is Test {
         
         // Test maximum lock validation  
         vm.expectRevert("Invalid lock weeks");
-        stakingVault.stake(STAKE_AMOUNT, 209); // Above maximum
+        stakingVault.stake(STAKE_AMOUNT, 53); // Above maximum
         
         vm.stopPrank();
     }
