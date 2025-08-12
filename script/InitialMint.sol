@@ -56,6 +56,7 @@ contract InitialMint is Script {
 
         require(recipients.length == amounts.length, "Recipients and amounts arrays must have same length");
 
+        console2.log("Minting...");
         // Perform initial mint
         zkcContract.initialMint(recipients, amounts);
 
