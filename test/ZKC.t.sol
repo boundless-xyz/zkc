@@ -22,6 +22,8 @@ contract ZKCTest is Test {
 
     bytes32 public ADMIN_ROLE;
     bytes32 public MINTER_ROLE;
+    bytes32 public POVW_MINTER_ROLE;
+    bytes32 public STAKING_MINTER_ROLE;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -39,6 +41,8 @@ contract ZKCTest is Test {
 
         ADMIN_ROLE = token.ADMIN_ROLE();
         MINTER_ROLE = token.MINTER_ROLE();
+        POVW_MINTER_ROLE = token.POVW_MINTER_ROLE();
+        STAKING_MINTER_ROLE = token.STAKING_MINTER_ROLE();
 
         // Initialize
         token.initialize(initialMinter1, initialMinter2, MINTER1_AMOUNT, MINTER2_AMOUNT, owner);
@@ -272,5 +276,342 @@ contract ZKCTest is Test {
         vm.prank(owner);
         vm.expectRevert();
         IAccessControl(address(token)).grantRole(MINTER_ROLE, user1);
+    }
+
+    // ============ INFLATION TESTS ============
+
+    function test_InflationConstants() public view {
+        assertEq(token.INITIAL_SUPPLY(), 1_000_000_000 * 10**18);
+        assertEq(token.INITIAL_INFLATION_RATE(), 700); // 7.00%
+        assertEq(token.FINAL_INFLATION_RATE(), 300);   // 3.00%
+        assertEq(token.INFLATION_STEP(), 50);          // 0.50%
+        assertEq(token.BASIS_POINTS(), 10000);
+        assertEq(token.EPOCH_DURATION(), 2 days);
+        assertEq(token.EPOCHS_PER_YEAR(), 182);
+        assertEq(token.POVW_ALLOCATION(), 75);         // 75%
+        assertEq(token.STAKING_ALLOCATION(), 25);      // 25%
+    }
+
+    function test_InflationRateCalculation() public view {
+        // Year 1: 7.00%
+        assertEq(token.getAnnualInflationRate(0), 700);
+        assertEq(token.getAnnualInflationRate(91), 700);  // Mid-year 1
+        assertEq(token.getAnnualInflationRate(181), 700); // End of year 1
+
+        // Year 2: 6.50%
+        assertEq(token.getAnnualInflationRate(182), 650);
+        assertEq(token.getAnnualInflationRate(273), 650); // Mid-year 2
+        assertEq(token.getAnnualInflationRate(363), 650); // End of year 2
+
+        // Year 3: 6.00%
+        assertEq(token.getAnnualInflationRate(364), 600);
+
+        // Year 8: 3.50%
+        assertEq(token.getAnnualInflationRate(1274), 350); // 7 * 182 = 1274
+
+        // Year 9 and beyond: 3.00% (floor)
+        assertEq(token.getAnnualInflationRate(1456), 300); // 8 * 182 = 1456
+        assertEq(token.getAnnualInflationRate(1638), 300); // 9 * 182 = 1638
+        assertEq(token.getAnnualInflationRate(10000), 300); // Far future
+    }
+
+    function test_TheoreticalSupplyCalculation() public view {
+        // Epoch 0: Initial supply
+        assertEq(token.getTheoreticalSupplyAtEpoch(0), token.INITIAL_SUPPLY());
+
+        // Epoch 1: First inflation
+        uint256 supply1 = token.getTheoreticalSupplyAtEpoch(1);
+        assertTrue(supply1 > token.INITIAL_SUPPLY());
+
+        // Supply should grow over time
+        uint256 supply10 = token.getTheoreticalSupplyAtEpoch(10);
+        uint256 supply100 = token.getTheoreticalSupplyAtEpoch(100);
+        uint256 supply1000 = token.getTheoreticalSupplyAtEpoch(1000);
+
+        assertTrue(supply10 > supply1);
+        assertTrue(supply100 > supply10);
+        assertTrue(supply1000 > supply100);
+
+        // Verify compound growth (not linear)
+        uint256 supply2 = token.getTheoreticalSupplyAtEpoch(2);
+        uint256 epochInflation1 = supply1 - token.INITIAL_SUPPLY();
+        uint256 epochInflation2 = supply2 - supply1;
+        
+        // Second epoch inflation should be slightly larger due to compound effect
+        assertTrue(epochInflation2 > epochInflation1);
+    }
+
+    function test_EpochInflationAmount() public view {
+        // Epoch 0 has no inflation
+        assertEq(token.getEpochInflationAmount(0), 0);
+
+        // Epoch 1 should have some inflation
+        uint256 inflation1 = token.getEpochInflationAmount(1);
+        assertTrue(inflation1 > 0);
+
+        // Later epochs should have different amounts
+        uint256 inflation10 = token.getEpochInflationAmount(10);
+        uint256 inflation100 = token.getEpochInflationAmount(100);
+
+        assertTrue(inflation10 > 0);
+        assertTrue(inflation100 > 0);
+
+        // Inflation should grow over time due to compound effect
+        assertTrue(inflation10 > inflation1);
+        assertTrue(inflation100 > inflation10);
+    }
+
+    function test_AllocationCalculations() public view {
+        uint256 epoch = 10;
+        uint256 totalInflation = token.getTotalEpochInflation(epoch);
+        
+        uint256 povwAllocation = token.getPoVWAllocationForEpoch(epoch);
+        uint256 stakingAllocation = token.getStakingAllocationForEpoch(epoch);
+
+        // Verify percentage splits (allow for rounding)
+        assertEq(povwAllocation, (totalInflation * 75) / 100);
+        assertEq(stakingAllocation, (totalInflation * 25) / 100);
+        
+        // Verify allocations add up to total (within 1 wei due to rounding)
+        uint256 totalAllocated = povwAllocation + stakingAllocation;
+        assertTrue(totalAllocated >= totalInflation - 1 && totalAllocated <= totalInflation + 1);
+    }
+
+    function test_MintPoVWReward() public {
+        // Setup: Grant POVW_MINTER_ROLE to user1
+        vm.prank(owner);
+        IAccessControl(address(token)).grantRole(POVW_MINTER_ROLE, user1);
+
+        // Warp time to simulate epoch progression  
+        vm.warp(block.timestamp + 10 days); // 5 epochs
+        
+        // Get current epoch (deploymentTime gets initialized on first mint call)
+        uint256 epoch = token.getCurrentEpoch();
+        if (epoch == 0) epoch = 1; // Use epoch 1 if deploymentTime not set yet
+        uint256 povwAllocation = token.getPoVWAllocationForEpoch(epoch);
+        uint256 mintAmount = povwAllocation / 2; // Mint half of allocation
+
+        uint256 balanceBefore = token.balanceOf(user2);
+        
+        vm.prank(user1);
+        token.mintPoVWReward(user2, mintAmount, epoch);
+
+        uint256 balanceAfter = token.balanceOf(user2);
+        assertEq(balanceAfter - balanceBefore, mintAmount);
+
+        // Verify tracking
+        assertEq(token.epochPoVWMinted(epoch), mintAmount);
+        assertEq(token.getPoVWRemainingForEpoch(epoch), povwAllocation - mintAmount);
+    }
+
+    function test_MintStakingReward() public {
+        // Setup: Grant STAKING_MINTER_ROLE to user1
+        vm.prank(owner);
+        IAccessControl(address(token)).grantRole(STAKING_MINTER_ROLE, user1);
+
+        // Warp time to simulate epoch progression
+        vm.warp(block.timestamp + 10 days); // 5 epochs
+
+        // Get current epoch (deploymentTime gets initialized on first mint call)
+        uint256 epoch = token.getCurrentEpoch();
+        if (epoch == 0) epoch = 1; // Use epoch 1 if deploymentTime not set yet
+        uint256 stakingAllocation = token.getStakingAllocationForEpoch(epoch);
+        uint256 mintAmount = stakingAllocation / 3; // Mint third of allocation
+
+        uint256 balanceBefore = token.balanceOf(user3);
+        
+        vm.prank(user1);
+        token.mintStakingReward(user3, mintAmount, epoch);
+
+        uint256 balanceAfter = token.balanceOf(user3);
+        assertEq(balanceAfter - balanceBefore, mintAmount);
+
+        // Verify tracking
+        assertEq(token.epochStakingMinted(epoch), mintAmount);
+        assertEq(token.getStakingRemainingForEpoch(epoch), stakingAllocation - mintAmount);
+    }
+
+    function test_InflationAllocationEnforcement() public {
+        // Setup roles
+        vm.startPrank(owner);
+        IAccessControl(address(token)).grantRole(POVW_MINTER_ROLE, user1);
+        IAccessControl(address(token)).grantRole(STAKING_MINTER_ROLE, user2);
+        vm.stopPrank();
+
+        // Warp time
+        vm.warp(block.timestamp + 4 days); // 2 epochs
+
+        // Get current epoch (deploymentTime gets initialized on first mint call)
+        uint256 epoch = token.getCurrentEpoch();
+        if (epoch == 0) epoch = 1; // Use epoch 1 if deploymentTime not set yet
+        uint256 povwAllocation = token.getPoVWAllocationForEpoch(epoch);
+        uint256 stakingAllocation = token.getStakingAllocationForEpoch(epoch);
+
+        // Try to mint more than PoVW allocation (should fail)
+        vm.prank(user1);
+        vm.expectRevert("Exceeds PoVW allocation for epoch");
+        token.mintPoVWReward(user1, povwAllocation + 1, epoch);
+
+        // Try to mint more than staking allocation (should fail)
+        vm.prank(user2);
+        vm.expectRevert("Exceeds staking allocation for epoch");
+        token.mintStakingReward(user2, stakingAllocation + 1, epoch);
+
+        // Mint full PoVW allocation
+        vm.prank(user1);
+        token.mintPoVWReward(user1, povwAllocation, epoch);
+
+        // Try to mint more PoVW (should fail)
+        vm.prank(user1);
+        vm.expectRevert("Exceeds PoVW allocation for epoch");
+        token.mintPoVWReward(user1, 1, epoch);
+
+        // Mint full staking allocation
+        vm.prank(user2);
+        token.mintStakingReward(user2, stakingAllocation, epoch);
+
+        // Try to mint more staking (should fail)
+        vm.prank(user2);
+        vm.expectRevert("Exceeds staking allocation for epoch");
+        token.mintStakingReward(user2, 1, epoch);
+    }
+
+    function test_OnlyAuthorizedCanMintInflation() public {
+        vm.warp(block.timestamp + 2 days); // 1 epoch
+        
+        // Get current epoch (deploymentTime gets initialized on first mint call)
+        uint256 epoch = token.getCurrentEpoch();
+        if (epoch == 0) epoch = 1; // Use epoch 1 if deploymentTime not set yet
+        uint256 amount = 1000;
+
+        // user1 without role cannot mint PoVW
+        vm.prank(user1);
+        vm.expectRevert();
+        token.mintPoVWReward(user1, amount, epoch);
+
+        // user2 without role cannot mint staking
+        vm.prank(user2);
+        vm.expectRevert();
+        token.mintStakingReward(user2, amount, epoch);
+
+        // Grant roles
+        vm.startPrank(owner);
+        IAccessControl(address(token)).grantRole(POVW_MINTER_ROLE, user1);
+        IAccessControl(address(token)).grantRole(STAKING_MINTER_ROLE, user2);
+        vm.stopPrank();
+
+        // Now they can mint
+        vm.prank(user1);
+        token.mintPoVWReward(user1, amount, epoch);
+
+        vm.prank(user2);
+        token.mintStakingReward(user2, amount, epoch);
+
+        assertEq(token.balanceOf(user1), amount);
+        assertEq(token.balanceOf(user2), amount);
+    }
+
+    function test_InvalidEpochMinting() public {
+        // Setup roles
+        vm.startPrank(owner);
+        IAccessControl(address(token)).grantRole(POVW_MINTER_ROLE, user1);
+        IAccessControl(address(token)).grantRole(STAKING_MINTER_ROLE, user2);
+        vm.stopPrank();
+
+        // Try to mint for epoch 0 (should fail with "Invalid epoch")
+        vm.prank(user1);
+        vm.expectRevert("Invalid epoch");
+        token.mintPoVWReward(user1, 1000, 0);
+
+        // Initialize deployment time by minting for epoch 1 first
+        vm.warp(block.timestamp + 2 days); // Move to epoch 1
+        vm.prank(user1);
+        token.mintPoVWReward(user1, 100, 1);
+        
+        // Now try to mint for future epoch (should fail)
+        uint256 currentEpoch = token.getCurrentEpoch();
+        vm.prank(user1);
+        vm.expectRevert("Invalid epoch");
+        token.mintPoVWReward(user1, 1000, currentEpoch + 10);
+    }
+
+    function test_EpochProgression() public view {
+        // At deployment, current epoch should be 0
+        uint256 currentEpoch = token.getCurrentEpoch();
+        assertEq(currentEpoch, 0);
+        
+        // Check epoch start time
+        if (token.deploymentTime() > 0) {
+            uint256 epochStartTime = token.getEpochStartTime(1);
+            assertTrue(epochStartTime > block.timestamp);
+        }
+    }
+
+    function test_SupplyProgression() public {
+        // Setup inflation minting
+        vm.startPrank(owner);
+        IAccessControl(address(token)).grantRole(POVW_MINTER_ROLE, user1);
+        IAccessControl(address(token)).grantRole(STAKING_MINTER_ROLE, user2);
+        vm.stopPrank();
+
+        // Complete initial minting to get to 1B supply
+        address[] memory recipients = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+
+        recipients[0] = user3;
+        amounts[0] = MINTER1_AMOUNT;
+        vm.prank(initialMinter1);
+        token.initialMint(recipients, amounts);
+
+        recipients[0] = user4;
+        amounts[0] = MINTER2_AMOUNT;
+        vm.prank(initialMinter2);
+        token.initialMint(recipients, amounts);
+
+        assertEq(token.totalSupply(), TOTAL_SUPPLY);
+
+        // Warp time and mint inflation
+        vm.warp(block.timestamp + 4 days); // 2 epochs
+        
+        // Get current epoch (deploymentTime gets initialized on first mint call)
+        uint256 epoch = token.getCurrentEpoch();
+        if (epoch == 0) epoch = 1; // Use epoch 1 if deploymentTime not set yet
+        uint256 povwAllocation = token.getPoVWAllocationForEpoch(epoch);
+        uint256 stakingAllocation = token.getStakingAllocationForEpoch(epoch);
+
+        vm.prank(user1);
+        token.mintPoVWReward(user1, povwAllocation, epoch);
+
+        vm.prank(user2);
+        token.mintStakingReward(user2, stakingAllocation, epoch);
+
+        // Total supply should have increased
+        uint256 newTotalSupply = token.totalSupply();
+        assertEq(newTotalSupply, TOTAL_SUPPLY + povwAllocation + stakingAllocation);
+        assertTrue(newTotalSupply > TOTAL_SUPPLY);
+    }
+
+    function test_RolePermissions() public {
+        // Only admin can grant inflation roles
+        vm.prank(user1);
+        vm.expectRevert();
+        IAccessControl(address(token)).grantRole(POVW_MINTER_ROLE, user2);
+
+        vm.prank(user1);
+        vm.expectRevert();
+        IAccessControl(address(token)).grantRole(STAKING_MINTER_ROLE, user2);
+
+        // Admin can grant roles
+        vm.startPrank(owner);
+        IAccessControl(address(token)).grantRole(POVW_MINTER_ROLE, user1);
+        IAccessControl(address(token)).grantRole(STAKING_MINTER_ROLE, user2);
+        vm.stopPrank();
+
+        assertTrue(IAccessControl(address(token)).hasRole(POVW_MINTER_ROLE, user1));
+        assertTrue(IAccessControl(address(token)).hasRole(STAKING_MINTER_ROLE, user2));
+
+        // Roles are separate
+        assertFalse(IAccessControl(address(token)).hasRole(STAKING_MINTER_ROLE, user1));
+        assertFalse(IAccessControl(address(token)).hasRole(POVW_MINTER_ROLE, user2));
     }
 }
