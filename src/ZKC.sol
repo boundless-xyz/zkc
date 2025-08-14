@@ -135,21 +135,23 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         return (block.timestamp - deploymentTime) / EPOCH_DURATION;
     }
 
+    // Each year, the inflation rate is reduced by INFLATION_STEP basis points, down
+    // to a minimum of FINAL_INFLATION_RATE.
     function getAnnualInflationRate(uint256 epoch) public pure returns (uint256) {
-        // Calculate completed years
         uint256 yearsCompleted = epoch / EPOCHS_PER_YEAR;
         
         // Calculate rate: 7% - (0.5% × years), minimum 3%
         uint256 reduction = yearsCompleted * INFLATION_STEP;
         
-        if (INITIAL_INFLATION_RATE <= reduction + FINAL_INFLATION_RATE) {
+        if (reduction >= INITIAL_INFLATION_RATE - FINAL_INFLATION_RATE) {
             return FINAL_INFLATION_RATE;
         }
         
         return INITIAL_INFLATION_RATE - reduction;
     }
 
-    // TODO: Use Fixed Point representation + pow?, or optimize with precomputed values for the supply at each epoch?
+    // TODO: Use Fixed Point representation + pow?, or optimize with precomputed values for the supply at each epoch? 
+    // e.g. ABDK, solmate, etc.
     function getSupplyAtEpoch(uint256 epoch) public pure returns (uint256) {
         if (epoch == 0) return INITIAL_SUPPLY;
         
