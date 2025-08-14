@@ -32,12 +32,11 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
     bytes32 public immutable POVW_MINTER_ROLE = keccak256("POVW_MINTER_ROLE");
     bytes32 public immutable STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
 
-    // Inflation tracking storage (append-only for upgrade safety)
+    // Inflation tracking storage
     uint256 public deploymentTime;
     mapping(uint256 => uint256) public epochPoVWMinted;      // Track PoVW minting per epoch
     mapping(uint256 => uint256) public epochStakingMinted;   // Track staking minting per epoch
 
-    // Events
     event PoVWRewardMinted(uint256 indexed epoch, address indexed recipient, uint256 amount);
     event StakingRewardMinted(uint256 indexed epoch, address indexed recipient, uint256 amount);
 
@@ -150,7 +149,7 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         return INITIAL_INFLATION_RATE - reduction;
     }
 
-    // TODO: Use FP + pow, or optimize with precomputes
+    // TODO: Use Fixed Point representation + pow?, or optimize with precomputed values for the supply at each epoch?
     function getSupplyAtEpoch(uint256 epoch) public pure returns (uint256) {
         if (epoch == 0) return INITIAL_SUPPLY;
         
