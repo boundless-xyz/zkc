@@ -571,8 +571,9 @@ contract veZKC is
         _delegate(account, delegatee);
     }
 
-    function delegateBySig(address delegatee, uint256 nonce, uint256 expiry, uint8 v, bytes32 r, bytes32 s)
+    function delegateBySig(address /*_delegatee*/, uint256 /*_nonce*/, uint256 /*_expiry*/, uint8 /*_v*/, bytes32 /*_r*/, bytes32 /*_s*/)
         public
+        pure
         override
     {
         revert("Not implemented");
@@ -597,16 +598,13 @@ contract veZKC is
      * @dev IRewardPower implementation
      */
     function getRewards(address account) external view override returns (uint256) {
-        (uint256 amount, uint256 expiry) = getStakedAmountAndExpiry(account);
-        if (expiry <= block.timestamp) return 0;
+        (uint256 amount,) = getStakedAmountAndExpiry(account);
         return amount;
     }
 
     // TODO
-    function getPastRewards(address account, uint256 _timepoint) external view override returns (uint256) {
-        (uint256 amount, uint256 expiry) = getStakedAmountAndExpiry(account);
-        if (expiry <= block.timestamp) return 0;
-        return amount;
+    function getPastRewards(address account, uint256 /*_timepoint*/) external view override returns (uint256) {
+        return this.getRewards(account);
     }
 
     // TODO
@@ -614,17 +612,15 @@ contract veZKC is
         uint256 total = 0;
         for (uint256 i = 1; i <= _currentTokenId; i++) {
             if (_ownerOf(i) != address(0)) {
-                (uint256 amount, uint256 expiry) = getStakedAmountAndExpiry(_ownerOf(i));
-                if (expiry > block.timestamp) {
-                    total += amount;
-                }
+                (uint256 amount,) = getStakedAmountAndExpiry(_ownerOf(i));
+                total += amount;
             }
         }
         return total;
     }
 
     // TODO
-    function getPastTotalRewards(uint256 timepoint) external view override returns (uint256) {
+    function getPastTotalRewards(uint256 /*_timepoint*/) external view override returns (uint256) {
         return this.getTotalRewards();
     }
 
@@ -742,7 +738,9 @@ contract veZKC is
         // Calculate new point from explicit newLock state.
         // If it has expired we do nothing and leave the new point as 0s.
         if (newLock.lockEnd > block.timestamp && newLock.amount > 0) {
-            // Calculate new voting power and slope from newLock
+            // Calculate slope first: amount / MAX_TIME gives "decay rate per second"
+            // This order (division first) is used for gas efficiency in aggregation
+            // and consistent slope handling across users, despite minor precision loss
             int128 newSlope = int128(int256(newLock.amount)) / iMAX_STAKE_TIME_S;
             int128 newRemainingTime = int128(int256(newLock.lockEnd - block.timestamp));
             int128 newBias = newSlope * newRemainingTime;

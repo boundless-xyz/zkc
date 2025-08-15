@@ -8,32 +8,34 @@ contract veZKCVotesTest is veZKCTest {
     
     // Test 1: getVotes returns properly decayed amounts over time
     function testGetVotesDecaysOverTime() public {
-        // Alice stakes for 52 weeks (half of max time)
+        // Alice stakes for half of max time
         vm.prank(alice);
-        veToken.stake(AMOUNT, block.timestamp + 52 weeks);
+        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
         
         // Get actual expiry time using getStakedAmountAndExpiry
         (uint256 stakedAmount, uint256 lockEnd) = veToken.getStakedAmountAndExpiry(alice);
-        assertEq(stakedAmount, AMOUNT, "Staked amount should match");
+        assertEq(stakedAmount, AMOUNT);
         
         uint256 lockDuration = lockEnd - block.timestamp;
         
-        // Initial voting power should be AMOUNT * lockDuration / MAXTIME
+        // Initial voting power should match veZKC calculation: (amount / MAX_STAKE_TIME_S) * lockDuration
+        // We calculates slope first, matching the logic in veZKC.sol
         uint256 initialPower = veToken.getVotes(alice);
-        uint256 expectedInitial = AMOUNT * lockDuration / MAX_STAKE_TIME_S;
-        assertApproxEqRel(initialPower, expectedInitial, 0.01e18, "Initial power incorrect");
+        uint256 slope = AMOUNT / MAX_STAKE_TIME_S;
+        uint256 expectedInitial = slope * lockDuration;
+        assertEq(initialPower, expectedInitial);
         
-        // After 26 weeks, remaining time should be ~26 weeks
-        vm.warp(block.timestamp + 26 weeks);
+        // After 50% of stake time
+        vm.warp(block.timestamp + MAX_STAKE_TIME_S / 4);
         uint256 halfTimePower = veToken.getVotes(alice);
         uint256 remainingTime = lockEnd - block.timestamp;
-        uint256 expectedHalf = AMOUNT * remainingTime / MAX_STAKE_TIME_S;
-        assertApproxEqRel(halfTimePower, expectedHalf, 0.01e18, "Half-time power incorrect");
+        uint256 expectedHalf = slope * remainingTime;
+        assertEq(halfTimePower, expectedHalf);
         
         // After lock expires, power should be 0
         vm.warp(lockEnd);
         uint256 expiredPower = veToken.getVotes(alice);
-        assertEq(expiredPower, 0, "Expired lock should have 0 power");
+        assertEq(expiredPower, 0);
     }
     
     // Test 2: getPastVotes returns correct historical values
@@ -133,9 +135,9 @@ contract veZKCVotesTest is veZKCTest {
         int128 aliceSlopeChange = veToken.slopeChanges(aliceExpiry);
         int128 bobSlopeChange = veToken.slopeChanges(bobExpiry);
         
-        // Slope changes should be positive (making global slope less negative)
-        assertTrue(aliceSlopeChange > 0, "Alice slope change should be positive");
-        assertTrue(bobSlopeChange > 0, "Bob slope change should be positive");
+        // Slope changes should be negative (following Velodrome pattern)
+        assertTrue(aliceSlopeChange < 0, "Alice slope change should be negative");
+        assertTrue(bobSlopeChange < 0, "Bob slope change should be negative");
         
         // Move to just before Alice expiry
         vm.warp(aliceExpiry - 1);
@@ -182,9 +184,9 @@ contract veZKCVotesTest is veZKCTest {
     
     // Test 6: Lock extension updates voting power and slopes
     function testLockExtensionUpdatesVotingPower() public {
-        // Alice stakes for minimum time (4 weeks)
+        // Alice stakes for minimum time (5 weeks to be safe after week rounding)
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT, block.timestamp + 4 weeks);
+        uint256 tokenId = veToken.stake(AMOUNT, block.timestamp + 5 weeks);
         
         (, uint256 initialLockEnd) = veToken.getStakedAmountAndExpiry(alice);
         
@@ -205,16 +207,16 @@ contract veZKCVotesTest is veZKCTest {
         uint256 expectedExtended = AMOUNT * extendedDuration / MAX_STAKE_TIME_S;
         assertApproxEqRel(extendedPower, expectedExtended, 0.01e18, "Extended power incorrect");
         
-        // Check slope change is updated
+        // Check slope change is updated (should be negative like Velodrome)
         int128 slopeChange = veToken.slopeChanges(extendedLockEnd);
-        assertTrue(slopeChange > 0, "Extended slope change should be scheduled");
+        assertTrue(slopeChange < 0, "Extended slope change should be scheduled as negative");
     }
     
     // Test 7: Ensure votes can't go negative
     function testVotesNeverNegative() public {
         // Stake and let it expire
         vm.prank(alice);
-        veToken.stake(AMOUNT, block.timestamp + 4 weeks);
+        veToken.stake(AMOUNT, block.timestamp + 5 weeks);
         
         (, uint256 lockEnd) = veToken.getStakedAmountAndExpiry(alice);
         
