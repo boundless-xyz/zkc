@@ -7,6 +7,7 @@ import {ERC20PermitUpgradeable} from
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Supply} from "./libraries/Supply.sol";
 
 contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
     address public initialMinter1;
@@ -17,28 +18,31 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
     bytes32 public immutable ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
     bytes32 public immutable MINTER_ROLE = keccak256("MINTER_ROLE");
 
-    // Inflation constants
-    uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 10**18;  // 1 billion ZKC
-    uint256 public constant INITIAL_INFLATION_RATE = 700;             // 7.00% in basis points
-    uint256 public constant FINAL_INFLATION_RATE = 300;               // 3.00% in basis points
-    uint256 public constant INFLATION_STEP = 50;                      // 0.50% reduction per year
-    uint256 public constant BASIS_POINTS = 10000;
-    uint256 public constant EPOCH_DURATION = 2 days;
-    uint256 public constant EPOCHS_PER_YEAR = 182;                    // Approximately 365/2
-    uint256 public constant POVW_ALLOCATION = 75;                     // 75% for PoVW rewards
-    uint256 public constant STAKING_ALLOCATION = 25;                  // 25% for staking rewards
+    uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 10**18; 
 
-    // New roles for inflation minting
+    // Basis points used for inflation calculations and minting allocations.
+    uint256 public constant BASIS_POINTS = 10000;
+
+    // Every epoch lasts 2 days
+    uint256 public constant EPOCH_DURATION = 2 days;
+    uint256 public constant EPOCHS_PER_YEAR = 182;                   
+    // 75% of emissions per epoch are allocated to PoVW rewards
+    uint256 public constant POVW_ALLOCATION_BPS = 7500;                    
+    // 25% of emissions per epoch are allocated to staking rewards
+    uint256 public constant STAKING_ALLOCATION_BPS = 2500;   
+
     bytes32 public immutable POVW_MINTER_ROLE = keccak256("POVW_MINTER_ROLE");
     bytes32 public immutable STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
 
-    // Inflation tracking storage
     uint256 public deploymentTime;
     mapping(uint256 => uint256) public epochPoVWMinted;      // Track PoVW minting per epoch
     mapping(uint256 => uint256) public epochStakingMinted;   // Track staking minting per epoch
 
-    event PoVWRewardMinted(uint256 indexed epoch, address indexed recipient, uint256 amount);
-    event StakingRewardMinted(uint256 indexed epoch, address indexed recipient, uint256 amount);
+    event PoVWRewardClaimed(uint256 indexed epoch, address indexed recipient, uint256 amount);
+    event StakingRewardClaimed(uint256 indexed epoch, address indexed recipient, uint256 amount);
+
+    error EpochNotEnded(uint256 epoch);
+    error EpochAllocationExceeded(uint256 epoch);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -57,11 +61,18 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
+        require(_initialMinter1Amount + _initialMinter2Amount == INITIAL_SUPPLY);
+
         initialMinter1 = _initialMinter1;
         initialMinter2 = _initialMinter2;
         initialMinter1Remaining = _initialMinter1Amount;
         initialMinter2Remaining = _initialMinter2Amount;
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
+    }
+
+    // On upgrade, set the deployment time to initiate the start of the first epoch.
+    function initializeV2() public reinitializer(2) {
+        deploymentTime = block.timestamp;
     }
 
     function initialMint(address[] calldata recipients, uint256[] calldata amounts) public {
@@ -86,130 +97,108 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         _mint(to, amount);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
-
     function mintPoVWReward(address to, uint256 amount, uint256 epoch) external onlyRole(POVW_MINTER_ROLE) {
-        uint256 totalEpochInflation = getEpochEmissionAmount(epoch);
-        uint256 povwAllocation = (totalEpochInflation * POVW_ALLOCATION) / 100;
-        _mintReward(to, amount, epoch, povwAllocation, epochPoVWMinted);
-        emit PoVWRewardMinted(epoch, to, amount);
+        _mintReward(getPoVWEmissionsForEpoch(epoch), epochPoVWMinted, to, amount, epoch);
+        emit PoVWRewardClaimed(epoch, to, amount);
     }
 
     function mintStakingReward(address to, uint256 amount, uint256 epoch) external onlyRole(STAKING_MINTER_ROLE) {
-        uint256 totalEpochInflation = getEpochEmissionAmount(epoch);
-        uint256 stakingAllocation = (totalEpochInflation * STAKING_ALLOCATION) / 100;
-        _mintReward(to, amount, epoch, stakingAllocation, epochStakingMinted);
-        emit StakingRewardMinted(epoch, to, amount);
+        _mintReward(getStakingEmissionsForEpoch(epoch), epochStakingMinted, to, amount, epoch);
+        emit StakingRewardClaimed(epoch, to, amount);
     }
 
     function _mintReward(
+        uint256 emission,
+        mapping(uint256 => uint256) storage mintedMapping,
         address to, 
         uint256 amount, 
-        uint256 epoch, 
-        uint256 allocation, 
-        mapping(uint256 => uint256) storage mintedMapping
+        uint256 epoch
     ) internal {
-        require(epoch > 0, "Invalid epoch");
-        
-        // Initialize deployment time if first use
-        if (deploymentTime == 0) {
-            deploymentTime = block.timestamp - (epoch * EPOCH_DURATION);
+        // Rewards cannot be minted for future epochs
+        uint256 currentEpoch = getCurrentEpoch();
+        if (epoch >= currentEpoch) {
+            revert EpochNotEnded(epoch);
+        }
+
+        uint256 alreadyMinted = mintedMapping[epoch];
+        if (alreadyMinted + amount > emission) {
+            revert EpochAllocationExceeded(epoch);
         }
         
-        uint256 currentEpoch = getCurrentEpoch();
-        require(epoch <= currentEpoch, "Invalid epoch");
-        
-        // Check that we haven't exceeded the allocation
-        uint256 alreadyMinted = mintedMapping[epoch];
-        require(alreadyMinted + amount <= allocation, "Exceeds allocation for epoch");
-        
-        // Update tracking
+        // Track total minted for this epoch
         mintedMapping[epoch] = alreadyMinted + amount;
         
         // Mint the tokens
         _mint(to, amount);
     }
 
+    // Returns the supply at the start of the provided epoch.
+    // ZKC is emitted at the end of each epoch, this excludes the rewards that will be
+    // generated as part of the work within this epoch.
+    function getSupplyAtEpoch(uint256 epoch) public pure returns (uint256) {
+        return Supply.getSupplyAtEpoch(epoch);
+    }
+
+    // Returns the amount of ZKC that will be emitted at the end of the provided epoch.
+    // Includes both rewards for PoVW and for active staking.
+    function getEmissionsForEpoch(uint256 epoch) public pure returns (uint256) {
+        return Supply.getEmissionsForEpoch(epoch);
+    }
+
+    // Returns the amount of ZKC that will be emitted for PoVW rewards at the end of the provided epoch.
+    function getPoVWEmissionsForEpoch(uint256 epoch) public pure returns (uint256) {
+        uint256 totalEmission = getEmissionsForEpoch(epoch);
+        return (totalEmission * POVW_ALLOCATION_BPS) / BASIS_POINTS;
+    }
+
+    // Returns the amount of ZKC that will be emitted for staking rewards at the end of the provided epoch.
+    function getStakingEmissionsForEpoch(uint256 epoch) public pure returns (uint256) {
+        uint256 totalEmission = getEmissionsForEpoch(epoch);
+        return (totalEmission * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
+    }
+
+    // Returns the amount of ZKC that can still be minted (i.e. is unclaimed) for PoVW rewards at the end of the provided epoch.
+    function getPoVWUnclaimedForEpoch(uint256 epoch) public view returns (uint256) {
+        uint256 allocation = getPoVWEmissionsForEpoch(epoch);
+        uint256 minted = epochPoVWMinted[epoch];
+        return allocation - minted;
+    }
+
+    // Returns the amount of ZKC that can still be minted (i.e. is unclaimed) for staking rewards at the end of the provided epoch.
+    function getStakingUnclaimedForEpoch(uint256 epoch) public view returns (uint256) {
+        uint256 allocation = getStakingEmissionsForEpoch(epoch);
+        uint256 minted = epochStakingMinted[epoch];
+        return allocation - minted;
+    }
+
     function getCurrentEpoch() public view returns (uint256) {
-        if (deploymentTime == 0) return 0;
         return (block.timestamp - deploymentTime) / EPOCH_DURATION;
     }
 
-    // Each year, the inflation rate is reduced by INFLATION_STEP basis points, down
-    // to a minimum of FINAL_INFLATION_RATE.
-    function getAnnualInflationRate(uint256 epoch) public pure returns (uint256) {
-        uint256 yearsCompleted = epoch / EPOCHS_PER_YEAR;
-        
-        // Calculate rate: 7% - (0.5% × years), minimum 3%
-        uint256 reduction = yearsCompleted * INFLATION_STEP;
-        
-        if (reduction >= INITIAL_INFLATION_RATE - FINAL_INFLATION_RATE) {
-            return FINAL_INFLATION_RATE;
-        }
-        
-        return INITIAL_INFLATION_RATE - reduction;
-    }
-
-    // TODO: Use Fixed Point representation + pow?, or optimize with precomputed values for the supply at each epoch? 
-    // e.g. ABDK, solmate, etc.
-    function getSupplyAtEpoch(uint256 epoch) public pure returns (uint256) {
-        if (epoch == 0) return INITIAL_SUPPLY;
-        
-        uint256 supply = INITIAL_SUPPLY;
-        
-        for (uint256 e = 1; e <= epoch; e++) {
-            // Get the annual rate for this epoch
-            uint256 annualRate = getAnnualInflationRate(e);
-            
-            // Convert to per-epoch rate: annual_rate / epochs_per_year
-            // Using higher precision: (annualRate * 1000) / (EPOCHS_PER_YEAR * 1000)
-            uint256 epochRate = annualRate * 1000 / EPOCHS_PER_YEAR;
-            
-            // Apply inflation: new = old * (1 + rate/BASIS_POINTS/1000)
-            uint256 inflation = supply * epochRate / BASIS_POINTS / 1000;
-            supply = supply + inflation;
-        }
-        
-        return supply;
-    }
-
-    function getEpochEmissionAmount(uint256 epoch) public pure returns (uint256) {
-        if (epoch == 0) return 0;
-        
-        uint256 supplyAtEpoch = getSupplyAtEpoch(epoch);
-        uint256 supplyAtPrevEpoch = getSupplyAtEpoch(epoch - 1);
-        
-        return supplyAtEpoch - supplyAtPrevEpoch;
-    }
-
-    // View functions for monitoring allocations
-    function getPoVWAllocationForEpoch(uint256 epoch) external pure returns (uint256) {
-        uint256 totalInflation = getEpochEmissionAmount(epoch);
-        return (totalInflation * POVW_ALLOCATION) / 100;
-    }
-
-    function getStakingAllocationForEpoch(uint256 epoch) external pure returns (uint256) {
-        uint256 totalInflation = getEpochEmissionAmount(epoch);
-        return (totalInflation * STAKING_ALLOCATION) / 100;
-    }
-
-    function getPoVWRemainingForEpoch(uint256 epoch) external view returns (uint256) {
-        uint256 allocation = this.getPoVWAllocationForEpoch(epoch);
-        uint256 minted = epochPoVWMinted[epoch];
-        return allocation > minted ? allocation - minted : 0;
-    }
-
-    function getStakingRemainingForEpoch(uint256 epoch) external view returns (uint256) {
-        uint256 allocation = this.getStakingAllocationForEpoch(epoch);
-        uint256 minted = epochStakingMinted[epoch];
-        return allocation > minted ? allocation - minted : 0;
-    }
-
-    function getTotalEpochInflation(uint256 epoch) external pure returns (uint256) {
-        return getEpochEmissionAmount(epoch);
-    }
-
+    // Returns the start time of the provided epoch.
     function getEpochStartTime(uint256 epoch) external view returns (uint256) {
         return deploymentTime + (epoch * EPOCH_DURATION);
     }
+
+    /**
+     * @notice This is the total supply during the current epoch.
+     * @dev This is the total supply during the current epoch. Emissions for the epoch
+     * occur at the end of the epoch.
+     * @return The total supply during the current epoch
+     */
+    function totalSupply() public view override returns (uint256) {
+        return getSupplyAtEpoch(getCurrentEpoch());
+    }
+
+    /**
+     * @notice Returns the actual claimed total supply
+     * @dev This is what has actually been minted to an account and thus claimed.
+     * @return The total amount of tokens that have been claimed
+     */
+    function claimedTotalSupply() public view returns (uint256) {
+        return super.totalSupply();
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
 }
+
