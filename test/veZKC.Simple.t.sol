@@ -1,59 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Test.sol";
-import "../src/veZKC.sol";
-import "../src/ZKC.sol";
-import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import "./veZKC.t.sol";
 
-contract veZKCSimpleTest is Test {
-    veZKC public veToken;
-    ZKC public zkc;
-    
-    address public admin = makeAddr("admin");
-    address public alice = makeAddr("alice");
-    uint256 constant INITIAL_SUPPLY = 1_000_000_000 * 10**18;
-    uint256 constant AMOUNT = 10_000 * 10**18;
-    
-    function setUp() public {
-        vm.startPrank(admin);
-        
-        // Deploy ZKC with proxy
-        ZKC zkcImpl = new ZKC();
-        bytes memory zkcInitData = abi.encodeWithSelector(
-            ZKC.initialize.selector,
-            admin, // initialMinter1
-            address(0), // initialMinter2
-            INITIAL_SUPPLY,
-            0,
-            admin // owner
-        );
-        zkc = ZKC(address(new ERC1967Proxy(address(zkcImpl), zkcInitData)));
-        zkc.initializeV2();
-        
-        // Deploy veZKC with proxy
-        veZKC veImpl = new veZKC();
-        bytes memory veInitData = abi.encodeWithSelector(
-            veZKC.initialize.selector,
-            address(zkc),
-            admin
-        );
-        veToken = veZKC(address(new ERC1967Proxy(address(veImpl), veInitData)));
-        
-        vm.stopPrank();
-        
-        vm.startPrank(admin);
-        zkc.grantRole(zkc.MINTER_ROLE(), admin);
-        address[] memory recipients = new address[](1);
-        recipients[0] = alice;
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = AMOUNT;
-        zkc.initialMint(recipients, amounts);
-        vm.stopPrank();
-        
-        vm.prank(alice);
-        zkc.approve(address(veToken), type(uint256).max);
-    }
+contract veZKCSimpleTest is veZKCTest {
     
     function testBasicStakeAndVotes() public {
         uint256 beforeVotes = veToken.getVotes(alice);

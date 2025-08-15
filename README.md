@@ -129,9 +129,6 @@ Extend to 52 weeks: 1000 ZKC with 52 weeks remaining = 500 voting power (1000 ×
 veZKC is IVotes compatible, supporting historical queries of voting power and voting delegation.
 
 
-
-
-
 ## Usage Examples
 
 ### Basic Staking

@@ -282,7 +282,7 @@ contract veZKC is
         _burnLock(tokenId);
     }
 
-    function getStakedAmountAndExpiry(address account) external view returns (uint256, uint256) {
+    function getStakedAmountAndExpiry(address account) public view returns (uint256, uint256) {
         uint256 tokenId = userActivePosition[account];
         if (tokenId == 0) return (0, 0);
         return (locks[tokenId].amount, locks[tokenId].lockEnd);
@@ -604,7 +604,9 @@ contract veZKC is
 
     // TODO
     function getPastRewards(address account, uint256 _timepoint) external view override returns (uint256) {
-        return getRewards(account);
+        (uint256 amount, uint256 expiry) = getStakedAmountAndExpiry(account);
+        if (expiry <= block.timestamp) return 0;
+        return amount;
     }
 
     // TODO
