@@ -10,7 +10,7 @@ The core contracts for ZKC. Includes the token itself, as well as its associated
 
 - **ZKC Token** (`src/ZKC.sol`) - ZKC ERC20
 - **veZKC NFT** (`src/veZKC.sol`) - ERC721 positions issued when staking ZKC that grant governance and reward power
-- **StakingVault** (`src/StakingVault.sol`) - Central orchestration contract for staking operations
+- **StakingRewards** (`src/rewards/StakingVault.sol`) - Enables users that have staked ZKC to claim a portion of rewards emitted every epoch
 
 ## Staking System
 
