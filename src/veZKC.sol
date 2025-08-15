@@ -178,10 +178,8 @@ contract veZKC is
         // Enforce single active position per user
         if (userActivePosition[msg.sender] != 0) revert UserAlreadyHasActivePosition();
         
-        // Check that the stake duration is valid
-        expires = _timestampFloorToWeek(expires);
-        if (expires <= block.timestamp + MIN_STAKE_TIME_S) revert StakeDurationTooShort();
-        if (expires > block.timestamp + MAX_STAKE_TIME_S) revert StakeDurationTooLong();
+        // Get the expiry timestamp with proper week rounding and validation
+        expires = _getWeekExpiry(expires);
 
         // Transfer ZKC from user
         IERC20(address(zkcToken)).safeTransferFrom(msg.sender, address(this), amount);
@@ -198,6 +196,32 @@ contract veZKC is
 
     function _timestampFloorToWeek(uint256 timestamp) internal pure returns (uint256) {
         return (timestamp / WEEK) * WEEK;
+    }
+
+    /**
+     * @dev Helper function to get expiry timestamp with proper week rounding and validation
+     * @param expires The requested expiry (0 for min, type(uint256).max for max, or specific timestamp)
+     * @return The validated and week-rounded expiry timestamp
+     */
+    function _getWeekExpiry(uint256 expires) internal view returns (uint256) {
+        if (expires == 0) {
+            // Stake for minimum duration
+            expires = _timestampFloorToWeek(block.timestamp + MIN_STAKE_TIME_S);
+            // Only add extra week if the result is too short
+            if (expires <= block.timestamp + MIN_STAKE_TIME_S) {
+                expires = _timestampFloorToWeek(block.timestamp + MIN_STAKE_TIME_S + WEEK);
+            }
+        } else if (expires == type(uint256).max) {
+            // Stake for maximum duration
+            expires = _timestampFloorToWeek(block.timestamp + MAX_STAKE_TIME_S);
+        } else {
+            // Check that the provided stake duration is valid
+            expires = _timestampFloorToWeek(expires);
+            if (expires <= block.timestamp + MIN_STAKE_TIME_S) revert StakeDurationTooShort();
+            if (expires > block.timestamp + MAX_STAKE_TIME_S) revert StakeDurationTooLong();
+        }
+        
+        return expires;
     }
 
     function addToStake(uint256 tokenId, uint256 amount) external nonReentrant {
@@ -232,10 +256,9 @@ contract veZKC is
         LockInfo memory lock = locks[tokenId];
         require(block.timestamp < lock.lockEnd, "Lock has expired, please unstake first");
 
-        // Validate timestamp constraints (moved from _extendLockAndCheckpoint for consistency)
-        uint256 roundedNewLockEndTime = _timestampFloorToWeek(newLockEndTime);
-        require(roundedNewLockEndTime > lock.lockEnd, "Can only increase lock end time");
-        require(roundedNewLockEndTime <= block.timestamp + MAX_STAKE_TIME_S, "Lock cannot exceed max time");
+        // Validate timestamp constraints
+        newLockEndTime = _getWeekExpiry(newLockEndTime);
+        require(newLockEndTime > lock.lockEnd, "Can only increase lock end time");
 
         // Extend the lock to new end time
         _extendLockAndCheckpoint(tokenId, newLockEndTime);
@@ -422,23 +445,13 @@ contract veZKC is
     */
     function getVotes(address account) public view override returns (uint256) {
         uint256 epoch = _userPointEpoch[account];
-        if (epoch == 0) return 0;
         
-        Point memory lastPoint = _userPointHistory[account][epoch];
-
         console.log("last point for account: ", account);
-        console.log("last point.bias", lastPoint.bias);
-        console.log("last point.slope", lastPoint.slope);
-        console.log("last point.updatedAt", lastPoint.updatedAt);
+        console.log("last point.bias", _userPointHistory[account][epoch].bias);
+        console.log("last point.slope", _userPointHistory[account][epoch].slope);
+        console.log("last point.updatedAt", _userPointHistory[account][epoch].updatedAt);
         
-        int128 dt = int128(int256(block.timestamp - lastPoint.updatedAt));
-        int128 bias = lastPoint.bias - lastPoint.slope * dt;
-        
-        /// Ensure non-negative (voting power cannot be negative).
-        // Can happen if we decayed to 0 previously and are now checking power after that point.
-        if (bias < 0) bias = 0;
-        
-        return uint256(uint128(bias));
+        return _getVotesFromEpoch(account, epoch, block.timestamp);
     }
 
     function getPastVotes(address account, uint256 timepoint) public view override returns (uint256) {
@@ -447,102 +460,54 @@ contract veZKC is
             revert ERC5805FutureLookup(timepoint, currentTimepoint);
         }
         
-        // Returns the voting power that 'account' could use at the given timepoint
+        // Returns the voting power that 'account' should use at the given timepoint
         // Binary search for the right epoch at the given timestamp
         uint256 epoch = _findUserTimestampEpoch(account, timepoint);
-        if (epoch == 0) return 0;
         
-        Point memory uPoint = _userPointHistory[account][epoch];
-        
-        /// @dev Calculate voting power at that timestamp (no estimation needed!)
-        int128 dt = int128(int256(timepoint - uPoint.updatedAt));
-        int128 bias = uPoint.bias + uPoint.slope * dt;
-        
-        /// @dev Ensure non-negative
-        if (bias < 0) bias = 0;
-        
-        return uint256(uint128(bias));
-    }
-
-    function getTotalVotes() public view returns (uint256) {
-        if (_globalPointEpoch == 0) return 0;
-        
-        Point memory lastPoint = _globalPointHistory[_globalPointEpoch];
-        
-        /// @dev Calculate current total voting power from bias and slope
-        int128 dt = int128(int256(block.timestamp - lastPoint.updatedAt));
-        int128 bias = lastPoint.bias + lastPoint.slope * dt;
-        
-        /// @dev Apply scheduled slope changes that have occurred
-        uint256 t = (lastPoint.updatedAt / WEEK) * WEEK;
-        for (uint256 i = 0; i < 255; i++) {
-            t += WEEK;
-            if (t > block.timestamp) break;
-            
-            int128 dSlope = slopeChanges[t];
-            if (dSlope != 0) {
-                /// @dev Slope change makes the slope less negative (decay slows)
-                lastPoint.slope += dSlope;
-                /// @dev Adjust bias for the time period with old slope
-                int128 dt2 = int128(int256(t - lastPoint.updatedAt));
-                bias = bias + lastPoint.slope * dt2;
-                lastPoint.updatedAt = t;
-            }
-        }
-        
-        /// @dev Final adjustment from last slope change to current time
-        if (block.timestamp > lastPoint.updatedAt) {
-            dt = int128(int256(block.timestamp - lastPoint.updatedAt));
-            bias = bias + lastPoint.slope * dt;
-        }
-        
-        /// @dev Ensure non-negative
-        if (bias < 0) bias = 0;
-        
-        return uint256(uint128(bias));
+        return _getVotesFromEpoch(account, epoch, timepoint);
     }
 
     function getPastTotalSupply(uint256 timepoint) public view override returns (uint256) {
         uint48 currentTimepoint = clock();
-        if (timepoint >= currentTimepoint) {
+        if (timepoint > currentTimepoint) {
             revert ERC5805FutureLookup(timepoint, currentTimepoint);
         }
         
-        /// @dev Binary search for the right epoch at the given timestamp
+        // Binary search for the epoch right before the given timestamp
         uint256 epoch = _findTimestampEpoch(timepoint);
         if (epoch == 0) return 0;
         
-        Point memory point = _globalPointHistory[epoch];
+        Point memory lastPoint = _globalPointHistory[epoch];
         
-        /// @dev Calculate total supply at that timestamp (no estimation needed!)
-        int128 dt = int128(int256(timepoint - point.updatedAt));
-        int128 bias = point.bias + point.slope * dt;
-        
-        /// @dev Apply slope changes between point.ts and timepoint
-        uint256 t = (point.updatedAt / WEEK) * WEEK;
+        // Move forward from the found point to the target timestamp
+        // applying any scheduled global slope changes along the way.
+        uint256 currentTimestamp = _timestampFloorToWeek(lastPoint.updatedAt);
         for (uint256 i = 0; i < 255; i++) {
-            t += WEEK;
-            if (t > timepoint) break;
+            currentTimestamp += WEEK;
+            int128 d_slope = 0;
             
-            int128 dSlope = slopeChanges[t];
-            if (dSlope != 0) {
-                point.slope += dSlope;
-                int128 dt2 = int128(int256(t - point.updatedAt));
-                bias = bias + point.slope * dt2;
-                point.updatedAt = t;
+            if (currentTimestamp > timepoint) {
+                currentTimestamp = timepoint;
+            } else {
+                d_slope = slopeChanges[currentTimestamp];
             }
+            
+            // Calculate bias decay to currentTimestamp
+            lastPoint.bias -= lastPoint.slope * int128(int256(currentTimestamp - lastPoint.updatedAt));
+            
+            if (currentTimestamp == timepoint) {
+                break;
+            }
+            
+            // Apply slope change at week boundary
+            lastPoint.slope += d_slope;
+            lastPoint.updatedAt = currentTimestamp;
         }
         
-        /// @dev Final adjustment
-        if (timepoint > point.updatedAt) {
-            dt = int128(int256(timepoint - point.updatedAt));
-            bias = bias + point.slope * dt;
-        }
+        // Ensure non-negative
+        if (lastPoint.bias < 0) lastPoint.bias = 0;
         
-        /// @dev Ensure non-negative
-        if (bias < 0) bias = 0;
-        
-        return uint256(uint128(bias));
+        return uint256(uint128(lastPoint.bias));
     }
 
     function delegates(address account) public view override returns (address) {
@@ -625,6 +590,27 @@ contract veZKC is
     }
 
     /**
+     * @dev Internal function to get voting power for an account at a specific epoch and timestamp
+     * @param account The account to get voting power for
+     * @param epoch The epoch to look up
+     * @param timestamp The timestamp to calculate voting power at
+     * @return The calculated voting power
+     */
+    function _getVotesFromEpoch(address account, uint256 epoch, uint256 timestamp) internal view returns (uint256) {
+        if (epoch == 0) return 0;
+        
+        Point memory point = _userPointHistory[account][epoch];
+        
+        int128 dt = int128(int256(timestamp - point.updatedAt));
+        int128 bias = point.bias - point.slope * dt;
+        
+        /// @dev Ensure non-negative (voting power cannot be negative)
+        if (bias < 0) bias = 0;
+        
+        return uint256(uint128(bias));
+    }
+
+    /**
      * @dev Override transfers to make NFTs non-transferable (soulbound)
      */
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
@@ -682,7 +668,6 @@ contract veZKC is
         uint256 min = 0;
         uint256 max = _globalPointEpoch;
         
-        /// @dev Binary search by timestamp
         while (min < max) {
             uint256 mid = (min + max + 1) / 2;
             if (_globalPointHistory[mid].updatedAt <= timestamp) {

@@ -6,7 +6,14 @@ import "./veZKC.t.sol";
 contract veZKCVotesTest is veZKCTest {
     uint256 constant WEEK = 1 weeks;
     
-    // Test 1: getVotes returns properly decayed amounts over time
+    function _calculateExpectedVotePower(uint256 amount, uint256 curTime, uint256 lockEnd) internal view returns (uint256) {
+        if (curTime >= lockEnd) return 0;
+        
+        uint256 remainingTime = lockEnd - curTime;
+        uint256 slope = amount / MAX_STAKE_TIME_S;
+        return slope * remainingTime;
+    }
+    
     function testGetVotesDecaysOverTime() public {
         // Alice stakes for half of max time
         vm.prank(alice);
@@ -16,21 +23,14 @@ contract veZKCVotesTest is veZKCTest {
         (uint256 stakedAmount, uint256 lockEnd) = veToken.getStakedAmountAndExpiry(alice);
         assertEq(stakedAmount, AMOUNT);
         
-        uint256 lockDuration = lockEnd - block.timestamp;
-        
-        // Initial voting power should match veZKC calculation: (amount / MAX_STAKE_TIME_S) * lockDuration
-        // We calculates slope first, matching the logic in veZKC.sol
+        // Initial voting power should match veZKC calculation
         uint256 initialPower = veToken.getVotes(alice);
-        uint256 slope = AMOUNT / MAX_STAKE_TIME_S;
-        uint256 expectedInitial = slope * lockDuration;
-        assertEq(initialPower, expectedInitial);
+        assertEq(initialPower, _calculateExpectedVotePower(AMOUNT, block.timestamp, lockEnd));
         
         // After 50% of stake time
         vm.warp(block.timestamp + MAX_STAKE_TIME_S / 4);
         uint256 halfTimePower = veToken.getVotes(alice);
-        uint256 remainingTime = lockEnd - block.timestamp;
-        uint256 expectedHalf = slope * remainingTime;
-        assertEq(halfTimePower, expectedHalf);
+        assertEq(halfTimePower, _calculateExpectedVotePower(AMOUNT, block.timestamp, lockEnd));
         
         // After lock expires, power should be 0
         vm.warp(lockEnd);
@@ -38,86 +38,78 @@ contract veZKCVotesTest is veZKCTest {
         assertEq(expiredPower, 0);
     }
     
-    // Test 2: getPastVotes returns correct historical values
     function testGetPastVotesHistoricalAccuracy() public {
         // Record initial timestamp
         uint256 t0 = block.timestamp;
         
-        // Alice stakes at t0 for 104 weeks (max time for full power)
+        // Alice stakes at t0 for max time
         vm.prank(alice);
-        veToken.stake(AMOUNT, block.timestamp + 104 weeks);
+        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S);
         
-        // Get actual expiry using getStakedAmountAndExpiry
+        // Get actual expiry after week rounding using getStakedAmountAndExpiry
         (, uint256 aliceLockEnd) = veToken.getStakedAmountAndExpiry(alice);
         
-        // Move forward and record checkpoints
-        vm.warp(t0 + 10 weeks);
+        // Move forward by some period and record timestamp
+        vm.warp(t0 + MAX_STAKE_TIME_S / 6);
         uint256 t1 = block.timestamp;
         
-        vm.warp(t0 + 20 weeks);
+        // Move forward by some bigger period and record timestamp
+        vm.warp(t0 + MAX_STAKE_TIME_S / 6 * 2);
         uint256 t2 = block.timestamp;
         
-        // Bob stakes at t2 for 52 weeks
+        // Bob stakes at t2 for half max time
         vm.prank(bob);
-        veToken.stake(AMOUNT, block.timestamp + 52 weeks);
+        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
         
-        vm.warp(t0 + 30 weeks);
+        vm.warp(t0 + MAX_STAKE_TIME_S / 6 * 3);
         
-        // Query historical values
+        // Initial voting power should be _approximately_ AMOUNT,
+        // with small precision loss from slope calculation that is used to construct bias.
+        uint256 alicePowerAtT0 = veToken.getPastVotes(alice, t0);
+        assertApproxEqRel(alicePowerAtT0, AMOUNT, 0.01e18);
+        assertEq(alicePowerAtT0, _calculateExpectedVotePower(AMOUNT, t0, aliceLockEnd));
+
         uint256 alicePowerAtT1 = veToken.getPastVotes(alice, t1);
-        uint256 aliceRemainingAtT1 = aliceLockEnd - t1;
-        uint256 expectedAtT1 = AMOUNT * aliceRemainingAtT1 / MAX_STAKE_TIME_S;
-        assertApproxEqRel(alicePowerAtT1, expectedAtT1, 0.01e18, "Historical power at t1 incorrect");
+        assertEq(alicePowerAtT1, _calculateExpectedVotePower(AMOUNT, t1, aliceLockEnd));
         
         uint256 alicePowerAtT2 = veToken.getPastVotes(alice, t2);
-        uint256 aliceRemainingAtT2 = aliceLockEnd - t2;
-        uint256 expectedAtT2 = AMOUNT * aliceRemainingAtT2 / MAX_STAKE_TIME_S;
-        assertApproxEqRel(alicePowerAtT2, expectedAtT2, 0.01e18, "Historical power at t2 incorrect");
+        assertEq(alicePowerAtT2, _calculateExpectedVotePower(AMOUNT, t2, aliceLockEnd));
         
         // Bob should have 0 power at t1 (before staking)
         uint256 bobPowerAtT1 = veToken.getPastVotes(bob, t1);
-        assertEq(bobPowerAtT1, 0, "Bob should have 0 power before staking");
+        assertEq(bobPowerAtT1, 0);
     }
     
-    // Test 3: getTotalVotes with multiple users and decay
     function testGetTotalVotesWithDecay() public {
-        // Multiple users stake at different times
+        // Alice stakes for max time
         vm.prank(alice);
-        veToken.stake(AMOUNT, block.timestamp + 104 weeks); // Max time
-        
+        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S); // Max time
         (, uint256 aliceLockEnd) = veToken.getStakedAmountAndExpiry(alice);
-        
-        uint256 totalAfterAlice = veToken.getTotalVotes();
+        uint256 totalAfterAlice = veToken.getPastTotalSupply(block.timestamp);
         assertApproxEqRel(totalAfterAlice, AMOUNT, 0.01e18, "Total after Alice incorrect");
         
+        // 10 weeks later Bob stakes for half max time
         vm.warp(block.timestamp + 10 weeks);
-        
         vm.prank(bob);
-        veToken.stake(AMOUNT, block.timestamp + 52 weeks); // Half max time
-        
+        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2); // Half max time
         (, uint256 bobLockEnd) = veToken.getStakedAmountAndExpiry(bob);
         
-        // Total should be Alice's decayed + Bob's initial
-        uint256 aliceRemaining = aliceLockEnd - block.timestamp;
-        uint256 bobRemaining = bobLockEnd - block.timestamp;
-        uint256 aliceDecayed = AMOUNT * aliceRemaining / MAX_STAKE_TIME_S;
-        uint256 bobInitial = AMOUNT * bobRemaining / MAX_STAKE_TIME_S;
+        // At this point, total should be Alice's decayed + Bob's initial
+        uint256 aliceDecayed = _calculateExpectedVotePower(AMOUNT, block.timestamp, aliceLockEnd);
+        uint256 bobInitial = _calculateExpectedVotePower(AMOUNT, block.timestamp, bobLockEnd);
         uint256 expectedTotal = aliceDecayed + bobInitial;
-        
-        uint256 totalAfterBob = veToken.getTotalVotes();
+        uint256 totalAfterBob = veToken.getPastTotalSupply(block.timestamp);
         assertApproxEqRel(totalAfterBob, expectedTotal, 0.01e18, "Total after Bob incorrect");
         
         // Fast forward to when Bob's lock expires
         vm.warp(bobLockEnd);
         
-        // Only Alice should have remaining power
-        uint256 aliceRemainingAtBobExpiry = aliceLockEnd - block.timestamp;
-        uint256 aliceExpectedPower = AMOUNT * aliceRemainingAtBobExpiry / MAX_STAKE_TIME_S;
-        uint256 totalAtBobExpiry = veToken.getTotalVotes();
+        // Only Alice's power should remain
+        uint256 aliceExpectedPower = _calculateExpectedVotePower(AMOUNT, block.timestamp, aliceLockEnd);
+        uint256 totalAtBobExpiry = veToken.getPastTotalSupply(block.timestamp);
         assertApproxEqRel(totalAtBobExpiry, aliceExpectedPower, 0.01e18, "Total at Bob expiry incorrect");
     }
     
-    // Test 4: Slope changes are properly scheduled and applied
     function testSlopeChangesAtExpiry() public {
         // Alice stakes for 8 weeks
         vm.prank(alice);
@@ -141,17 +133,16 @@ contract veZKCVotesTest is veZKCTest {
         
         // Move to just before Alice expiry
         vm.warp(aliceExpiry - 1);
-        uint256 totalBeforeExpiry = veToken.getTotalVotes();
+        uint256 totalBeforeExpiry = veToken.getPastTotalSupply(block.timestamp);
         
         // Move past Alice expiry
         vm.warp(aliceExpiry + 1);
-        uint256 totalAfterExpiry = veToken.getTotalVotes();
+        uint256 totalAfterExpiry = veToken.getPastTotalSupply(block.timestamp);
         
         // Total should decrease after expiry (Bob's power only)
         assertTrue(totalAfterExpiry < totalBeforeExpiry, "Total should decrease after expiry");
     }
     
-    // Test 5: Adding to stake updates voting power correctly
     function testAddToStakeUpdatesVotingPower() public {
         // Alice stakes initially
         vm.prank(alice);
@@ -177,42 +168,41 @@ contract veZKCVotesTest is veZKCTest {
         
         // Power should increase but still be based on remaining time
         uint256 afterAddPower = veToken.getVotes(alice);
-        uint256 remainingTime = lockEnd - block.timestamp;
-        uint256 expectedPower = (AMOUNT * 2) * remainingTime / MAX_STAKE_TIME_S;
+        uint256 expectedPower = _calculateExpectedVotePower(AMOUNT * 2, block.timestamp, lockEnd);
         assertApproxEqRel(afterAddPower, expectedPower, 0.01e18, "Power after add incorrect");
     }
     
-    // Test 6: Lock extension updates voting power and slopes
     function testLockExtensionUpdatesVotingPower() public {
-        // Alice stakes for minimum time (5 weeks to be safe after week rounding)
+        // Alice stakes for minimum duration
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT, block.timestamp + 5 weeks);
-        
+        uint256 tokenId = veToken.stake(AMOUNT, 0);
         (, uint256 initialLockEnd) = veToken.getStakedAmountAndExpiry(alice);
         
         uint256 initialPower = veToken.getVotes(alice);
-        uint256 initialDuration = initialLockEnd - block.timestamp;
-        uint256 expectedInitial = AMOUNT * initialDuration / MAX_STAKE_TIME_S;
-        assertApproxEqRel(initialPower, expectedInitial, 0.01e18, "Initial 4-week power incorrect");
+        uint256 expectedInitial = _calculateExpectedVotePower(AMOUNT, block.timestamp, initialLockEnd);
+        assertApproxEqRel(initialPower, expectedInitial, 0.01e18, "Initial power incorrect");
+        int128 initialScheduledSlope = veToken.slopeChanges(initialLockEnd);
+        assertTrue(initialScheduledSlope < 0, "Slope change should be scheduled when lock ends");
         
-        // Extend lock to 52 weeks total
+        // Extend lock to max time
         vm.prank(alice);
-        uint256 newLockEndTime = block.timestamp + 52 weeks;
-        veToken.extendLockToTime(tokenId, newLockEndTime);
-        
+        veToken.extendLockToTime(tokenId, type(uint256).max);
         (, uint256 extendedLockEnd) = veToken.getStakedAmountAndExpiry(alice);
-        uint256 extendedDuration = extendedLockEnd - block.timestamp;
+        assertGt(extendedLockEnd, initialLockEnd, "Lock end should be extended");
         
         uint256 extendedPower = veToken.getVotes(alice);
-        uint256 expectedExtended = AMOUNT * extendedDuration / MAX_STAKE_TIME_S;
+        uint256 expectedExtended = _calculateExpectedVotePower(AMOUNT, block.timestamp, extendedLockEnd);
         assertApproxEqRel(extendedPower, expectedExtended, 0.01e18, "Extended power incorrect");
+        assertGt(extendedPower, initialPower, "Extended power should be greater than initial power");
         
-        // Check slope change is updated (should be negative like Velodrome)
-        int128 slopeChange = veToken.slopeChanges(extendedLockEnd);
-        assertTrue(slopeChange < 0, "Extended slope change should be scheduled as negative");
+        // Check slope change is updated
+        int128 finalSlopeChange = veToken.slopeChanges(extendedLockEnd);
+        assertTrue(finalSlopeChange < 0, "Extended slope change should be scheduled");
+        int128 initialScheduledSlope2 = veToken.slopeChanges(initialLockEnd);
+        assertEq(0, initialScheduledSlope2, "Initialially scheduled slope change should have been removed");
     }
     
-    // Test 7: Ensure votes can't go negative
+    
     function testVotesNeverNegative() public {
         // Stake and let it expire
         vm.prank(alice);
@@ -226,60 +216,22 @@ contract veZKCVotesTest is veZKCTest {
         uint256 expiredVotes = veToken.getVotes(alice);
         assertEq(expiredVotes, 0, "Expired votes should be 0, not negative");
         
-        uint256 totalVotes = veToken.getTotalVotes();
+        uint256 totalVotes = veToken.getPastTotalSupply(block.timestamp);
         assertEq(totalVotes, 0, "Total votes should be 0 when all expired");
     }
     
-    // Test 8: getPastTotalSupply returns historical total voting power
-    function testGetPastTotalSupply() public {
-        uint256 t0 = block.timestamp;
-        
-        // Alice stakes
-        vm.prank(alice);
-        veToken.stake(AMOUNT, block.timestamp + 104 weeks);
-        
-        (, uint256 aliceLockEnd) = veToken.getStakedAmountAndExpiry(alice);
-        
-        vm.warp(t0 + 10 weeks);
-        uint256 t1 = block.timestamp;
-        
-        // Bob stakes
-        vm.prank(bob);
-        veToken.stake(AMOUNT, block.timestamp + 52 weeks);
-        
-        (, uint256 bobLockEnd) = veToken.getStakedAmountAndExpiry(bob);
-        
-        vm.warp(t0 + 20 weeks);
-        uint256 t2 = block.timestamp;
-        
-        // Check historical total supply
-        uint256 totalAtT1 = veToken.getPastTotalSupply(t1);
-        uint256 aliceRemainingAtT1 = aliceLockEnd - t1;
-        uint256 expectedT1 = AMOUNT * aliceRemainingAtT1 / MAX_STAKE_TIME_S; // Only Alice
-        assertApproxEqRel(totalAtT1, expectedT1, 0.01e18, "Total supply at t1 incorrect");
-        
-        uint256 totalAtT2 = veToken.getPastTotalSupply(t2);
-        uint256 aliceRemainingAtT2 = aliceLockEnd - t2;
-        uint256 bobRemainingAtT2 = bobLockEnd - t2;
-        uint256 aliceAtT2 = AMOUNT * aliceRemainingAtT2 / MAX_STAKE_TIME_S;
-        uint256 bobAtT2 = AMOUNT * bobRemainingAtT2 / MAX_STAKE_TIME_S;
-        uint256 expectedT2 = aliceAtT2 + bobAtT2;
-        assertApproxEqRel(totalAtT2, expectedT2, 0.01e18, "Total supply at t2 incorrect");
-    }
-    
-    // Test 9: Voting power with different lock durations
     function testVotingPowerWithDifferentLockDurations() public {
-        // Alice stakes for max time (104 weeks)
+        // Alice stakes for max time
         vm.prank(alice);
-        veToken.stake(AMOUNT, block.timestamp + 104 weeks);
+        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S);
         
-        // Bob stakes for half max time (52 weeks)
+        // Bob stakes for half max time
         vm.prank(bob);
-        veToken.stake(AMOUNT, block.timestamp + 52 weeks);
+        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
         
-        // Charlie stakes for quarter max time (26 weeks)
+        // Charlie stakes for quarter max time
         vm.prank(charlie);
-        veToken.stake(AMOUNT, block.timestamp + 26 weeks);
+        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 4);
         
         // Get actual lock ends
         (, uint256 aliceEnd) = veToken.getStakedAmountAndExpiry(alice);
@@ -289,22 +241,16 @@ contract veZKCVotesTest is veZKCTest {
         uint256 alicePower = veToken.getVotes(alice);
         uint256 bobPower = veToken.getVotes(bob);
         uint256 charliePower = veToken.getVotes(charlie);
+        assertGt(alicePower, bobPower, "Alice should have more power than Bob");
+        assertGt(bobPower, charliePower, "Bob should have more power than Charlie");
         
         // Calculate expected powers
-        uint256 aliceDuration = aliceEnd - block.timestamp;
-        uint256 bobDuration = bobEnd - block.timestamp;
-        uint256 charlieDuration = charlieEnd - block.timestamp;
-        
-        uint256 expectedAlice = AMOUNT * aliceDuration / MAX_STAKE_TIME_S;
-        uint256 expectedBob = AMOUNT * bobDuration / MAX_STAKE_TIME_S;
-        uint256 expectedCharlie = AMOUNT * charlieDuration / MAX_STAKE_TIME_S;
+        uint256 expectedAlice = _calculateExpectedVotePower(AMOUNT, block.timestamp, aliceEnd);
+        uint256 expectedBob = _calculateExpectedVotePower(AMOUNT, block.timestamp, bobEnd);
+        uint256 expectedCharlie = _calculateExpectedVotePower(AMOUNT, block.timestamp, charlieEnd);
         
         assertApproxEqRel(alicePower, expectedAlice, 0.01e18, "Alice power incorrect");
         assertApproxEqRel(bobPower, expectedBob, 0.01e18, "Bob power incorrect");
         assertApproxEqRel(charliePower, expectedCharlie, 0.01e18, "Charlie power incorrect");
-        
-        // Alice should have more power than Bob, Bob more than Charlie
-        assertTrue(alicePower > bobPower, "Alice should have more power than Bob");
-        assertTrue(bobPower > charliePower, "Bob should have more power than Charlie");
     }
 }

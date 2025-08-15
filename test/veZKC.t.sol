@@ -18,6 +18,7 @@ contract veZKCTest is Test {
     uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 10**18;
     uint256 public constant AMOUNT = 10_000 * 10**18;
     uint256 public MAX_STAKE_TIME_S;
+    uint256 public MIN_STAKE_TIME_S;
 
     
     function deployContracts() internal {
@@ -46,7 +47,7 @@ contract veZKCTest is Test {
         veToken = veZKC(address(new ERC1967Proxy(address(veImpl), veInitData)));
 
         MAX_STAKE_TIME_S = veToken.MAX_STAKE_TIME_S();
-        
+        MIN_STAKE_TIME_S = veToken.MIN_STAKE_TIME_S();
         vm.stopPrank();
     }
     
@@ -78,6 +79,15 @@ contract veZKCTest is Test {
     }
     
     function setUp() public virtual {
+        // Align timestamp to week boundary BEFORE deploying contracts
+        // This ensures all initial contract state is on week boundaries
+        uint256 currentTime = block.timestamp;
+        uint256 weekBoundary = (currentTime / (1 weeks)) * (1 weeks);
+        if (weekBoundary < currentTime) {
+            weekBoundary += 1 weeks;
+        }
+        vm.warp(weekBoundary);
+        
         deployContracts();
         setupTokens();
     }
