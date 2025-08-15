@@ -8,35 +8,58 @@ The core contracts for ZKC. Includes the token itself, as well as its associated
 
 ## Repository Structure
 
-- **ZKC Token** (`src/ZKC.sol`) - ZKC ERC20
+- **ZKC Token** (`src/ZKC.sol`) - ZKC ERC20 with epoch-based inflation and emissions
 - **veZKC NFT** (`src/veZKC.sol`) - ERC721 positions issued when staking ZKC that grant governance and reward power
-- **StakingRewards** (`src/rewards/StakingVault.sol`) - Enables users that have staked ZKC to claim a portion of rewards emitted every epoch
+- **Rewards** (`rewards/`) - Contracts that allow users to claim their portion of emitted ZKC rewards each epoch.
 
-## Staking System
+## ZKC
+
+### Epochs
+
+ZKC distributes emissions every epoch:
+
+- **Initial Supply**: 1 billion ZKC
+- **Epoch Duration**: 2 days
+- **Epochs Per Year**: 182 epochs
+
+#### Emission Rate
+
+The annual emission rate decreases over time. Emissions are divided equally across epochs throughout the year:
+- **Year 0**: 7.0% annual
+- **Year 1**: 6.5% annual  
+- **Year 2**: 6.0% annual
+- **Year 3**: 5.5% annual
+- **Year 4**: 5.0% annual
+- **Year 5**: 4.5% annual
+- **Year 6**: 4.0% annual
+- **Year 7**: 3.5% annual
+- **Year 8+**: 3.0% annual (minimum rate)
+
+#### Emissions Distribution
+
+Each epoch's new emissions are allocated to two external contracts for distribution to users:
+- **75% to PoVW Provers (Proof of Verifiable Work)**: Rewards for provers participating in the network
+  - see `<TODO>`
+- **25% to ZKC Stakers**: Distributed to ZKC stakers (veZKC holders)
+  - see `rewards/StakingRewards.sol`
+
+Emissions occur at the end of each epoch.
+
+## veZKC
 
 ### Overview
 
-Users lock ZKC tokens for flexible periods (4-208 weeks) and receive a veZKC NFT positions that provides:
-- **Voting Power** for governance votes (OpenZeppelin IVotes compatible)
-- **Reward Power** for reward distribution (intended for PoVW emissions)
-- **Time-based Decay** following "ve" style mechanics
+Users stake ZKC tokens for a fixed period between (4-208 weeks) and receive a veZKC NFT positions that provides:
+- **Ability to participate in governance** eligibility for participating in governance votes
+- **Ability to claim ZKC emissions** eligibility for claiming ZKC emissions
 
-Each address can only be issued a single position at a time, and positions are not transferrable.
+Once staked, ZKC can not be unstaked the end of the commited period. Each address can only be issued a single position at a time. Positions are not transferrable.
 
-### Features
-
-#### Week-Based Locking
+#### Staking Periods
 - **Minimum**: 4 weeks
-- **Maximum**: 52 weeks (1 years)
+- **Maximum**: 104 weeks (2 years)
 
-#### Time-Based Voting/Reward Power
-```
-voting_power = (locked_amount × remaining_time) / MAXTIME
-```
-- **MAXTIME**: 52 weeks (maximum lock period)
-- **Linear Decay**: Power decreases proportionally with remaining time
-
-#### Position Management
+#### Staking Management
 - **Stake**: Lock ZKC tokens for chosen duration → receive veZKC NFT
 - **Add Stake**: Increase ZKC amount in existing position (preserves decay rate)
 - **Extend Lock**: Incremental extensions to lock periods (increases voting power)
@@ -44,53 +67,98 @@ voting_power = (locked_amount × remaining_time) / MAXTIME
   - Extend to specific end time: `extendLockToTime(tokenId, targetTime)`
 - **Unstake**: Direct withdrawal after lock expiry (no delay)
 
-## Supported Interfaces
+### Claiming Emissions
 
-### IVotes (OpenZeppelin Governance Compatibility)
-- `getVotes(account)` - Current voting power
-- `getPastVotes(account, timepoint)` - Historical voting power
-- `getTotalVotes()` - Total system voting power
-- `getPastTotalSupply(timepoint)` - Historical total voting power
-- `delegate(delegatee)` - Delegate voting power
-- `delegates(account)` - Check delegation target
+The portion of ZKC emissions that a user is eligible to claim is calculated based on their "Reward Power". 
 
-### IRewardPower (Custom Reward Distribution)
-- `getRewardPower(account)` - Current reward power
-- `getPastRewardPower(account, timepoint)` - Historical reward power
-- `getTotalRewardPower()` - Total system reward power
-- `getPastTotalRewardPower(timepoint)` - Historical total reward power
+Rewards Power is accessible via the IRewards interface. The contracts that enable users to claim rewards use these values to calculate the portion of emissions that should be transferred to the user. 
 
-## 💡 Usage Examples
+Currently reward power is simply equal to the amount of ZKC a user has staked, with no decay or adjustments to the power over time.
+
+### Governance
+
+A users weight in governance votes is calculated from their "Voting Power".
+
+Voting power is accessible via the IVotes interface. Governance contracts use these values to compute a users voting power during a vote.
+
+Voting power decays over time following the "voting escrow" model. Committing stake for longer provides more power for longer periods. 
+
+```
+voting_power = (staked_amount × remaining_time) / MAXTIME
+```
+
+- **MAXTIME**: 104 weeks (maximum stake period)
+- **Linear Decay**: Power decreases proportionally with remaining time
+
+#### Examples
+
+##### Voting Decay
+```
+Example 1: Stake for maximum time (104 weeks)
+Initial: 1000 ZKC staked for 104 weeks = 1000 voting power (1000 × 104/104)
+After 26 weeks: 1000 ZKC with 78 weeks remaining = 750 voting power  
+After 52 weeks: 1000 ZKC with 52 weeks remaining = 500 voting power
+After 104 weeks: 1000 ZKC with 0 weeks remaining = 0 voting power
+
+Example 2: Stake for half maximum time (52 weeks)
+Initial: 1000 ZKC locked for 52 weeks = 500 voting power (1000 × 52/104)
+After 26 weeks: 1000 ZKC with 26 weeks remaining = 250 voting power
+After 52 weeks: 1000 ZKC with 0 weeks remaining = 0 voting power
+```
+
+##### Adding additional stake
+Adding additional stake to an existing position boosts your voting power while preserving the remaining lock time.
+
+```
+Initial: 1000 ZKC locked for 52 weeks = 500 voting power (1000 × 52/104)
+After 26 weeks: 1000 ZKC with 26 weeks remaining = 250 voting power
+Add 500 ZKC: 1500 ZKC with 26 weeks remaining = 375 voting power (1500 × 26/104)
+```
+
+##### Extending staking period
+Extending your staking period increases your voting power by giving you more time remaining on your lock.
+
+```
+Initial: 1000 ZKC locked for 26 weeks = 250 voting power (1000 × 26/104)
+Extend to 52 weeks: 1000 ZKC with 52 weeks remaining = 500 voting power (1000 × 52/104)
+```
+
+
+#### IVotes Compatibility
+
+veZKC is IVotes compatible, supporting historical queries of voting power and voting delegation.
+
+
+
+
+
+## Usage Examples
 
 ### Basic Staking
 ```solidity
 // Approve ZKC tokens
-zkc.approve(address(stakingVault), 1000 ether);
+zkc.approve(address(veZkcToken), 1000 ether);
 
-// Stake for 52 weeks (1 year)
-uint256 tokenId = stakingVault.stake(1000 ether, 52);
+// Stake for 52 weeks (1/2 maximum lock)
+uint256 tokenId = veZkcToken.stake(1000 ether, block.timestamp + 52 weeks);
 
-// Check voting power (will be: 1000 * 52/208 = ~250)
-uint256 power = veZkcToken.votingPower(tokenId);
+// Check voting power (will be: 1000 * 52/104 = 500)
+uint256 power = veZkcToken.getVotes(msg.sender);
 ```
 
 ### Incremental Extensions
 ```solidity
-// You have 4 weeks remaining on your lock
-// Extend by just 1 week (now 5 weeks total)
-stakingVault.extendLockByWeeks(tokenId, 1);
-
-// Or extend to specific end time (2 years from now)
-stakingVault.extendLockToTime(tokenId, block.timestamp + 104 weeks);
+// Extend to specific end time (2 years from now)
+veZkcToken.extendLockToTime(tokenId, block.timestamp + 104 weeks);
 ```
 
 ### Position Management
 ```solidity
 // Add more ZKC to existing position
-stakingVault.addToStake(tokenId, 500 ether);
+veZkcToken.addToStake(tokenId, 500 ether);
 
 // Unstake after lock expires
-stakingVault.unstake(tokenId); // Returns original ZKC
+veZkcToken.unstake(tokenId); // Returns original ZKC
 ```
 
 ### Governance Integration
@@ -103,41 +171,12 @@ uint256 votes = veZkcToken.getVotes(user);
 uint256 historicalVotes = veZkcToken.getPastVotes(user, blockNumber);
 ```
 
-## Technical Details
 
-**Benefits:**
-- Longer locks naturally provide more power for longer periods
-- Linear decay creates predictable economics
-- No artificial multipliers or complex tiers
-- Proven model used by major DeFi protocols
 
-### Power Decay Example
-```
-Initial: 1000 ZKC locked for 208 weeks = 1000 voting power
-After 52 weeks: 1000 ZKC with 156 weeks remaining = 750 voting power  
-After 104 weeks: 1000 ZKC with 104 weeks remaining = 500 voting power
-After 208 weeks: 1000 ZKC with 0 weeks remaining = 0 voting power
-```
 
-### Extension Mechanics
-```
-Current state: 4 weeks remaining
-Extend by 1 week → 5 weeks remaining (not 1 week from scratch)
-Extend to specific time → Set exact end date (rounded to week boundary)
-```
+## Deployments
 
-## Governance
-
-The system is designed for seamless integration with governance systems:
-
-- **IVotes Compatible**: Works with OpenZeppelin Governor contracts
-- **Delegation Support**: Users can delegate voting power while retaining ownership
-- **Historical Queries**: Support for governance proposals with historical voting power
-- **Checkpointing**: Efficient on-chain voting power tracking
-
-## Deployment Information
-
-### ZKC Token Deployment
+### ZKC
 
 **Address**: `0x000006c2A22ff4A44ff1f5d0F2ed65F781F55555`  
 **Network**: Ethereum Mainnet  
