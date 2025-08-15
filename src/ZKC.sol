@@ -93,10 +93,6 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         }
     }
 
-    function mint(address to, uint256 amount) public onlyRole(MINTER_ROLE) {
-        _mint(to, amount);
-    }
-
     function mintPoVWReward(address to, uint256 amount, uint256 epoch) external onlyRole(POVW_MINTER_ROLE) {
         _mintReward(getPoVWEmissionsForEpoch(epoch), epochPoVWMinted, to, amount, epoch);
         emit PoVWRewardClaimed(epoch, to, amount);

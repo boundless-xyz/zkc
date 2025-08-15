@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {console} from "forge-std/console.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IVotes} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
-import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import {IERC6372} from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
@@ -27,7 +27,6 @@ contract veZKC is
     IRewards,
     IERC6372
 {
-    using Checkpoints for Checkpoints.Trace208;
     using SafeCast for uint256;
     using SafeERC20 for IERC20;
 
@@ -55,15 +54,17 @@ contract veZKC is
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
 
     /// @dev 4 weeks minimum
-    uint256 public constant MIN_LOCK_WEEKS = 4;
-    /// @dev 1 year maximum (52 weeks)
-    uint256 public constant MAX_LOCK_WEEKS = 52;
+    uint256 public constant MIN_STAKE_WEEKS = 4;
+    /// @dev 2 years maximum (104 weeks)
+    uint256 public constant MAX_STAKE_WEEKS = 104;
     /// @dev 1 week in seconds
     uint256 public constant WEEK = 1 weeks;
+    /// @dev Minimum lock time
+    uint256 public constant MIN_STAKE_TIME_S = MIN_STAKE_WEEKS * WEEK;
     /// @dev Maximum lock time
-    uint256 public constant MAXTIME = MAX_LOCK_WEEKS * WEEK;
+    uint256 public constant MAX_STAKE_TIME_S = MAX_STAKE_WEEKS * WEEK;
     /// @dev Maximum lock time as int128
-    int128 public constant iMAXTIME = int128(int256(MAX_LOCK_WEEKS * WEEK));
+    int128 public constant iMAX_STAKE_TIME_S = int128(int256(MAX_STAKE_WEEKS * WEEK));
 
     uint256 private _currentTokenId;
 
@@ -165,20 +166,21 @@ contract veZKC is
     }
 
     // Staking functions (consolidated from StakingVault)
-    function stake(uint256 amount, uint256 timestamp) external nonReentrant returns (uint256 tokenId) {
+    function stake(uint256 amount, uint256 expires) external nonReentrant returns (uint256 tokenId) {
         if (amount == 0) revert ZeroAmount();
         
         // Enforce single active position per user
         if (userActivePosition[msg.sender] != 0) revert UserAlreadyHasActivePosition();
         
-        timestamp = _timestampFloorToWeek(timestamp);
-        if (timestamp <= block.timestamp + MIN_LOCK_WEEKS * WEEK) revert LockDurationTooShort();
+        expires = _timestampFloorToWeek(expires);
+        if (expires <= block.timestamp + MIN_STAKE_TIME_S) revert StakeDurationTooShort();
+        if (expires > block.timestamp + MAX_STAKE_TIME_S) revert StakeDurationTooLong();
 
         // Transfer ZKC from user
         IERC20(address(zkcToken)).safeTransferFrom(msg.sender, address(this), amount);
 
         // Mint veZKC NFT with voting/reward power
-        tokenId = _stakeAndCheckpoint(msg.sender, amount, timestamp);
+        tokenId = _stakeAndCheckpoint(msg.sender, amount, expires);
 
         // Track user's active position
         userActivePosition[msg.sender] = tokenId;
@@ -226,7 +228,7 @@ contract veZKC is
         // Validate timestamp constraints (moved from _extendLockAndCheckpoint for consistency)
         uint256 roundedNewLockEndTime = _timestampFloorToWeek(newLockEndTime);
         require(roundedNewLockEndTime > lock.lockEnd, "Can only increase lock end time");
-        require(roundedNewLockEndTime <= block.timestamp + MAXTIME, "Lock cannot exceed max time");
+        require(roundedNewLockEndTime <= block.timestamp + MAX_STAKE_TIME_S, "Lock cannot exceed max time");
 
         // Extend the lock to new end time
         _extendLockAndCheckpoint(tokenId, newLockEndTime);
@@ -273,24 +275,24 @@ contract veZKC is
         _burnLock(tokenId);
     }
 
-    function _stakeAndCheckpoint(address to, uint256 amount, uint256 timestamp) internal returns (uint256) {
+    function _stakeAndCheckpoint(address to, uint256 amount, uint256 expires) internal returns (uint256) {
         uint256 tokenId = ++_currentTokenId;
         _mint(to, tokenId);
 
-        LockInfo memory oldLock; // Empty lock (new mint)
-        LockInfo memory newLock = LockInfo({amount: amount, lockEnd: timestamp});
+        LockInfo memory emptyLock; // Empty lock (new mint)
+        LockInfo memory newLock = LockInfo({amount: amount, lockEnd: expires});
         
         locks[tokenId] = newLock;
         
         // Get delegatee (self-delegate if not set)
-        address delegatee = _delegatee[to];
-        if (delegatee == address(0)) {
-            delegatee = to;
-            _delegatee[to] = to;
-        }
+        // address delegatee = _delegatee[to];
+        // if (delegatee == address(0)) {
+        //     delegatee = to;
+        //     _delegatee[to] = to;
+        // }
         
         // Create checkpoint for voting power change
-        _checkpoint(to, oldLock, newLock);
+        _checkpoint(to, emptyLock, newLock);
 
         return tokenId;
     }
@@ -337,7 +339,7 @@ contract veZKC is
         uint256 roundedNewLockEnd = _timestampFloorToWeek(newLockEndTime);
 
         require(roundedNewLockEnd > oldLock.lockEnd, "Can only increase lock end time");
-        require(roundedNewLockEnd <= block.timestamp + MAXTIME, "Lock cannot exceed max time");
+        require(roundedNewLockEnd <= block.timestamp + MAX_STAKE_TIME_S, "Lock cannot exceed max time");
 
         // Create new lock state with extended end time
         LockInfo memory newLock = LockInfo({
@@ -406,7 +408,7 @@ contract veZKC is
          * @dev This gives natural incentives without artificial multipliers
          */
         uint256 remainingTime = lock.lockEnd - block.timestamp;
-        return (lock.amount * remainingTime) / MAXTIME;
+        return (lock.amount * remainingTime) / MAX_STAKE_TIME_S;
     }
 
     function _getRewardPower(uint256 tokenId) internal view returns (uint256) {
@@ -418,11 +420,11 @@ contract veZKC is
 
         /// @dev Same formula as voting power for consistency
         uint256 remainingTime = lock.lockEnd - block.timestamp;
-        return (lock.amount * remainingTime) / MAXTIME;
+        return (lock.amount * remainingTime) / MAX_STAKE_TIME_S;
     }
 
     function _isValidLockWeeks(uint256 lockWeeks) internal pure returns (bool) {
-        return lockWeeks >= MIN_LOCK_WEEKS && lockWeeks <= MAX_LOCK_WEEKS;
+        return lockWeeks >= MIN_STAKE_WEEKS && lockWeeks <= MAX_STAKE_WEEKS;
     }
 
     /**
@@ -459,20 +461,22 @@ contract veZKC is
         return "mode=timestamp";
     }
 
+    /**
+    * @dev Returns the voting power that 'account' can use (i.e., delegated TO them)
+    * @dev Not the voting power they own but may have delegated away
+    */
     function getVotes(address account) public view override returns (uint256) {
-        /**
-         * @dev Returns the voting power that 'account' can use (i.e., delegated TO them)
-         * @dev Not the voting power they own but may have delegated away
-         */
+        
         uint256 epoch = _userPointEpoch[account];
         if (epoch == 0) return 0;
         
         Point memory lastPoint = _userPointHistory[account][epoch];
+
+        console.log("last point for account: ", account);
+        console.log("last point.bias", lastPoint.bias);
+        console.log("last point.slope", lastPoint.slope);
+        console.log("last point.updatedAt", lastPoint.updatedAt);
         
-        /**
-         * @dev Calculate current voting power from bias and slope
-         * @dev voting_power(t) = bias + slope * (t - ts), where slope is negative
-         */
         int128 dt = int128(int256(block.timestamp - lastPoint.updatedAt));
         int128 bias = lastPoint.bias + lastPoint.slope * dt;
         
@@ -717,7 +721,7 @@ contract veZKC is
 
     function getVotingPowerForWeeks(uint256 amount, uint256 lockWeeks) external pure returns (uint256) {
         /// @dev Calculate initial voting power for a given amount and lock weeks
-        return amount * lockWeeks / MAX_LOCK_WEEKS;
+        return amount * lockWeeks / MAX_STAKE_WEEKS;
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
@@ -744,7 +748,8 @@ contract veZKC is
     
     // Custom errors for staking functions
     error ZeroAmount();
-    error LockDurationTooShort();
+    error StakeDurationTooShort();
+    error StakeDurationTooLong();
     error UserAlreadyHasActivePosition();
 
     /**
@@ -812,33 +817,43 @@ contract veZKC is
         // Get the delegatee (self-delegate if not set)
         address user = delegates(account);
         
-        // Calculate old point from explicit oldLock state, if it hasn't expired.
+        // Calculate old point from explicit oldLock state.
+        // If it has expired we do nothing and leave the old point as 0s.
         if (oldLock.lockEnd > block.timestamp && oldLock.amount > 0) {
             // Calculate old voting power and slope from oldLock
-            uint256 oldRemainingTime = oldLock.lockEnd - block.timestamp;
-            uint256 oldPower = (oldLock.amount * oldRemainingTime) / MAXTIME;
-            int128 oldSlope = -int128(int256(oldLock.amount)) / iMAXTIME;
+            int128 oldSlope = int128(int256(oldLock.amount)) / iMAX_STAKE_TIME_S;
+            int128 oldRemainingTime = int128(int256(oldLock.lockEnd - block.timestamp));
+            int128 oldBias = oldSlope * oldRemainingTime;
             
             userOldPoint = Point({
-                bias: int128(int256(oldPower)),
+                bias: int128(int256(oldBias)),
                 slope: oldSlope,
                 updatedAt: block.timestamp
             });
         }
+
+        console.log("userOldPoint.bias", userOldPoint.bias);
+        console.log("userOldPoint.slope", userOldPoint.slope);
+        console.log("userOldPoint.updatedAt", userOldPoint.updatedAt);
         
-        // Calculate new point from explicit newLock state
+        // Calculate new point from explicit newLock state.
+        // If it has expired we do nothing and leave the new point as 0s.
         if (newLock.lockEnd > block.timestamp && newLock.amount > 0) {
             // Calculate new voting power and slope from newLock
-            uint256 newRemainingTime = newLock.lockEnd - block.timestamp;
-            uint256 newPower = (newLock.amount * newRemainingTime) / MAXTIME;
-            int128 newSlope = -int128(int256(newLock.amount)) / iMAXTIME;
+            int128 newSlope = int128(int256(newLock.amount)) / iMAX_STAKE_TIME_S;
+            int128 newRemainingTime = int128(int256(newLock.lockEnd - block.timestamp));
+            int128 newBias = newSlope * newRemainingTime;
             
             userNewPoint = Point({
-                bias: int128(int256(newPower)),
+                bias: int128(int256(newBias)),
                 slope: newSlope,
                 updatedAt: block.timestamp
             });
         }
+
+        console.log("userNewPoint.bias", userNewPoint.bias);
+        console.log("userNewPoint.slope", userNewPoint.slope);
+        console.log("userNewPoint.updatedAt", userNewPoint.updatedAt);
 
         // Read slope changes that are already scheduled at these timestamps.
         // oldLock.lockEnd can be in the past or in the future
@@ -851,6 +866,9 @@ contract veZKC is
                 globalNewSlopeDelta = slopeChanges[newLock.lockEnd];
             }
         }
+
+        console.log("globalOldSlopeDelta", globalOldSlopeDelta);
+        console.log("globalNewSlopeDelta", globalNewSlopeDelta);
         
         // Update user point history
         uint256 userEpoch = _userPointEpoch[user] + 1;
@@ -864,24 +882,31 @@ contract veZKC is
             lastGlobalPoint = _globalPointHistory[globalEpoch];
         }
 
+        console.log("lastGlobalPoint.bias", lastGlobalPoint.bias);
+        console.log("lastGlobalPoint.slope", lastGlobalPoint.slope);
+        console.log("lastGlobalPoint.updatedAt", lastGlobalPoint.updatedAt);
+
         uint256 lastCheckpoint = lastGlobalPoint.updatedAt;
+
+        console.log("lastCheckpoint", lastCheckpoint);
         
         // Backfill weekly global points.
         // This ensures getPastTotalSupply works correctly for any timestamp 
         // (since timestamps are always rounded down to the week on lock creation/extension)
         {
-            uint256 currentTimestamp = _timestampFloorToWeek(lastCheckpoint); // Round down to week
+            uint256 curWeek = _timestampFloorToWeek(lastCheckpoint); // Round down to week
+            console.log("Backfilling week:", curWeek);
             for (uint256 i = 0; i < 255; i++) {
-                currentTimestamp += WEEK;
+                curWeek += WEEK;
                 int128 currentScheduledSlopeChange = 0;
                 
-                if (currentTimestamp > block.timestamp) {
-                    currentTimestamp = block.timestamp; // Don't go beyond current time
+                if (curWeek > block.timestamp) {
+                    curWeek = block.timestamp; // Don't go beyond current time
                 } else {
-                    currentScheduledSlopeChange = slopeChanges[currentTimestamp]; // Get slope change for this week
+                    currentScheduledSlopeChange = slopeChanges[curWeek]; // Get slope change for this week
                 }
                 
-                int128 biasDelta = lastGlobalPoint.slope * int128(int256(currentTimestamp - lastCheckpoint));
+                int128 biasDelta = lastGlobalPoint.slope * int128(int256(curWeek - lastCheckpoint));
                 lastGlobalPoint.bias -= biasDelta;
                 // If decayed to zero mid week, bias could be negative in following week.
                 // Ensure bias never goes negative (a user can't have negative power).
@@ -895,18 +920,18 @@ contract veZKC is
                     lastGlobalPoint.slope = 0;
                 }
 
-                lastCheckpoint = currentTimestamp;
-                lastGlobalPoint.updatedAt = currentTimestamp;
+                lastCheckpoint = curWeek;
+                lastGlobalPoint.updatedAt = curWeek;
                 globalEpoch += 1;
                 
-                        // Unlikely, but if the current timestamp (which is rounded down to the week)
-        // is the same as the block timestamp, we don't store it in history yet as
-        // we still need to apply the users changes to it.
-        if (lastGlobalPoint.updatedAt == block.timestamp) {
-            break;
-        } else {
-            _globalPointHistory[globalEpoch] = lastGlobalPoint;
-        }                
+                // Unlikely, but if the current timestamp (which is rounded down to the week)
+                // is the same as the block timestamp, we don't store it in history yet as
+                // we still need to apply the users changes to it.
+                if (lastGlobalPoint.updatedAt == block.timestamp) {
+                    break;
+                } else {
+                    _globalPointHistory[globalEpoch] = lastGlobalPoint;
+                }                
             }
         }
 
@@ -940,6 +965,10 @@ contract veZKC is
         // Update global point history with final point
         _globalPointHistory[globalEpoch] = newGlobalPoint;
         _globalPointEpoch = globalEpoch;
+        console.log("final global point newGlobalPoint.bias", newGlobalPoint.bias);
+        console.log("final global point newGlobalPoint.slope", newGlobalPoint.slope);
+        console.log("final global point newGlobalPoint.updatedAt", newGlobalPoint.updatedAt);
+        console.log("final global point globalEpoch", globalEpoch);
         
         // Schedule slope changes.
         if (oldLock.lockEnd > block.timestamp) {
@@ -952,6 +981,7 @@ contract veZKC is
                 globalOldSlopeDelta -= userNewPoint.slope;
             }
             slopeChanges[oldLock.lockEnd] = globalOldSlopeDelta;
+            console.log("Schedule slopeChanges[oldLock.lockEnd]", slopeChanges[oldLock.lockEnd]);
         }
 
         if (newLock.lockEnd > block.timestamp) {
@@ -959,6 +989,7 @@ contract veZKC is
             if (newLock.lockEnd > oldLock.lockEnd) {
                 globalNewSlopeDelta -= userNewPoint.slope;
                 slopeChanges[newLock.lockEnd] = globalNewSlopeDelta;
+                console.log("Schedule slopeChanges[newLock.lockEnd]", slopeChanges[newLock.lockEnd]);
             }
         }
     }

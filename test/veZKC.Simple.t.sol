@@ -12,7 +12,8 @@ contract veZKCSimpleTest is Test {
     
     address public admin = makeAddr("admin");
     address public alice = makeAddr("alice");
-    uint256 constant AMOUNT = 1000 ether;
+    uint256 constant INITIAL_SUPPLY = 1_000_000_000 * 10**18;
+    uint256 constant AMOUNT = 10_000 * 10**18;
     
     function setUp() public {
         vm.startPrank(admin);
@@ -22,12 +23,13 @@ contract veZKCSimpleTest is Test {
         bytes memory zkcInitData = abi.encodeWithSelector(
             ZKC.initialize.selector,
             admin, // initialMinter1
-            admin, // initialMinter2
-            AMOUNT * 100,
-            AMOUNT * 100,
+            address(0), // initialMinter2
+            INITIAL_SUPPLY,
+            0,
             admin // owner
         );
         zkc = ZKC(address(new ERC1967Proxy(address(zkcImpl), zkcInitData)));
+        zkc.initializeV2();
         
         // Deploy veZKC with proxy
         veZKC veImpl = new veZKC();
@@ -40,10 +42,13 @@ contract veZKCSimpleTest is Test {
         
         vm.stopPrank();
         
-        // Grant minter role to admin and mint to alice
         vm.startPrank(admin);
         zkc.grantRole(zkc.MINTER_ROLE(), admin);
-        zkc.mint(alice, AMOUNT * 10);
+        address[] memory recipients = new address[](1);
+        recipients[0] = alice;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = AMOUNT;
+        zkc.initialMint(recipients, amounts);
         vm.stopPrank();
         
         vm.prank(alice);
@@ -51,9 +56,13 @@ contract veZKCSimpleTest is Test {
     }
     
     function testBasicStakeAndVotes() public {
-        // Alice stakes for 52 weeks
+        uint256 beforeVotes = veToken.getVotes(alice);
+        assertEq(beforeVotes, 0);
+        console.log("Before stake voting power:", beforeVotes);
+
+        // Alice stakes for 30 weeks
         vm.prank(alice);
-        veToken.stake(AMOUNT, block.timestamp + 52 * 1 weeks);
+        veToken.stake(AMOUNT, block.timestamp + 30 weeks);
         
         // Check that getVotes works and returns some power
         uint256 votes = veToken.getVotes(alice);
@@ -67,7 +76,7 @@ contract veZKCSimpleTest is Test {
         console.log("Decayed voting power:", decayedVotes);
         
         // Check that votes don't go negative
-        vm.warp(block.timestamp + 30 weeks); // Past expiry
+        vm.warp(block.timestamp + 40 weeks); // Past expiry
         uint256 expiredVotes = veToken.getVotes(alice);
         assertEq(expiredVotes, 0, "Expired votes should be 0");
         console.log("Expired voting power:", expiredVotes);
