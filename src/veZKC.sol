@@ -142,6 +142,12 @@ contract veZKC is
     event StakeAdded(address indexed user, uint256 indexed tokenId, uint256 addedAmount);
     event Unstaked(address indexed user, uint256 indexed tokenId, uint256 amount);
 
+    // Custom errors for staking functions
+    error ZeroAmount();
+    error StakeDurationTooShort();
+    error StakeDurationTooLong();
+    error UserAlreadyHasActivePosition();
+    
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -172,6 +178,7 @@ contract veZKC is
         // Enforce single active position per user
         if (userActivePosition[msg.sender] != 0) revert UserAlreadyHasActivePosition();
         
+        // Check that the stake duration is valid
         expires = _timestampFloorToWeek(expires);
         if (expires <= block.timestamp + MIN_STAKE_TIME_S) revert StakeDurationTooShort();
         if (expires > block.timestamp + MAX_STAKE_TIME_S) revert StakeDurationTooLong();
@@ -273,6 +280,12 @@ contract veZKC is
 
         // Anyone can burn expired NFTs to keep the system clean
         _burnLock(tokenId);
+    }
+
+    function getStakedAmountAndExpiry(address account) external view returns (uint256, uint256) {
+        uint256 tokenId = userActivePosition[account];
+        if (tokenId == 0) return (0, 0);
+        return (locks[tokenId].amount, locks[tokenId].lockEnd);
     }
 
     function _stakeAndCheckpoint(address to, uint256 amount, uint256 expires) internal returns (uint256) {
@@ -392,64 +405,6 @@ contract veZKC is
         emit LockExpired(tokenId);
     }
 
-    function votingPower(uint256 tokenId) external view returns (uint256) {
-        return _getVotingPower(tokenId);
-    }
-
-    function _getVotingPower(uint256 tokenId) internal view returns (uint256) {
-        if (_ownerOf(tokenId) == address(0)) return 0;
-
-        LockInfo memory lock = locks[tokenId];
-
-        if (block.timestamp >= lock.lockEnd) return 0;
-
-        /**
-         * @dev Standard veToken formula: voting_power = (amount * remaining_time) / MAXTIME
-         * @dev This gives natural incentives without artificial multipliers
-         */
-        uint256 remainingTime = lock.lockEnd - block.timestamp;
-        return (lock.amount * remainingTime) / MAX_STAKE_TIME_S;
-    }
-
-    function _getRewardPower(uint256 tokenId) internal view returns (uint256) {
-        if (_ownerOf(tokenId) == address(0)) return 0;
-
-        LockInfo memory lock = locks[tokenId];
-
-        if (block.timestamp >= lock.lockEnd) return 0;
-
-        /// @dev Same formula as voting power for consistency
-        uint256 remainingTime = lock.lockEnd - block.timestamp;
-        return (lock.amount * remainingTime) / MAX_STAKE_TIME_S;
-    }
-
-    function _isValidLockWeeks(uint256 lockWeeks) internal pure returns (bool) {
-        return lockWeeks >= MIN_STAKE_WEEKS && lockWeeks <= MAX_STAKE_WEEKS;
-    }
-
-    /**
-     * @dev Week-based validation and conversion functions
-     */
-    function weeksToSeconds(uint256 numWeeks) public pure returns (uint256) {
-        return numWeeks * WEEK;
-    }
-
-    function secondsToWeeks(uint256 seconds_) public pure returns (uint256) {
-        return seconds_ / WEEK;
-    }
-
-    function _getAccountVotingPower(address account) internal view returns (uint256) {
-        uint256 totalPower = 0;
-        uint256 balance = balanceOf(account);
-
-        for (uint256 i = 0; i < balance; i++) {
-            uint256 tokenId = tokenOfOwnerByIndex(account, i);
-            totalPower += _getVotingPower(tokenId);
-        }
-
-        return totalPower;
-    }
-
     /**
      * @dev IVotes implementation
      */
@@ -466,7 +421,6 @@ contract veZKC is
     * @dev Not the voting power they own but may have delegated away
     */
     function getVotes(address account) public view override returns (uint256) {
-        
         uint256 epoch = _userPointEpoch[account];
         if (epoch == 0) return 0;
         
@@ -478,9 +432,10 @@ contract veZKC is
         console.log("last point.updatedAt", lastPoint.updatedAt);
         
         int128 dt = int128(int256(block.timestamp - lastPoint.updatedAt));
-        int128 bias = lastPoint.bias + lastPoint.slope * dt;
+        int128 bias = lastPoint.bias - lastPoint.slope * dt;
         
-        /// @dev Ensure non-negative (voting power cannot be negative)
+        /// Ensure non-negative (voting power cannot be negative).
+        // Can happen if we decayed to 0 previously and are now checking power after that point.
         if (bias < 0) bias = 0;
         
         return uint256(uint128(bias));
@@ -639,50 +594,36 @@ contract veZKC is
     }
 
     /**
-     * @dev Current voting power (not checkpointed, calculated live)
-     */
-    function getCurrentVotingPower(address account) external view returns (uint256) {
-        return _getAccountRewardPower(account);
-    }
-
-    /**
      * @dev IRewardPower implementation
      */
-    function getRewardPower(address account) external view override returns (uint256) {
-        return _getAccountRewardPower(account);
+    function getRewards(address account) external view override returns (uint256) {
+        (uint256 amount, uint256 expiry) = getStakedAmountAndExpiry(account);
+        if (expiry <= block.timestamp) return 0;
+        return amount;
     }
 
     // TODO
-    function getPastRewardPower(address account, uint256 timepoint) external view override returns (uint256) {
-        return _getAccountRewardPower(account);
+    function getPastRewards(address account, uint256 _timepoint) external view override returns (uint256) {
+        return getRewards(account);
     }
 
     // TODO
-    function getTotalRewardPower() external view override returns (uint256) {
+    function getTotalRewards() external view override returns (uint256) {
         uint256 total = 0;
         for (uint256 i = 1; i <= _currentTokenId; i++) {
             if (_ownerOf(i) != address(0)) {
-                total += _getRewardPower(i);
+                (uint256 amount, uint256 expiry) = getStakedAmountAndExpiry(_ownerOf(i));
+                if (expiry > block.timestamp) {
+                    total += amount;
+                }
             }
         }
         return total;
     }
 
     // TODO
-    function getPastTotalRewardPower(uint256 timepoint) external view override returns (uint256) {
-        return this.getTotalRewardPower();
-    }
-
-    function _getAccountRewardPower(address account) internal view returns (uint256) {
-        uint256 totalPower = 0;
-        uint256 balance = balanceOf(account);
-
-        for (uint256 i = 0; i < balance; i++) {
-            uint256 tokenId = tokenOfOwnerByIndex(account, i);
-            totalPower += _getRewardPower(tokenId);
-        }
-
-        return totalPower;
+    function getPastTotalRewards(uint256 timepoint) external view override returns (uint256) {
+        return this.getTotalRewards();
     }
 
     /**
@@ -711,50 +652,10 @@ contract veZKC is
         return interfaceId == type(IERC721).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    /**
-     * @dev Public functions to get lock information
-     */
-    function getMaxVotingPower(uint256 amount) external pure returns (uint256) {
-        /// @dev Maximum voting power when locked for MAXTIME
-        return amount;
-    }
-
-    function getVotingPowerForWeeks(uint256 amount, uint256 lockWeeks) external pure returns (uint256) {
-        /// @dev Calculate initial voting power for a given amount and lock weeks
-        return amount * lockWeeks / MAX_STAKE_WEEKS;
-    }
-
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
-
-    // Add missing functions for ERC721Enumerable-like functionality
-    function tokenOfOwnerByIndex(address owner, uint256 index) public view returns (uint256) {
-        require(index < balanceOf(owner), "Index out of bounds");
-
-        uint256 count = 0;
-        for (uint256 i = 1; i <= _currentTokenId; i++) {
-            if (_ownerOf(i) == owner) {
-                if (count == index) {
-                    return i;
-                }
-                count++;
-            }
-        }
-
-        revert("Token not found");
-    }
 
     // Custom error for ERC5805
     error ERC5805FutureLookup(uint256 timepoint, uint48 clock);
-    
-    // Custom errors for staking functions
-    error ZeroAmount();
-    error StakeDurationTooShort();
-    error StakeDurationTooLong();
-    error UserAlreadyHasActivePosition();
-
-    /**
-     * @dev Helper Functions for Points System
-     */
     
     /**
      * @dev Binary search to find user's point at a specific timestamp
@@ -905,16 +806,28 @@ contract veZKC is
                 } else {
                     currentScheduledSlopeChange = slopeChanges[curWeek]; // Get slope change for this week
                 }
+
+                console.log("currentScheduledSlopeChange", currentScheduledSlopeChange);
                 
+                // Compute the delta in bias between the last checkpoint and the current week we are backfilling to.
+                // Apply it to the last global point's bias.
                 int128 biasDelta = lastGlobalPoint.slope * int128(int256(curWeek - lastCheckpoint));
+                console.log("biasDelta", biasDelta);
+                console.log("lastGlobalPoint.bias before", lastGlobalPoint.bias);
                 lastGlobalPoint.bias -= biasDelta;
+                console.log("lastGlobalPoint.bias after", lastGlobalPoint.bias);
+
                 // If decayed to zero mid week, bias could be negative in following week.
-                // Ensure bias never goes negative (a user can't have negative power).
+                // Ensure bias never goes negative.
                 if (lastGlobalPoint.bias < 0) {
                     lastGlobalPoint.bias = 0;
                 }
-                
+
+                // Apply the slope change for this week to the last global point's slope.
+                console.log("lastGlobalPoint.slope before", lastGlobalPoint.slope);
                 lastGlobalPoint.slope += currentScheduledSlopeChange;
+                console.log("lastGlobalPoint.slope after", lastGlobalPoint.slope);
+                
                 // Slope can never go negative. Added as a sanity check.
                 if (lastGlobalPoint.slope < 0) {
                     lastGlobalPoint.slope = 0;
@@ -930,6 +843,10 @@ contract veZKC is
                 if (lastGlobalPoint.updatedAt == block.timestamp) {
                     break;
                 } else {
+                    console.log("Storing global point history for epoch:", globalEpoch);
+                    console.log("global point bias:", lastGlobalPoint.bias);
+                    console.log("global point slope:", lastGlobalPoint.slope);
+                    console.log("global point updatedAt:", lastGlobalPoint.updatedAt);
                     _globalPointHistory[globalEpoch] = lastGlobalPoint;
                 }                
             }

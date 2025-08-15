@@ -63,6 +63,11 @@ contract veZKCSimpleTest is Test {
         // Alice stakes for 30 weeks
         vm.prank(alice);
         veToken.stake(AMOUNT, block.timestamp + 30 weeks);
+
+        (uint256 amount, uint256 expiry) = veToken.getStakedAmountAndExpiry(alice);
+        assertEq(amount, AMOUNT);
+        // Expiry should be equal or rounded down to the nearest week.
+        assertLe(expiry, block.timestamp + 30 weeks);
         
         // Check that getVotes works and returns some power
         uint256 votes = veToken.getVotes(alice);
@@ -70,13 +75,26 @@ contract veZKCSimpleTest is Test {
         console.log("Initial voting power:", votes);
         
         // Move forward and check decay
-        vm.warp(block.timestamp + 26 weeks);
+        vm.warp(expiry - 15 weeks);
         uint256 decayedVotes = veToken.getVotes(alice);
-        assertLt(decayedVotes, votes, "Voting power should decay");
         console.log("Decayed voting power:", decayedVotes);
+        assertLt(decayedVotes, votes, "Voting power should decay");
+
+        // Check that voting power just before expiry is > 0
+        vm.warp(expiry - 1);
+        uint256 votesBeforeExpiry = veToken.getVotes(alice);
+        assertGt(votesBeforeExpiry, 0, "Should have some voting power");
+        assertLt(votesBeforeExpiry, decayedVotes, "Voting power should increase");
+        console.log("Voting power before expiry:", votesBeforeExpiry);
+
+        // Check that voting power is 0 after expiry
+        vm.warp(expiry);
+        uint256 votesAfterExpiry = veToken.getVotes(alice);
+        assertEq(votesAfterExpiry, 0, "Voting power should be 0 after expiry");
+        console.log("Voting power after expiry:", votesAfterExpiry);
         
-        // Check that votes don't go negative
-        vm.warp(block.timestamp + 40 weeks); // Past expiry
+        // Check that votes don't go negative after expiry
+        vm.warp(expiry + 1 weeks); // Past expiry
         uint256 expiredVotes = veToken.getVotes(alice);
         assertEq(expiredVotes, 0, "Expired votes should be 0");
         console.log("Expired voting power:", expiredVotes);
