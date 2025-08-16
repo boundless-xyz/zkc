@@ -175,7 +175,8 @@ library Supply {
      * @return The amount of new tokens to be emitted at the end of this epoch
      */
     function getEmissionsForEpoch(uint256 epoch) internal pure returns (uint256) {
-        // TODO: Possible repeated work.
+        // TODO: Possible repeated work, both between these calls, 
+        // and during batch claims of consecutive epochs.
         uint256 supplyAtNextEpoch = getSupplyAtEpoch(epoch + 1);
         uint256 supplyAtEpoch = getSupplyAtEpoch(epoch);
         

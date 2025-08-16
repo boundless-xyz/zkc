@@ -38,11 +38,12 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
     mapping(uint256 => uint256) public epochPoVWMinted;      // Track PoVW minting per epoch
     mapping(uint256 => uint256) public epochStakingMinted;   // Track staking minting per epoch
 
-    event PoVWRewardClaimed(uint256 indexed epoch, address indexed recipient, uint256 amount);
-    event StakingRewardClaimed(uint256 indexed epoch, address indexed recipient, uint256 amount);
+    event PoVWRewardsClaimed(address indexed recipient, uint256[] epochs, uint256[] amounts);
+    event StakingRewardsClaimed(address indexed recipient, uint256[] epochs, uint256[] amounts);
 
     error EpochNotEnded(uint256 epoch);
     error EpochAllocationExceeded(uint256 epoch);
+    error InvalidInputLength();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -93,39 +94,48 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         }
     }
 
-    function mintPoVWReward(address to, uint256 amount, uint256 epoch) external onlyRole(POVW_MINTER_ROLE) {
-        _mintReward(getPoVWEmissionsForEpoch(epoch), epochPoVWMinted, to, amount, epoch);
-        emit PoVWRewardClaimed(epoch, to, amount);
+    function mintPoVWRewards(address to, uint256[] calldata amounts, uint256[] calldata epochs) external onlyRole(POVW_MINTER_ROLE) {
+        _mintRewards(getPoVWEmissionsForEpoch, epochPoVWMinted, to, amounts, epochs);
+        emit PoVWRewardsClaimed(to, amounts, epochs);
     }
 
-    function mintStakingReward(address to, uint256 amount, uint256 epoch) external onlyRole(STAKING_MINTER_ROLE) {
-        _mintReward(getStakingEmissionsForEpoch(epoch), epochStakingMinted, to, amount, epoch);
-        emit StakingRewardClaimed(epoch, to, amount);
+    function mintStakingRewards(address to, uint256[] calldata amounts, uint256[] calldata epochs) external onlyRole(STAKING_MINTER_ROLE) {
+        _mintRewards(getStakingEmissionsForEpoch, epochStakingMinted, to, amounts, epochs);
+        emit StakingRewardsClaimed(to, amounts, epochs);
     }
 
-    function _mintReward(
-        uint256 emission,
+    function _mintRewards(
+        function(uint256) pure returns (uint256) getEmissionsForEpochFn,
         mapping(uint256 => uint256) storage mintedMapping,
         address to, 
-        uint256 amount, 
-        uint256 epoch
+        uint256[] calldata amounts, 
+        uint256[] calldata epochs
     ) internal {
-        // Rewards cannot be minted for future epochs
+        if (amounts.length != epochs.length) {
+            revert InvalidInputLength();
+        }
+        
         uint256 currentEpoch = getCurrentEpoch();
-        if (epoch >= currentEpoch) {
-            revert EpochNotEnded(epoch);
+        uint256 totalAmount = 0;
+        
+        for (uint256 i = 0; i < amounts.length; i++) {
+            uint256 epoch = epochs[i];
+            if (epoch >= currentEpoch) {
+                revert EpochNotEnded(epoch);
+            }
+            
+            uint256 epochEmissionTotal = getEmissionsForEpochFn(epoch);
+            uint256 alreadyMinted = mintedMapping[epoch];
+            uint256 mintedTotal = alreadyMinted + amounts[i];
+            if (mintedTotal > epochEmissionTotal) {
+                revert EpochAllocationExceeded(epoch);
+            }
+            
+            mintedMapping[epoch] = mintedTotal;
+            totalAmount += amounts[i];
         }
 
-        uint256 alreadyMinted = mintedMapping[epoch];
-        if (alreadyMinted + amount > emission) {
-            revert EpochAllocationExceeded(epoch);
-        }
-        
-        // Track total minted for this epoch
-        mintedMapping[epoch] = alreadyMinted + amount;
-        
-        // Mint the tokens
-        _mint(to, amount);
+        _mint(to, totalAmount);
     }
 
     // Returns the supply at the start of the provided epoch.

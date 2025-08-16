@@ -16,6 +16,13 @@ contract ZKCTest is Test {
     address public user = makeAddr("user");
     
     uint256 public deploymentTime;
+
+    function _buildSingleArrayInputs(uint256 amount, uint256 epoch) internal pure returns (uint256[] memory amounts, uint256[] memory epochs) {
+        amounts = new uint256[](1);
+        amounts[0] = amount;
+        epochs = new uint256[](1);
+        epochs[0] = epoch;
+    }
     
     function deployZKC() internal {
         // Deploy implementation

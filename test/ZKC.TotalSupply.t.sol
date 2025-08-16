@@ -49,9 +49,10 @@ contract ZKCTotalSupplyTest is ZKCTest {
         
         uint256 mintAmount = 1000 * 10**18;
         
+        (uint256[] memory amounts, uint256[] memory epochs) = _buildSingleArrayInputs(mintAmount, 1);
         vm.prank(povwMinter);
-        zkc.mintPoVWReward(user, mintAmount, 1);
-        
+        zkc.mintPoVWRewards(user, amounts, epochs);
+
         assertEq(zkc.claimedTotalSupply(), mintAmount);
         assertEq(zkc.totalSupply(), Supply.getSupplyAtEpoch(2));
     }
@@ -62,8 +63,9 @@ contract ZKCTotalSupplyTest is ZKCTest {
         
         // Mint some rewards for epoch 1
         uint256 mintAmount = 1000 * 10**18;
+        (uint256[] memory amounts, uint256[] memory epochs) = _buildSingleArrayInputs(mintAmount, 1);
         vm.prank(povwMinter);
-        zkc.mintPoVWReward(user, mintAmount, 1);
+        zkc.mintPoVWRewards(user, amounts, epochs);
         
         // totalSupply should be much higher than claimed
         uint256 theoretical = zkc.totalSupply();
@@ -110,13 +112,15 @@ contract ZKCTotalSupplyTest is ZKCTest {
         
         // Mint partial rewards for epoch 1
         uint256 epoch1Emissions = zkc.getPoVWEmissionsForEpoch(1);
+        (uint256[] memory amounts, uint256[] memory epochs) = _buildSingleArrayInputs(epoch1Emissions / 2, 1);
         vm.prank(povwMinter);
-        zkc.mintPoVWReward(user, epoch1Emissions / 2, 1);
+        zkc.mintPoVWRewards(user, amounts, epochs);
         
         // Mint full rewards for epoch 2 staking
         uint256 epoch2StakingEmissions = zkc.getStakingEmissionsForEpoch(2);
+        (uint256[] memory amounts2, uint256[] memory epochs2) = _buildSingleArrayInputs(epoch2StakingEmissions, 2);
         vm.prank(stakingMinter);
-        zkc.mintStakingReward(user, epoch2StakingEmissions, 2);
+        zkc.mintStakingRewards(user, amounts2, epochs2);
         
         uint256 totalMinted = epoch1Emissions / 2 + epoch2StakingEmissions;
         

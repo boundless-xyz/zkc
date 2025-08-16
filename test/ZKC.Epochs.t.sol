@@ -85,22 +85,23 @@ contract ZKCEpochsTest is ZKCTest {
     
     function testGetPoVWRemainingForEpoch() public {
         uint256 epoch = 1;
-        
         uint256 totalAllocation = zkc.getPoVWEmissionsForEpoch(epoch);
         assertEq(zkc.getPoVWUnclaimedForEpoch(epoch), totalAllocation);
         
         vm.warp(zkc.getEpochStartTime(epoch + 1));
         
         uint256 mintAmount = totalAllocation / 4; // Mint 25%
+        (uint256[] memory amounts, uint256[] memory epochs) = _buildSingleArrayInputs(mintAmount, epoch);
         vm.prank(povwMinter);
-        zkc.mintPoVWReward(user, mintAmount, epoch);
+        zkc.mintPoVWRewards(user, amounts, epochs);
 
         assertEq(zkc.balanceOf(user), mintAmount);
         assertEq(zkc.getPoVWUnclaimedForEpoch(epoch), totalAllocation - mintAmount);
         
         uint256 remainingMint = totalAllocation - mintAmount; // Mint rest
+        (uint256[] memory amounts2, uint256[] memory epochs2) = _buildSingleArrayInputs(remainingMint, epoch);
         vm.prank(povwMinter);
-        zkc.mintPoVWReward(user, remainingMint, epoch);
+        zkc.mintPoVWRewards(user, amounts2, epochs2);
         
         assertEq(zkc.balanceOf(user), mintAmount + remainingMint);
         assertEq(zkc.getPoVWUnclaimedForEpoch(epoch), 0);
@@ -115,15 +116,17 @@ contract ZKCEpochsTest is ZKCTest {
         vm.warp(zkc.getEpochStartTime(epoch + 1));
         
         uint256 mintAmount = totalAllocation / 3; // Mint 33%
+        (uint256[] memory amounts, uint256[] memory epochs) = _buildSingleArrayInputs(mintAmount, epoch);
         vm.prank(stakingMinter);
-        zkc.mintStakingReward(user, mintAmount, epoch);
+        zkc.mintStakingRewards(user, amounts, epochs);
         
         assertEq(zkc.balanceOf(user), mintAmount);
         assertEq(zkc.getStakingUnclaimedForEpoch(epoch), totalAllocation - mintAmount);
 
         uint256 remainingMint = totalAllocation - mintAmount; // Mint rest
+        (uint256[] memory amounts2, uint256[] memory epochs2) = _buildSingleArrayInputs(remainingMint, epoch);
         vm.prank(stakingMinter);
-        zkc.mintStakingReward(user, remainingMint, epoch);
+        zkc.mintStakingRewards(user, amounts2, epochs2);
         
         assertEq(zkc.balanceOf(user), mintAmount + remainingMint);
         assertEq(zkc.getStakingUnclaimedForEpoch(epoch), 0);
@@ -133,18 +136,21 @@ contract ZKCEpochsTest is ZKCTest {
         uint256 currentEpoch = zkc.getCurrentEpoch();
         uint256 allocation = zkc.getPoVWEmissionsForEpoch(currentEpoch);
         
+        (uint256[] memory amounts, uint256[] memory epochs) = _buildSingleArrayInputs(allocation / 2, currentEpoch);
         vm.expectRevert(abi.encodeWithSelector(ZKC.EpochNotEnded.selector, currentEpoch));
         vm.prank(povwMinter);
-        zkc.mintPoVWReward(user, allocation / 2, currentEpoch);
+        zkc.mintPoVWRewards(user, amounts, epochs);
         
+        (uint256[] memory amounts2, uint256[] memory epochs2) = _buildSingleArrayInputs(allocation / 2, currentEpoch + 1);
         vm.expectRevert(abi.encodeWithSelector(ZKC.EpochNotEnded.selector, currentEpoch + 1));
         vm.prank(povwMinter);
-        zkc.mintPoVWReward(user, allocation / 2, currentEpoch + 1);
+        zkc.mintPoVWRewards(user, amounts2, epochs2);
         
         vm.warp(zkc.getEpochStartTime(currentEpoch + 1));
         
+        (uint256[] memory amounts3, uint256[] memory epochs3) = _buildSingleArrayInputs(allocation / 2, currentEpoch);
         vm.prank(povwMinter);
-        zkc.mintPoVWReward(user, allocation / 2, currentEpoch);
+        zkc.mintPoVWRewards(user, amounts3, epochs3);
     }
     
     function testMintRewardAllocationLimits() public {
@@ -155,19 +161,23 @@ contract ZKCEpochsTest is ZKCTest {
         uint256 povwAllocation = zkc.getPoVWEmissionsForEpoch(epoch);
         uint256 stakingAllocation = zkc.getStakingEmissionsForEpoch(epoch);
         
+        (uint256[] memory amounts, uint256[] memory epochs) = _buildSingleArrayInputs(povwAllocation / 2, epoch);
         vm.prank(povwMinter);
-        zkc.mintPoVWReward(user, povwAllocation / 2, epoch);
+        zkc.mintPoVWRewards(user, amounts, epochs);
         
+        (uint256[] memory amounts2, uint256[] memory epochs2) = _buildSingleArrayInputs(stakingAllocation / 2, epoch);
         vm.prank(stakingMinter);
-        zkc.mintStakingReward(user, stakingAllocation / 2, epoch);
+        zkc.mintStakingRewards(user, amounts2, epochs2);
         
+        (uint256[] memory amounts3, uint256[] memory epochs3) = _buildSingleArrayInputs(povwAllocation, epoch);
         vm.expectRevert(abi.encodeWithSelector(ZKC.EpochAllocationExceeded.selector, epoch));
         vm.prank(povwMinter);
-        zkc.mintPoVWReward(user, povwAllocation, epoch);
+        zkc.mintPoVWRewards(user, amounts3, epochs3);
         
+        (uint256[] memory amounts4, uint256[] memory epochs4) = _buildSingleArrayInputs(stakingAllocation, epoch);
         vm.expectRevert(abi.encodeWithSelector(ZKC.EpochAllocationExceeded.selector, epoch));
         vm.prank(stakingMinter);
-        zkc.mintStakingReward(user, stakingAllocation, epoch);
+        zkc.mintStakingRewards(user, amounts4, epochs4);
     }
     
     function testEpochMintingEvents() public {
@@ -177,17 +187,19 @@ contract ZKCEpochsTest is ZKCTest {
         // Move to epoch 2 so we can mint for epoch 1
         vm.warp(deploymentTime + 2 * zkc.EPOCH_DURATION() + 1);
         
+        (uint256[] memory amounts, uint256[] memory epochs) = _buildSingleArrayInputs(mintAmount, epoch);
+        
         // Test PoVW minting event
         vm.expectEmit(true, true, false, true);
-        emit ZKC.PoVWRewardClaimed(epoch, user, mintAmount);
+        emit ZKC.PoVWRewardsClaimed(user, amounts, epochs);
         vm.prank(povwMinter);
-        zkc.mintPoVWReward(user, mintAmount, epoch);
+        zkc.mintPoVWRewards(user, amounts, epochs);
         
         // Test staking minting event
         vm.expectEmit(true, true, false, true);
-        emit ZKC.StakingRewardClaimed(epoch, user, mintAmount);
+        emit ZKC.StakingRewardsClaimed(user, amounts, epochs);
         vm.prank(stakingMinter);
-        zkc.mintStakingReward(user, mintAmount, epoch);
+        zkc.mintStakingRewards(user, amounts, epochs);
     }
     
 }
