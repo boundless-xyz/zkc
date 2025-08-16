@@ -47,7 +47,7 @@ contract ZKCEpochsTest is ZKCTest {
         assertEq(zkc.getSupplyAtEpoch(1000), Supply.getSupplyAtEpoch(1000));
     }
     
-    function testGetEmissionsForEpoch() public view {
+    function testGetEmissionsForEpoch() public {
         uint256 emission0 = zkc.getEmissionsForEpoch(0);
         uint256 emission1 = zkc.getEmissionsForEpoch(1);
         uint256 emission100 = zkc.getEmissionsForEpoch(100);
@@ -65,7 +65,7 @@ contract ZKCEpochsTest is ZKCTest {
         assertEq(povw + staking, total);
     }
     
-    function testGetPoVWEmissionsForEpoch() public view {
+    function testGetPoVWEmissionsForEpoch() public {
         uint256 totalEmission = zkc.getEmissionsForEpoch(1);
         uint256 povwEmission = zkc.getPoVWEmissionsForEpoch(1);
         
@@ -74,7 +74,7 @@ contract ZKCEpochsTest is ZKCTest {
         assertEq(povwEmission, expectedPoVW);
     }
     
-    function testGetStakingEmissionsForEpoch() public view {
+    function testGetStakingEmissionsForEpoch() public {
         uint256 totalEmission = zkc.getEmissionsForEpoch(1);
         uint256 stakingEmission = zkc.getStakingEmissionsForEpoch(1);
         

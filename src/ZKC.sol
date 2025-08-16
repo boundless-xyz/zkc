@@ -105,7 +105,7 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
     }
 
     function _mintRewards(
-        function(uint256) pure returns (uint256) getEmissionsForEpochFn,
+        function(uint256) returns (uint256) getEmissionsForEpochFn,
         mapping(uint256 => uint256) storage mintedMapping,
         address to, 
         uint256[] calldata amounts, 
@@ -147,31 +147,31 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
 
     // Returns the amount of ZKC that will be emitted at the end of the provided epoch.
     // Includes both rewards for PoVW and for active staking.
-    function getEmissionsForEpoch(uint256 epoch) public pure returns (uint256) {
+    function getEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         return Supply.getEmissionsForEpoch(epoch);
     }
 
     // Returns the amount of ZKC that will be emitted for PoVW rewards at the end of the provided epoch.
-    function getPoVWEmissionsForEpoch(uint256 epoch) public pure returns (uint256) {
+    function getPoVWEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
         return (totalEmission * POVW_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
     // Returns the amount of ZKC that will be emitted for staking rewards at the end of the provided epoch.
-    function getStakingEmissionsForEpoch(uint256 epoch) public pure returns (uint256) {
+    function getStakingEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
         return (totalEmission * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
     // Returns the amount of ZKC that can still be minted (i.e. is unclaimed) for PoVW rewards at the end of the provided epoch.
-    function getPoVWUnclaimedForEpoch(uint256 epoch) public view returns (uint256) {
+    function getPoVWUnclaimedForEpoch(uint256 epoch) public returns (uint256) {
         uint256 allocation = getPoVWEmissionsForEpoch(epoch);
         uint256 minted = epochPoVWMinted[epoch];
         return allocation - minted;
     }
 
     // Returns the amount of ZKC that can still be minted (i.e. is unclaimed) for staking rewards at the end of the provided epoch.
-    function getStakingUnclaimedForEpoch(uint256 epoch) public view returns (uint256) {
+    function getStakingUnclaimedForEpoch(uint256 epoch) public returns (uint256) {
         uint256 allocation = getStakingEmissionsForEpoch(epoch);
         uint256 minted = epochStakingMinted[epoch];
         return allocation - minted;

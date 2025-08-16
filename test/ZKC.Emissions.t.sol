@@ -9,7 +9,7 @@ contract ZKCEmissionsTest is ZKCTest {
         deployZKC();
     }
     
-    function testGetEmissionsForEpoch() public view {
+    function testGetEmissionsForEpoch() public {
         // Test basic emissions
         uint256 emission1 = zkc.getEmissionsForEpoch(1);
         uint256 emission100 = zkc.getEmissionsForEpoch(100);
@@ -21,7 +21,7 @@ contract ZKCEmissionsTest is ZKCTest {
         assertEq(zkc.getEmissionsForEpoch(50), Supply.getEmissionsForEpoch(50));
     }
     
-    function testGetPoVWEmissionsForEpoch() public view {
+    function testGetPoVWEmissionsForEpoch() public {
         uint256 totalEmission = zkc.getEmissionsForEpoch(1);
         uint256 povwEmission = zkc.getPoVWEmissionsForEpoch(1);
         
@@ -30,7 +30,7 @@ contract ZKCEmissionsTest is ZKCTest {
         assertEq(povwEmission, expected);
     }
     
-    function testGetStakingEmissionsForEpoch() public view {
+    function testGetStakingEmissionsForEpoch() public {
         uint256 totalEmission = zkc.getEmissionsForEpoch(1);
         uint256 stakingEmission = zkc.getStakingEmissionsForEpoch(1);
         
@@ -39,7 +39,7 @@ contract ZKCEmissionsTest is ZKCTest {
         assertEq(stakingEmission, expected);
     }
     
-    function testEmissionsSumToTotal() public view {
+    function testEmissionsSumToTotal() public {
         uint256 total = zkc.getEmissionsForEpoch(1);
         uint256 povw = zkc.getPoVWEmissionsForEpoch(1);
         uint256 staking = zkc.getStakingEmissionsForEpoch(1);
@@ -385,5 +385,64 @@ contract ZKCEmissionsTest is ZKCTest {
         
         // Balance should be unchanged
         assertEq(zkc.balanceOf(user), balanceBefore);
+    }
+
+    // Helper function to create arrays for gas testing
+    function _buildArraysForGasTest(uint256 size, uint256 baseAmount) internal pure returns (uint256[] memory amounts, uint256[] memory epochs) {
+        amounts = new uint256[](size);
+        epochs = new uint256[](size);
+        
+        for (uint256 i = 0; i < size; i++) {
+            amounts[i] = baseAmount;
+            epochs[i] = i + 1; // Start from epoch 1
+        }
+    }
+
+    function benchMintPoVWRewards(uint256 batchSize, string memory snapshot) public {
+        // Move to epoch beyond batch size to allow minting all epochs
+        vm.warp(deploymentTime + (batchSize + 1) * zkc.EPOCH_DURATION() + 1);
+        
+        uint256 baseAmount = 1000 * 10**18;
+        (uint256[] memory amounts, uint256[] memory epochs) = _buildArraysForGasTest(batchSize, baseAmount);
+        
+        vm.prank(povwMinter);
+        zkc.mintPoVWRewards(user, amounts, epochs);
+        vm.snapshotGasLastCall(string.concat("mintPoVWRewards: batch of ", snapshot));
+    }
+
+    function benchMintStakingRewards(uint256 batchSize, string memory snapshot) public {
+        // Move to epoch beyond batch size to allow minting all epochs
+        vm.warp(deploymentTime + (batchSize + 1) * zkc.EPOCH_DURATION() + 1);
+        
+        uint256 baseAmount = 1000 * 10**18;
+        (uint256[] memory amounts, uint256[] memory epochs) = _buildArraysForGasTest(batchSize, baseAmount);
+        
+        vm.prank(stakingMinter);
+        zkc.mintStakingRewards(user, amounts, epochs);
+        vm.snapshotGasLastCall(string.concat("mintStakingRewards: batch of ", snapshot));
+    }
+
+    function testBenchMintPoVWRewards001() public {
+        benchMintPoVWRewards(1, "001");
+    }
+
+    function testBenchMintPoVWRewards015() public {
+        benchMintPoVWRewards(15, "015");
+    }
+
+    function testBenchMintPoVWRewards030() public {
+        benchMintPoVWRewards(30, "030");
+    }
+
+    function testBenchMintStakingRewards001() public {
+        benchMintStakingRewards(1, "001");
+    }
+
+    function testBenchMintStakingRewards015() public {
+        benchMintStakingRewards(15, "015");
+    }
+
+    function testBenchMintStakingRewards030() public {
+        benchMintStakingRewards(30, "030");
     }
 }

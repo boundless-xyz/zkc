@@ -174,13 +174,51 @@ library Supply {
      * @param epoch The epoch number
      * @return The amount of new tokens to be emitted at the end of this epoch
      */
-    function getEmissionsForEpoch(uint256 epoch) internal pure returns (uint256) {
+    function getEmissionsForEpoch(uint256 epoch) internal returns (uint256) {
         // TODO: Possible repeated work, both between these calls, 
         // and during batch claims of consecutive epochs.
-        uint256 supplyAtNextEpoch = getSupplyAtEpoch(epoch + 1);
-        uint256 supplyAtEpoch = getSupplyAtEpoch(epoch);
+
+        uint256 supplyAtNextEpoch = _getCachedEpochSupply(epoch + 1);
+        if (supplyAtNextEpoch == 0) {
+            supplyAtNextEpoch = getSupplyAtEpoch(epoch + 1);
+            _cacheEpochSupply(epoch + 1, supplyAtNextEpoch);
+        }
+        
+        uint256 supplyAtEpoch = _getCachedEpochSupply(epoch);
+        if (supplyAtEpoch == 0) {
+            supplyAtEpoch = getSupplyAtEpoch(epoch);
+            _cacheEpochSupply(epoch, supplyAtEpoch);
+        }
         
         return supplyAtNextEpoch - supplyAtEpoch;
+    }
+
+    // Leaves 20 bytes for epoch (max epoch: 2^160 - 1)
+    bytes32 private constant CACHE_PREFIX = 0x5A4B43454D495353494F4E530000000000000000000000000000000000000000;
+
+    /**
+     * @notice Calculate transient storage slot for epoch supply cache
+     * @param epoch The epoch number to cache
+     * @return slot The transient storage slot
+     */
+    function _getSupplyCacheSlot(uint256 epoch) private pure returns (bytes32 slot) {
+        assembly {
+            slot := or(CACHE_PREFIX, epoch)
+        }
+    }
+
+    function _cacheEpochSupply(uint256 epoch, uint256 supply) internal {
+        bytes32 slot = _getSupplyCacheSlot(epoch);
+        assembly {
+            tstore(slot, supply)
+        }
+    }
+
+    function _getCachedEpochSupply(uint256 epoch) internal view returns (uint256 supply) {
+        bytes32 slot = _getSupplyCacheSlot(epoch);
+        assembly {
+            supply := tload(slot)
+        }
     }
     
     /**
