@@ -4,14 +4,14 @@ pragma solidity ^0.8.20;
 import {UD60x18, ud, unwrap, pow} from "lib/prb-math/src/UD60x18.sol";
 
 /**
- * @title Inflation Library
- * @notice Precomputed epoch scaling factors for efficient ZKC supply calculations
- * @dev Uses PRBMath UD60x18 library for high-precision exponentiation and fixed-point arithmetic
+ * @title ZKC Supply Library
+ * @notice 
+ * @dev Annual supply values and epoch scaling factors per year are precomputed for gas efficiency.
+ * Precomputed values were created by running the script/PrecomputeSupply.s.sol script.
  * 
  * Inflation schedule:
  * - Year 0: 7.0% annual, reduces by 0.5% each year
  * - Year 8+: 3.0% annual (minimum rate)
- * - 182 epochs per year (2 days per epoch)
  */
 library Supply {
     // Base constants
@@ -193,7 +193,21 @@ library Supply {
         return supplyAtNextEpoch - supplyAtEpoch;
     }
 
-    // Leaves 20 bytes for epoch (max epoch: 2^160 - 1)
+    /**
+     * @notice Get which year a given epoch falls into
+     * @param epoch The epoch number (0-indexed)
+     * @return The year number (0-indexed)
+     */
+    function getYearForEpoch(uint256 epoch) internal pure returns (uint256) {
+        return epoch / EPOCHS_PER_YEAR;
+    }
+
+    // Supply values for epochs are cached, to enable efficient batch claims of epochs.
+    // This is a transient storage cache, so it is not persisted across blocks.
+    // Note we do not need to clear the cache after use, as supply values are deterministic.
+    
+    // Apply a prefix to reduce risk of collisions with future tstore features. 
+    // Leaves 20 bytes for epoch (max epoch: 2^160 - 1).
     bytes32 private constant CACHE_PREFIX = 0x5A4B43454D495353494F4E530000000000000000000000000000000000000000;
 
     /**
@@ -221,13 +235,6 @@ library Supply {
         }
     }
     
-    /**
-     * @notice Get which year a given epoch falls into
-     * @param epoch The epoch number (0-indexed)
-     * @return The year number (0-indexed)
-     */
-    function getYearForEpoch(uint256 epoch) internal pure returns (uint256) {
-        return epoch / EPOCHS_PER_YEAR;
-    }
+    
     
 }

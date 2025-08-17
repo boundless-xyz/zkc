@@ -194,6 +194,38 @@ contract veZKC is
         return tokenId;
     }
 
+    function stakeWithPermit(
+        uint256 amount, 
+        uint256 expires,
+        uint256 permitDeadline,
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s
+    ) external nonReentrant returns (uint256 tokenId) {
+        if (amount == 0) revert ZeroAmount();
+        
+        // Enforce single active position per user
+        if (userActivePosition[msg.sender] != 0) revert UserAlreadyHasActivePosition();
+        
+        // Get the expiry timestamp with proper week rounding and validation
+        expires = _getWeekExpiry(expires);
+
+        // Use permit to approve tokens
+        zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
+
+        // Transfer ZKC from user
+        IERC20(address(zkcToken)).safeTransferFrom(msg.sender, address(this), amount);
+
+        // Mint veZKC NFT with voting/reward power
+        tokenId = _stakeAndCheckpoint(msg.sender, amount, expires);
+
+        // Track user's active position
+        userActivePosition[msg.sender] = tokenId;
+
+        emit Staked(msg.sender, amount, tokenId);
+        return tokenId;
+    }
+
     function _timestampFloorToWeek(uint256 timestamp) internal pure returns (uint256) {
         return (timestamp / WEEK) * WEEK;
     }
@@ -224,41 +256,84 @@ contract veZKC is
         return expires;
     }
 
-    function addToStake(uint256 tokenId, uint256 amount) external nonReentrant {
+    function _addToStake(address from, uint256 tokenId, uint256 amount) private {
         require(amount > 0, "Amount must be greater than 0");
-        require(ownerOf(tokenId) == msg.sender, "Not the owner of this NFT");
-        require(userActivePosition[msg.sender] == tokenId, "Not user's active position");
-
-        address user = msg.sender;
-
-        // Check that the lock hasn't expired
-        LockInfo memory lock = locks[tokenId];
-        require(block.timestamp < lock.lockEnd, "Lock has expired, please unstake first");
+        require(_ownerOf(tokenId) != address(0), "Token does not exist");
 
         // Transfer ZKC from user
-        IERC20(address(zkcToken)).safeTransferFrom(user, address(this), amount);
+        IERC20(address(zkcToken)).safeTransferFrom(from, address(this), amount);
 
-        // Add to existing veZKC position (preserves existing decay)
+        // Add to existing veZKC position (preserves existing decay or zero power if expired)
         _addStakeAndCheckpoint(tokenId, amount);
 
-        emit StakeAdded(user, tokenId, amount);
+        emit StakeAdded(from, tokenId, amount);
     }
 
-    function extendLockToTime(uint256 tokenId, uint256 newLockEndTime) external nonReentrant {
+    /// @notice Add stake to your own active position
+    function addToStake(uint256 amount) external nonReentrant {
+        uint256 tokenId = userActivePosition[msg.sender];
+        require(tokenId != 0, "No active position");
+        
+        _addToStake(msg.sender, tokenId, amount);
+    }
+
+    /// @notice Add stake to your own active position using permit
+    function addToStakeWithPermit(
+        uint256 amount,
+        uint256 permitDeadline,
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s
+    ) external nonReentrant {
+        uint256 tokenId = userActivePosition[msg.sender];
+        require(tokenId != 0, "No active position");
+
+        // Use permit to approve tokens
+        zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
+        
+        _addToStake(msg.sender, tokenId, amount);
+    }
+
+    /// @notice Add stake to any user's position by token ID (donation)
+    function addToStakeByTokenId(uint256 tokenId, uint256 amount) external nonReentrant {
+        _addToStake(msg.sender, tokenId, amount);
+    }
+
+    /// @notice Add stake to any user's position by token ID using permit (donation)
+    function addToStakeWithPermitByTokenId(
+        uint256 tokenId,
+        uint256 amount,
+        uint256 permitDeadline,
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s
+    ) external nonReentrant {
+        // Use permit to approve tokens
+        zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
+        
+        _addToStake(msg.sender, tokenId, amount);
+    }
+
+    function extendStakeLockup(uint256 newLockEndTime) external nonReentrant {
+        // Get user's active position
+        uint256 tokenId = userActivePosition[msg.sender];
+        require(tokenId != 0, "No active position");
         require(ownerOf(tokenId) == msg.sender, "Not the owner of this NFT");
-        require(userActivePosition[msg.sender] == tokenId, "Not user's active position");
         
         // Cannot extend if delegated to someone else
         address delegatee = delegates(msg.sender);
         require(delegatee == msg.sender, "Cannot extend lock while delegated");
 
-        // Check that the lock hasn't expired
+        // Get current lock info
         LockInfo memory lock = locks[tokenId];
-        require(block.timestamp < lock.lockEnd, "Lock has expired, please unstake first");
-
+        
+        // Allow extending even if expired - this restores voting power
+        // No reason to prevent this as it's a valid user action to re-activate their position
+        
         // Validate timestamp constraints
         newLockEndTime = _getWeekExpiry(newLockEndTime);
         require(newLockEndTime > lock.lockEnd, "Can only increase lock end time");
+        require(newLockEndTime > block.timestamp, "New lock end must be in the future");
 
         // Extend the lock to new end time
         _extendLockAndCheckpoint(tokenId, newLockEndTime);
@@ -266,11 +341,10 @@ contract veZKC is
         emit LockExtended(tokenId, locks[tokenId].lockEnd);
     }
 
-    function unstake(uint256 tokenId) external nonReentrant {
-        require(ownerOf(tokenId) == msg.sender, "Not the owner of this NFT");
-        require(userActivePosition[msg.sender] == tokenId, "Not user's active position");
-
+    function unstake() external nonReentrant {
         address user = msg.sender;
+        uint256 tokenId = userActivePosition[user];
+        require(tokenId != 0, "No active position");
 
         // Check that the lock has expired
         LockInfo memory lock = locks[tokenId];
@@ -286,23 +360,6 @@ contract veZKC is
         IERC20(address(zkcToken)).safeTransfer(user, lock.amount);
 
         emit Unstaked(user, tokenId, lock.amount);
-    }
-
-    function burnExpiredNFT(uint256 tokenId) external {
-        require(_ownerOf(tokenId) != address(0), "NFT does not exist or already burned");
-
-        LockInfo memory lock = locks[tokenId];
-        require(block.timestamp >= lock.lockEnd, "Lock has not expired yet");
-
-        address owner = ownerOf(tokenId);
-
-        // Remove user's active position tracking if this was their active position
-        if (userActivePosition[owner] == tokenId) {
-            delete userActivePosition[owner];
-        }
-
-        // Anyone can burn expired NFTs to keep the system clean
-        _burnLock(tokenId);
     }
 
     function getStakedAmountAndExpiry(address account) public view returns (uint256, uint256) {
@@ -338,7 +395,7 @@ contract veZKC is
 
         // Capture old state before modification
         LockInfo memory oldLock = locks[tokenId];
-        require(block.timestamp < oldLock.lockEnd, "Lock has expired");
+        // Allow adding to expired locks - checkpoint will handle zero voting power
 
         // Create new lock state with added amount
         LockInfo memory newLock = LockInfo({
@@ -369,7 +426,7 @@ contract veZKC is
 
         // Capture old state before modification
         LockInfo memory oldLock = locks[tokenId];
-        require(block.timestamp < oldLock.lockEnd, "Lock has expired");
+        // Allow extending expired locks - this restores voting power
 
         // Round down to nearest week boundary
         uint256 roundedNewLockEnd = _timestampFloorToWeek(newLockEndTime);
@@ -410,7 +467,7 @@ contract veZKC is
         // Capture old state before modification
         LockInfo memory oldLock = locks[tokenId];
         // Empty lock (burned)
-        LockInfo memory newLock;
+        LockInfo memory emptyLock;
         
         delete locks[tokenId];
         _burn(tokenId);
@@ -423,7 +480,7 @@ contract veZKC is
         }
         
         // Create checkpoint for voting power change
-        _checkpoint(owner, oldLock, newLock);
+        _checkpoint(owner, oldLock, emptyLock);
 
         emit LockExpired(tokenId);
     }

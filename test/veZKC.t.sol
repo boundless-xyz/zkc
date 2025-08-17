@@ -91,4 +91,33 @@ contract veZKCTest is Test {
         deployContracts();
         setupTokens();
     }
+
+    // Helper function to create permit signatures
+    function _createPermitSignature(
+        uint256 privateKey,
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline
+    ) internal view returns (uint8 v, bytes32 r, bytes32 s) {
+        bytes32 domainSeparator = zkc.DOMAIN_SEPARATOR();
+        uint256 nonce = zkc.nonces(owner);
+        
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                owner,
+                spender,
+                value,
+                nonce,
+                deadline
+            )
+        );
+        
+        bytes32 digest = keccak256(
+            abi.encodePacked("\x19\x01", domainSeparator, structHash)
+        );
+        
+        return vm.sign(privateKey, digest);
+    }
 }

@@ -1,8 +1,14 @@
 {
-  "mintPoVWRewards: batch of 001": "98550",
-  "mintPoVWRewards: batch of 015": "658084",
-  "mintPoVWRewards: batch of 030": "1259022",
-  "mintStakingRewards: batch of 001": "98551",
-  "mintStakingRewards: batch of 015": "658085",
-  "mintStakingRewards: batch of 030": "1259023"
+  "mintPoVWRewardsForEpoch: 0050 recipients": "1601929",
+  "mintPoVWRewardsForEpoch: 0250 recipients": "7680714",
+  "mintPoVWRewardsForEpoch: 1000 recipients": "30503987",
+  "mintPoVWRewardsForRecipient: batch of 0001": "111179",
+  "mintPoVWRewardsForRecipient: batch of 0015": "672653",
+  "mintPoVWRewardsForRecipient: batch of 0030": "1273891",
+  "mintStakingRewardsForEpoch: 0050 recipients": "1601928",
+  "mintStakingRewardsForEpoch: 0250 recipients": "7680713",
+  "mintStakingRewardsForEpoch: 1000 recipients": "30503986",
+  "mintStakingRewardsForRecipient: batch of 0001": "111223",
+  "mintStakingRewardsForRecipient: batch of 0015": "672697",
+  "mintStakingRewardsForRecipient: batch of 0030": "1273935"
 }

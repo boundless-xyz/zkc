@@ -94,20 +94,42 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         }
     }
 
-    function mintPoVWRewards(address to, uint256[] calldata amounts, uint256[] calldata epochs) external onlyRole(POVW_MINTER_ROLE) {
-        _mintRewards(getPoVWEmissionsForEpoch, epochPoVWMinted, to, amounts, epochs);
-        emit PoVWRewardsClaimed(to, amounts, epochs);
+    function mintPoVWRewardsForRecipient(address recipient, uint256[] calldata amounts, uint256[] calldata epochs) external onlyRole(POVW_MINTER_ROLE) {
+        _mintRewardsForRecipient(getPoVWEmissionsForEpoch, epochPoVWMinted, recipient, amounts, epochs);
+        emit PoVWRewardsClaimed(recipient, epochs, amounts);
     }
 
-    function mintStakingRewards(address to, uint256[] calldata amounts, uint256[] calldata epochs) external onlyRole(STAKING_MINTER_ROLE) {
-        _mintRewards(getStakingEmissionsForEpoch, epochStakingMinted, to, amounts, epochs);
-        emit StakingRewardsClaimed(to, amounts, epochs);
+    function mintStakingRewardsForRecipient(address recipient, uint256[] calldata amounts, uint256[] calldata epochs) external onlyRole(STAKING_MINTER_ROLE) {
+        _mintRewardsForRecipient(getStakingEmissionsForEpoch, epochStakingMinted, recipient, amounts, epochs);
+        emit StakingRewardsClaimed(recipient, epochs, amounts);
     }
 
-    function _mintRewards(
+    function mintPoVWRewardsForEpoch(uint256 epoch, address[] calldata recipients, uint256[] calldata amounts) external onlyRole(POVW_MINTER_ROLE) {
+        _mintRewardsForEpoch(getPoVWEmissionsForEpoch, epochPoVWMinted, epoch, recipients, amounts);
+        for (uint256 i = 0; i < recipients.length; i++) {
+            uint256[] memory singleEpoch = new uint256[](1);
+            uint256[] memory singleAmount = new uint256[](1);
+            singleEpoch[0] = epoch;
+            singleAmount[0] = amounts[i];
+            emit PoVWRewardsClaimed(recipients[i], singleEpoch, singleAmount);
+        }
+    }
+
+    function mintStakingRewardsForEpoch(uint256 epoch, address[] calldata recipients, uint256[] calldata amounts) external onlyRole(STAKING_MINTER_ROLE) {
+        _mintRewardsForEpoch(getStakingEmissionsForEpoch, epochStakingMinted, epoch, recipients, amounts);
+        for (uint256 i = 0; i < recipients.length; i++) {
+            uint256[] memory singleEpoch = new uint256[](1);
+            uint256[] memory singleAmount = new uint256[](1);
+            singleEpoch[0] = epoch;
+            singleAmount[0] = amounts[i];
+            emit StakingRewardsClaimed(recipients[i], singleEpoch, singleAmount);
+        }
+    }
+
+    function _mintRewardsForRecipient(
         function(uint256) returns (uint256) getEmissionsForEpochFn,
         mapping(uint256 => uint256) storage mintedMapping,
-        address to, 
+        address recipient, 
         uint256[] calldata amounts, 
         uint256[] calldata epochs
     ) internal {
@@ -135,7 +157,45 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
             totalAmount += amounts[i];
         }
 
-        _mint(to, totalAmount);
+        _mint(recipient, totalAmount);
+    }
+
+    function _mintRewardsForEpoch(
+        function(uint256) returns (uint256) getEmissionsForEpochFn,
+        mapping(uint256 => uint256) storage mintedMapping,
+        uint256 epoch,
+        address[] calldata recipients,
+        uint256[] calldata amounts
+    ) internal {
+        if (recipients.length != amounts.length) {
+            revert InvalidInputLength();
+        }
+        
+        uint256 currentEpoch = getCurrentEpoch();
+        if (epoch >= currentEpoch) {
+            revert EpochNotEnded(epoch);
+        }
+        
+        uint256 epochEmissionTotal = getEmissionsForEpochFn(epoch);
+        uint256 alreadyMinted = mintedMapping[epoch];
+        uint256 totalAmountForEpoch = 0;
+        
+        // Calculate total amount for this epoch
+        for (uint256 i = 0; i < amounts.length; i++) {
+            totalAmountForEpoch += amounts[i];
+        }
+        
+        uint256 mintedTotal = alreadyMinted + totalAmountForEpoch;
+        if (mintedTotal > epochEmissionTotal) {
+            revert EpochAllocationExceeded(epoch);
+        }
+        
+        mintedMapping[epoch] = mintedTotal;
+        
+        // Mint to each recipient
+        for (uint256 i = 0; i < recipients.length; i++) {
+            _mint(recipients[i], amounts[i]);
+        }
     }
 
     // Returns the supply at the start of the provided epoch.

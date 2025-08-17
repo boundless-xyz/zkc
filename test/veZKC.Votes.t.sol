@@ -160,7 +160,7 @@ contract veZKCVotesTest is veZKCTest {
         
         // Add more stake
         vm.prank(alice);
-        veToken.addToStake(tokenId, AMOUNT);
+        veToken.addToStake(AMOUNT);
         
         // Get updated amount after adding stake
         (uint256 updatedAmount,) = veToken.getStakedAmountAndExpiry(alice);
@@ -186,7 +186,7 @@ contract veZKCVotesTest is veZKCTest {
         
         // Extend lock to max time
         vm.prank(alice);
-        veToken.extendLockToTime(tokenId, type(uint256).max);
+        veToken.extendStakeLockup(type(uint256).max);
         (, uint256 extendedLockEnd) = veToken.getStakedAmountAndExpiry(alice);
         assertGt(extendedLockEnd, initialLockEnd, "Lock end should be extended");
         
@@ -252,5 +252,156 @@ contract veZKCVotesTest is veZKCTest {
         assertApproxEqRel(alicePower, expectedAlice, 0.01e18, "Alice power incorrect");
         assertApproxEqRel(bobPower, expectedBob, 0.01e18, "Bob power incorrect");
         assertApproxEqRel(charliePower, expectedCharlie, 0.01e18, "Charlie power incorrect");
+    }
+
+    // Test extending expired lock restores voting power
+    function testExtendExpiredLockRestoresVotingPower() public {
+        // Stake with minimum duration
+        vm.startPrank(alice);
+        zkc.approve(address(veToken), AMOUNT);
+        uint256 tokenId = veToken.stake(AMOUNT, 0);
+        vm.stopPrank();
+        
+        // Get lock end and initial voting power
+        (, uint256 lockEnd) = veToken.getStakedAmountAndExpiry(alice);
+        uint256 initialVotingPower = veToken.getVotes(alice);
+        assertGt(initialVotingPower, 0, "Should have voting power initially");
+        
+        // Let it expire
+        vm.warp(lockEnd + 1);
+        assertEq(veToken.getVotes(alice), 0, "Voting power should be 0 after expiry");
+        
+        // Extend the expired lock
+        uint256 newLockEnd = block.timestamp + MAX_STAKE_TIME_S / 2;
+        vm.prank(alice);
+        veToken.extendStakeLockup(newLockEnd);
+        
+        // Verify voting power is restored
+        uint256 restoredVotingPower = veToken.getVotes(alice);
+        assertGt(restoredVotingPower, 0, "Voting power should be restored after extension");
+        
+        // Check reward power is also restored
+        uint256 rewardPower = veToken.getRewards(alice);
+        assertEq(rewardPower, AMOUNT, "Reward power should equal staked amount");
+    }
+
+    // Test adding to expired lock doesn't restore voting power
+    function testAddToExpiredLockKeepsZeroVotingPower() public {
+        uint256 ADD_AMOUNT = 5_000 * 10**18;
+        
+        // Stake with minimum duration
+        vm.startPrank(alice);
+        zkc.approve(address(veToken), AMOUNT + ADD_AMOUNT);
+        uint256 tokenId = veToken.stake(AMOUNT, 0);
+        vm.stopPrank();
+        
+        // Get lock end
+        (, uint256 lockEnd) = veToken.getStakedAmountAndExpiry(alice);
+        
+        // Let it expire
+        vm.warp(lockEnd + 1);
+        assertEq(veToken.getVotes(alice), 0, "Voting power should be 0 after expiry");
+        
+        // Add to expired stake
+        vm.prank(alice);
+        veToken.addToStake(ADD_AMOUNT);
+        
+        // Verify amount increased but voting power still 0
+        (uint256 newAmount,) = veToken.getStakedAmountAndExpiry(alice);
+        assertEq(newAmount, AMOUNT + ADD_AMOUNT, "Amount should increase");
+        assertEq(veToken.getVotes(alice), 0, "Voting power should remain 0");
+        
+        // But reward power should reflect full amount
+        uint256 rewardPower = veToken.getRewards(alice);
+        assertEq(rewardPower, AMOUNT + ADD_AMOUNT, "Reward power should equal total staked amount");
+    }
+
+    // Test complex flow: stake -> expire -> add -> extend to verify slope changes
+    function testExpiredAddExtendSlopeChanges() public {
+        uint256 ADD_AMOUNT = 5_000 * 10**18;
+        
+        // 1. Alice stakes with minimum duration
+        vm.startPrank(alice);
+        zkc.approve(address(veToken), AMOUNT + ADD_AMOUNT);
+        uint256 tokenId = veToken.stake(AMOUNT, 0);
+        vm.stopPrank();
+        
+        // Get initial lock end and voting power
+        (, uint256 initialLockEnd) = veToken.getStakedAmountAndExpiry(alice);
+        uint256 initialVotingPower = veToken.getVotes(alice);
+        assertGt(initialVotingPower, 0, "Should have initial voting power");
+        
+        // Check initial slope change is scheduled
+        int128 initialSlopeChange = veToken.slopeChanges(initialLockEnd);
+        assertTrue(initialSlopeChange < 0, "Initial slope change should be negative");
+        
+        // 2. Bob also stakes to have a reference point
+        vm.startPrank(bob);
+        zkc.approve(address(veToken), AMOUNT);
+        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
+        vm.stopPrank();
+        
+        uint256 totalSupplyBeforeExpiry = veToken.getPastTotalSupply(block.timestamp);
+        assertGt(totalSupplyBeforeExpiry, 0, "Total supply should include both stakes");
+        
+        // 3. Let Alice's lock expire
+        vm.warp(initialLockEnd + 1);
+        
+        // Verify Alice has 0 voting power but Bob still has power
+        assertEq(veToken.getVotes(alice), 0, "Alice should have 0 voting power after expiry");
+        assertGt(veToken.getVotes(bob), 0, "Bob should still have voting power");
+        
+        // Check slope change is still there (it already executed)
+        assertEq(veToken.slopeChanges(initialLockEnd), initialSlopeChange, "Slope change should remain");
+        
+        // 4. Alice adds to expired stake
+        vm.prank(alice);
+        veToken.addToStake(ADD_AMOUNT);
+        
+        // Verify amounts but voting power still 0
+        (uint256 amountAfterAdd,) = veToken.getStakedAmountAndExpiry(alice);
+        assertEq(amountAfterAdd, AMOUNT + ADD_AMOUNT, "Amount should be updated");
+        assertEq(veToken.getVotes(alice), 0, "Alice voting power should still be 0");
+        
+        // Slope change at old lock end should still be the same
+        assertEq(veToken.slopeChanges(initialLockEnd), initialSlopeChange, "Slope change should not change when adding to expired");
+        
+        // 5. Alice extends the expired lock
+        uint256 newLockEnd = block.timestamp + MAX_STAKE_TIME_S / 4;
+        vm.prank(alice);
+        veToken.extendStakeLockup(newLockEnd);
+        
+        // Get actual new lock end after week rounding
+        (, uint256 actualNewLockEnd) = veToken.getStakedAmountAndExpiry(alice);
+        
+        // 6. Verify voting power is restored with FULL amount
+        uint256 restoredVotingPower = veToken.getVotes(alice);
+        assertGt(restoredVotingPower, 0, "Voting power should be restored");
+        
+        // Calculate expected voting power for full amount
+        uint256 expectedVotingPower = _calculateExpectedVotePower(AMOUNT + ADD_AMOUNT, block.timestamp, actualNewLockEnd);
+        assertApproxEqRel(restoredVotingPower, expectedVotingPower, 0.01e18, "Voting power should reflect full amount after extension");
+        
+        // 7. Check new slope change is scheduled correctly
+        int128 newSlopeChange = veToken.slopeChanges(actualNewLockEnd);
+        assertTrue(newSlopeChange < 0, "New slope change should be scheduled");
+        
+        // The new slope should be based on the FULL amount (AMOUNT + ADD_AMOUNT)
+        int128 expectedSlope = -int128(int256(AMOUNT + ADD_AMOUNT)) / int128(int256(MAX_STAKE_TIME_S));
+        assertEq(newSlopeChange, expectedSlope, "New slope change should match full amount");
+        
+        // 8. Verify total supply includes Alice's restored voting power
+        uint256 totalSupplyAfterExtend = veToken.getPastTotalSupply(block.timestamp);
+        assertGt(totalSupplyAfterExtend, veToken.getVotes(bob), "Total should be more than just Bob's power");
+        
+        // 9. Fast forward to new lock end and verify slope change executes correctly
+        vm.warp(actualNewLockEnd + 1);
+        
+        // Alice should have 0 voting power again
+        assertEq(veToken.getVotes(alice), 0, "Alice voting power should be 0 after new lock expires");
+        
+        // Total supply should only have Bob's remaining power
+        uint256 finalTotalSupply = veToken.getPastTotalSupply(block.timestamp);
+        assertApproxEqRel(finalTotalSupply, veToken.getVotes(bob), 0.01e18, "Total should equal Bob's remaining power");
     }
 }
