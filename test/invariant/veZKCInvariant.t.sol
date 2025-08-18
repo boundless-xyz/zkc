@@ -64,9 +64,8 @@ contract veZKCInvariantTest is StdInvariant, Test {
         targetContract(address(handler));
         
         // Target specific functions with weights
-        bytes4[] memory selectors = new bytes4[](2);
+        bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = veZKCHandler.performAction.selector;
-        selectors[1] = veZKCHandler.warpTime.selector;
         targetSelector(FuzzSelector({
             addr: address(handler),
             selectors: selectors

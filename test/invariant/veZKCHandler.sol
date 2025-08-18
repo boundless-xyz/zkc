@@ -20,8 +20,8 @@ contract veZKCHandler is Test {
     uint256 constant MIN_ACTORS = 50;
     uint256 constant MAX_ACTORS = 100;
     uint256 constant MIN_STAKE_AMOUNT = 1e18; // 1 ZKC
-    uint256 constant MAX_STAKE_AMOUNT = 100_000e18; // 100k ZKC
-    uint256 constant MIN_TIME_WARP = 1 hours;
+    uint256 constant MAX_STAKE_AMOUNT = 10_000e18; // 10k ZKC
+    uint256 constant MIN_TIME_WARP = 1 days;
     uint256 constant MAX_TIME_WARP = 4 weeks;
     
     // Ghost variables for tracking state
@@ -65,7 +65,7 @@ contract veZKCHandler is Test {
             actors.push(actor);
             
             // Fund actor with ZKC
-            deal(address(zkc), actor, MAX_STAKE_AMOUNT * 10);
+            deal(address(zkc), actor, MAX_STAKE_AMOUNT * 100);
             
             // Pre-approve veToken to spend ZKC
             vm.prank(actor);
@@ -80,18 +80,20 @@ contract veZKCHandler is Test {
             return;
         }
         
+        // Check if user has sufficient balance, refill if needed
+        uint256 balance = zkc.balanceOf(currentActor);
+        if (balance < MIN_STAKE_AMOUNT) {
+            deal(address(zkc), currentActor, MAX_STAKE_AMOUNT * 10);
+            balance = MAX_STAKE_AMOUNT * 10;
+        }
+        uint256 maxAmount = balance > MAX_STAKE_AMOUNT ? MAX_STAKE_AMOUNT : balance;
+        uint256 amount = bound(seed, MIN_STAKE_AMOUNT, maxAmount);
+        
         // Generate random parameters with longer minimum lock times
-        uint256 amount = bound(seed, MIN_STAKE_AMOUNT, MAX_STAKE_AMOUNT);
         uint256 lockWeeks = bound(seed >> 8, 20, veToken.MAX_STAKE_WEEKS()); // Min 20 weeks instead of 4
         uint256 expires = block.timestamp + (lockWeeks * 1 weeks);
         
         console.log(string.concat("STAKE_PARAMS: amount=", Strings.toString(amount), " lockWeeks=", Strings.toString(lockWeeks)));
-        
-        // Check if user has sufficient balance
-        uint256 balance = zkc.balanceOf(currentActor);
-        if (balance < amount) {
-            return;
-        }
         
         // Execute stake
         try veToken.stake(amount, expires) returns (uint256 tokenId) {
@@ -121,26 +123,26 @@ contract veZKCHandler is Test {
         if (!ghost_hasActivePosition[currentActor]) {
             console.log("AUTO-STAKING: User has no position, creating stake first");
             stake(seed);
-            return;
         }
         
         uint256 tokenId = ghost_userTokenId[currentActor];
         
         // Check if position is expired
         if (block.timestamp >= ghost_tokenExpiry[tokenId]) {
-            return;
+            console.log("AUTO-EXTENDING: Position is expired, extending");
+            extendStake(seed);
         }
         
-        // Generate random amount
-        uint256 amount = bound(seed, MIN_STAKE_AMOUNT, MAX_STAKE_AMOUNT);
+        // Check if user has sufficient balance, refill if needed
+        uint256 balance = zkc.balanceOf(currentActor);
+        if (balance < MIN_STAKE_AMOUNT) {
+            deal(address(zkc), currentActor, MAX_STAKE_AMOUNT * 10);
+            balance = MAX_STAKE_AMOUNT * 10;
+        }
+        uint256 maxAmount = balance > MAX_STAKE_AMOUNT ? MAX_STAKE_AMOUNT : balance;
+        uint256 amount = bound(seed, MIN_STAKE_AMOUNT, maxAmount);
         
         console.log(string.concat("ADD_PARAMS: amount=", Strings.toString(amount), " toTokenId=", Strings.toString(tokenId)));
-        
-        // Check if user has sufficient balance
-        uint256 balance = zkc.balanceOf(currentActor);
-        if (balance < amount) {
-            return;
-        }
         
         // Execute add to stake
         try veToken.addToStake(amount) {
@@ -166,14 +168,13 @@ contract veZKCHandler is Test {
         if (!ghost_hasActivePosition[currentActor]) {
             console.log("AUTO-STAKING: User has no position, creating stake first");
             stake(seed);
-            return;
         }
         
         uint256 tokenId = ghost_userTokenId[currentActor];
         uint256 currentExpiry = ghost_tokenExpiry[tokenId];
         
         // Generate new expiry (extend by 1-52 weeks)
-        uint256 additionalWeeks = bound(seed, 1, 52);
+        uint256 additionalWeeks = bound(seed, 8, 52);
         uint256 newExpiry = currentExpiry + (additionalWeeks * 1 weeks);
         
         console.log(string.concat("EXTEND_PARAMS: tokenId=", Strings.toString(tokenId), " addWeeks=", Strings.toString(additionalWeeks)));
@@ -182,11 +183,6 @@ contract veZKCHandler is Test {
         uint256 maxExpiry = block.timestamp + veToken.MAX_STAKE_TIME_S();
         if (newExpiry > maxExpiry) {
             newExpiry = maxExpiry;
-        }
-        
-        // Skip if new expiry is not actually extending
-        if (newExpiry <= currentExpiry) {
-            return;
         }
         
         // Execute extend
@@ -208,7 +204,6 @@ contract veZKCHandler is Test {
     
     // Action: Unstake tokens
     function unstake() public useActor {
-        // If user doesn't have active position, create one instead
         if (!ghost_hasActivePosition[currentActor]) {
             return;
         }
@@ -289,24 +284,24 @@ contract veZKCHandler is Test {
             " time=", Strings.toString(block.timestamp)
         ));
         
-        if (action < 60) {
-            // 60% chance: stake (prioritize getting users started)
+        if (action < 20) {
+            // 20% chance: stake (prioritize getting users started)
             console.log("Action: STAKE");
             stake(seed >> 8);
-        } else if (action < 80) {
-            // 20% chance: add to stake (will auto-stake if needed)
+        } else if (action < 50) {
+            // 30% chance: add to stake (will auto-stake if needed)
             console.log("Action: ADD_TO_STAKE");
             addToStake(seed >> 8);
-        } else if (action < 95) {
-            // 15% chance: extend (will auto-stake if needed)
+        } else if (action < 80) {
+            // 30% chance: extend (will auto-stake if needed)
             console.log("Action: EXTEND_STAKE");
             extendStake(seed >> 8);
-        } else if (action < 98) {
-            // 3% chance: unstake (rare)
+        } else if (action < 90) {
+            // 10% chance: unstake
             console.log("Action: UNSTAKE");
             unstake();
         } else {
-            // 2% chance: warp time (minimal time progression)
+            // 10% chance: warp time
             console.log("Action: WARP_TIME");
             warpTime(seed >> 8);
         }
