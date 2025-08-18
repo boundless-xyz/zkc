@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IVotes} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
+import {IVotes} from "../interfaces/IVotes.sol";
 import {Clock} from "./Clock.sol";
-import {VeZKCStorage} from "./VeZKCStorage.sol";
+import {Storage} from "./Storage.sol";
 import {Checkpoints} from "../libraries/Checkpoints.sol";
 import {VotingPower} from "../libraries/VotingPower.sol";
 import {StakeManager} from "../libraries/StakeManager.sol";
@@ -13,7 +13,7 @@ import {StakeManager} from "../libraries/StakeManager.sol";
  * @notice IVotes interface implementation for veZKC voting functionality
  * @dev This component handles all voting-related functionality using shared storage
  */
-abstract contract Votes is VeZKCStorage, Clock, IVotes {
+abstract contract Votes is Storage, Clock, IVotes {
 
     /**
      * @dev IVotes implementation - Returns voting power delegated TO this account
@@ -64,7 +64,7 @@ abstract contract Votes is VeZKCStorage, Clock, IVotes {
         pure
         override
     {
-        revert("Not implemented");
+        revert NotImplemented();
     }
 
     function _delegate(address /*account*/, address /*delegatee*/) internal pure {

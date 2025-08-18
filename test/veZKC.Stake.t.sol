@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "./veZKC.t.sol";
+import "../src/interfaces/IStaking.sol";
 
 contract veZKCStakeTest is veZKCTest {
     uint256 constant STAKE_AMOUNT = 10_000 * 10**18;
@@ -159,7 +160,7 @@ contract veZKCStakeTest is veZKCTest {
         uint256 tokenId = veToken.stake(STAKE_AMOUNT, lockEnd);
         
         // Try to unstake before expiry
-        vm.expectRevert("Lock has not expired yet");
+        vm.expectRevert(abi.encodeWithSelector(IStaking.LockHasNotExpiredYet.selector));
         veToken.unstake();
         vm.stopPrank();
     }
@@ -329,7 +330,7 @@ contract veZKCStakeTest is veZKCTest {
         
         // 3. Try to add to stake (should fail - no active position)
         vm.prank(alice);
-        vm.expectRevert("No active position");
+        vm.expectRevert(abi.encodeWithSelector(IStaking.NoActivePosition.selector));
         veToken.addToStake(ADD_AMOUNT);
         
         // 4. Stake again
@@ -348,7 +349,7 @@ contract veZKCStakeTest is veZKCTest {
         
         // 7. Try to add to expired stake (should fail now)
         vm.prank(alice);
-        vm.expectRevert("Cannot add to expired position");
+        vm.expectRevert(abi.encodeWithSelector(IStaking.CannotAddToExpiredPosition.selector));
         veToken.addToStake(ADD_AMOUNT);
         
         // Verify amount hasn't changed
@@ -470,7 +471,7 @@ contract veZKCStakeTest is veZKCTest {
         
         // Bob tries to donate to Alice's expired position (should fail)
         vm.prank(bob);
-        vm.expectRevert("Cannot add to expired position");
+        vm.expectRevert(abi.encodeWithSelector(IStaking.CannotAddToExpiredPosition.selector));
         veToken.addToStakeByTokenId(aliceTokenId, ADD_AMOUNT);
         
         // Verify Alice's amounts haven't changed
@@ -483,7 +484,7 @@ contract veZKCStakeTest is veZKCTest {
     // Test donation to non-existent token fails
     function testDonationToNonExistentTokenFails() public {
         vm.prank(bob);
-        vm.expectRevert("Token does not exist");
+        vm.expectRevert(abi.encodeWithSelector(IStaking.TokenDoesNotExist.selector));
         veToken.addToStakeByTokenId(999, ADD_AMOUNT);
     }
 

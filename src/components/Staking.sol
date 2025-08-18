@@ -5,7 +5,9 @@ import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC72
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/interfaces/IERC721.sol";
-import {VeZKCStorage} from "./VeZKCStorage.sol";
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import {Storage} from "./Storage.sol";
+import {IStaking} from "../interfaces/IStaking.sol";
 import {Checkpoints} from "../libraries/Checkpoints.sol";
 import {StakeManager} from "../libraries/StakeManager.sol";
 import {ZKC} from "../ZKC.sol";
@@ -15,21 +17,12 @@ import {ZKC} from "../ZKC.sol";
  * @notice Staking functionality for veZKC including full NFT implementation
  * @dev This component handles all staking operations and is the NFT contract
  */
-abstract contract Staking is VeZKCStorage, ERC721Upgradeable, ReentrancyGuardUpgradeable {
+abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradeable, IStaking {
 
     // Reference to ZKC token (will be set in main contract)
     ZKC internal _zkcToken;
 
-    // Staking events
-    event Staked(address indexed user, uint256 amount, uint256 indexed tokenId);
-    event StakeAdded(address indexed user, uint256 indexed tokenId, uint256 addedAmount);
-    event Unstaked(address indexed user, uint256 indexed tokenId, uint256 amount);
-    
-    // Lock events
-    event LockCreated(uint256 indexed tokenId, address indexed owner, uint256 amount);
-    event LockIncreased(uint256 indexed tokenId, uint256 addedAmount, uint256 newTotal);
-    event LockExtended(uint256 indexed tokenId, uint256 newLockEnd);
-    event LockExpired(uint256 indexed tokenId);
+    // Events are defined in IStaking interface
 
     /**
      * @dev Override transfers to make NFTs non-transferable (soulbound)
@@ -42,13 +35,13 @@ abstract contract Staking is VeZKCStorage, ERC721Upgradeable, ReentrancyGuardUpg
          * @dev But prevent regular transfers
          */
         if (from != address(0) && to != address(0)) {
-            revert("veZKC: Non-transferable");
+            revert NonTransferable();
         }
 
         return super._update(to, tokenId, auth);
     }
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721Upgradeable, IERC165) returns (bool) {
         return interfaceId == type(IERC721).interfaceId || super.supportsInterface(interfaceId);
     }
 
@@ -106,7 +99,7 @@ abstract contract Staking is VeZKCStorage, ERC721Upgradeable, ReentrancyGuardUpg
     /// @notice Add stake to your own active position
     function addToStake(uint256 amount) external nonReentrant {
         uint256 tokenId = _userActivePosition[msg.sender];
-        require(tokenId != 0, "No active position");
+        if (tokenId == 0) revert NoActivePosition();
         
         _addToStake(msg.sender, tokenId, amount);
     }
@@ -120,7 +113,7 @@ abstract contract Staking is VeZKCStorage, ERC721Upgradeable, ReentrancyGuardUpg
         bytes32 s
     ) external nonReentrant {
         uint256 tokenId = _userActivePosition[msg.sender];
-        require(tokenId != 0, "No active position");
+        if (tokenId == 0) revert NoActivePosition();
 
         // Use permit to approve tokens
         _zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
@@ -151,12 +144,12 @@ abstract contract Staking is VeZKCStorage, ERC721Upgradeable, ReentrancyGuardUpg
     function extendStakeLockup(uint256 newLockEndTime) external nonReentrant {
         // Get user's active position
         uint256 tokenId = _userActivePosition[msg.sender];
-        require(tokenId != 0, "No active position");
-        require(ownerOf(tokenId) == msg.sender, "Not the owner of this NFT");
+        if (tokenId == 0) revert NoActivePosition();
+        if (ownerOf(tokenId) != msg.sender) revert TokenDoesNotExist();
         
         // Cannot extend if delegated to someone else
         address delegatee = delegates(msg.sender);
-        require(delegatee == msg.sender, "Cannot extend lock while delegated");
+        if (delegatee != msg.sender) revert CannotExtendLockWhileDelegated();
 
         // Get current lock info
         Checkpoints.LockInfo memory lock = _locks[tokenId];
@@ -218,7 +211,7 @@ abstract contract Staking is VeZKCStorage, ERC721Upgradeable, ReentrancyGuardUpg
     }
 
     function _addStakeAndCheckpoint(uint256 tokenId, uint256 newAmount) internal {
-        require(_ownerOf(tokenId) != address(0), "Token does not exist");
+        if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
 
         // Capture old state before modification
         Checkpoints.LockInfo memory oldLock = _locks[tokenId];
@@ -237,7 +230,7 @@ abstract contract Staking is VeZKCStorage, ERC721Upgradeable, ReentrancyGuardUpg
     }
 
     function _extendLockAndCheckpoint(uint256 tokenId, uint256 newLockEndTime) internal {
-        require(_ownerOf(tokenId) != address(0), "Token does not exist");
+        if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
 
         // Capture old state before modification
         Checkpoints.LockInfo memory oldLock = _locks[tokenId];
@@ -256,7 +249,7 @@ abstract contract Staking is VeZKCStorage, ERC721Upgradeable, ReentrancyGuardUpg
     }
 
     function _burnLock(uint256 tokenId) internal {
-        require(_ownerOf(tokenId) != address(0), "Token does not exist");
+        if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
 
         address owner = ownerOf(tokenId);
         
@@ -275,7 +268,7 @@ abstract contract Staking is VeZKCStorage, ERC721Upgradeable, ReentrancyGuardUpg
     }
 
     function _addToStake(address from, uint256 tokenId, uint256 amount) private {
-        require(_ownerOf(tokenId) != address(0), "Token does not exist");
+        if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
         
         Checkpoints.LockInfo memory lock = _locks[tokenId];
         StakeManager.validateAddToStake(amount, lock);

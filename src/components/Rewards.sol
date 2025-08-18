@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Clock} from "./Clock.sol";
-import {VeZKCStorage} from "./VeZKCStorage.sol";
+import {Storage} from "./Storage.sol";
 import {IRewards} from "../interfaces/IRewards.sol";
 import {RewardPower} from "../libraries/RewardPower.sol";
 
@@ -11,7 +11,7 @@ import {RewardPower} from "../libraries/RewardPower.sol";
  * @notice IRewards interface implementation for veZKC reward functionality
  * @dev This component handles all reward-related functionality using shared storage
  */
-abstract contract Rewards is VeZKCStorage, Clock, IRewards {
+abstract contract Rewards is Storage, Clock, IRewards {
 
     /**
      * @dev IRewards implementation - Get current reward power for account

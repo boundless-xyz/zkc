@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "./veZKC.t.sol";
+import "../src/interfaces/IStaking.sol";
 
 contract veZKCVotesTest is veZKCTest {
     uint256 constant WEEK = 1 weeks;
@@ -331,7 +332,7 @@ contract veZKCVotesTest is veZKCTest {
         
         // Try to add to expired stake (should fail)
         vm.prank(alice);
-        vm.expectRevert("Cannot add to expired position");
+        vm.expectRevert(abi.encodeWithSelector(IStaking.CannotAddToExpiredPosition.selector));
         veToken.addToStake(ADD_AMOUNT);
         
         // Verify amounts haven't changed
@@ -383,7 +384,7 @@ contract veZKCVotesTest is veZKCTest {
         
         // 4. Alice tries to add to expired stake (should fail)
         vm.prank(alice);
-        vm.expectRevert("Cannot add to expired position");
+        vm.expectRevert(abi.encodeWithSelector(IStaking.CannotAddToExpiredPosition.selector));
         veToken.addToStake(ADD_AMOUNT);
     
         // 5. Alice extends the expired lock first

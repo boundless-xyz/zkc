@@ -20,6 +20,12 @@ library StakeManager {
     error UserAlreadyHasActivePosition();
     error StakeDurationTooShort();
     error StakeDurationTooLong();
+    error CannotAddToExpiredPosition();
+    error NoActivePosition();
+    error LockHasNotExpiredYet();
+    error CanOnlyIncreaseLockEndTime();
+    error LockCannotExceedMaxTime();
+    error NewLockEndMustBeInFuture();
 
     // Events
     event LockCreated(uint256 indexed tokenId, address indexed owner, uint256 amount);
@@ -74,9 +80,9 @@ library StakeManager {
         uint256 newLockEndTime
     ) internal view returns (uint256) {
         uint256 roundedNewLockEnd = getWeekExpiry(newLockEndTime);
-        require(roundedNewLockEnd > currentLock.lockEnd, "Can only increase lock end time");
-        require(roundedNewLockEnd <= block.timestamp + Constants.MAX_STAKE_TIME_S, "Lock cannot exceed max time");
-        require(roundedNewLockEnd > block.timestamp, "New lock end must be in the future");
+        if (roundedNewLockEnd <= currentLock.lockEnd) revert CanOnlyIncreaseLockEndTime();
+        if (roundedNewLockEnd > block.timestamp + Constants.MAX_STAKE_TIME_S) revert LockCannotExceedMaxTime();
+        if (roundedNewLockEnd <= block.timestamp) revert NewLockEndMustBeInFuture();
         
         return roundedNewLockEnd;
     }
@@ -161,8 +167,8 @@ library StakeManager {
         uint256 amount,
         Checkpoints.LockInfo memory lock
     ) internal view {
-        require(amount > 0, "Amount must be greater than 0");
-        require(lock.lockEnd > block.timestamp, "Cannot add to expired position");
+        if (amount == 0) revert ZeroAmount();
+        if (lock.lockEnd <= block.timestamp) revert CannotAddToExpiredPosition();
     }
 
     /**
@@ -172,8 +178,8 @@ library StakeManager {
         uint256 tokenId,
         Checkpoints.LockInfo memory lock
     ) internal view {
-        require(tokenId != 0, "No active position");
-        require(block.timestamp >= lock.lockEnd, "Lock has not expired yet");
+        if (tokenId == 0) revert NoActivePosition();
+        if (block.timestamp < lock.lockEnd) revert LockHasNotExpiredYet();
     }
 
     /**
