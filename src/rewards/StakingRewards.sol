@@ -11,9 +11,6 @@ import {IRewards} from "../interfaces/IRewards.sol";
 /// @notice Error thrown when a user tries to claim rewards for an epoch they have already claimed
 error AlreadyClaimed(uint256 epoch);
 
-/// @notice Error thrown when a user tries to claim rewards for an epoch that is not finished
-error EpochNotFinished(uint256 epoch);
-
 /**
  * @title StakingRewards
  * @notice Contract for distributing staking rewards based on veZKC staking positions
@@ -124,12 +121,13 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
      */
     function _claim(address user, uint256[] calldata epochs) internal returns (uint256 amount) {
         uint256[] memory amounts = _calculate(user, epochs);
+        uint256 currentEpoch = zkc.getCurrentEpoch();
         if (amounts.length != epochs.length) return 0;
         for (uint256 i = 0; i < epochs.length; i++) {
             uint256 epoch = epochs[i];
             if (_userClaimed[epoch][user]) revert AlreadyClaimed(epoch);
             // Epoch must have ended
-            if (epoch >= zkc.getCurrentEpoch()) revert EpochNotFinished(epoch);
+            if (epoch >= currentEpoch) revert ZKC.EpochNotEnded(epoch);
             _userClaimed[epoch][user] = true; // mark even if 0
             amount += amounts[i];
         }
