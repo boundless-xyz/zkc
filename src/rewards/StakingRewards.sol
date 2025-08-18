@@ -87,7 +87,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
      * @return endTimestamp The end timestamp of the epoch
      */
     function _epochEndTimestamp(uint256 epoch) internal view returns (uint256) {
-        return zkc.deploymentTime() + ((epoch + 1) * zkc.EPOCH_DURATION()) - 1;
+        return zkc.getEpochStartTime(epoch + 1);
     }
 
     /**
@@ -122,7 +122,6 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     function _claim(address user, uint256[] calldata epochs) internal returns (uint256 amount) {
         uint256[] memory amounts = _calculate(user, epochs);
         uint256 currentEpoch = zkc.getCurrentEpoch();
-        if (amounts.length != epochs.length) return 0;
         for (uint256 i = 0; i < epochs.length; i++) {
             uint256 epoch = epochs[i];
             if (_userClaimed[epoch][user]) revert AlreadyClaimed(epoch);
