@@ -35,7 +35,7 @@ contract veZKCStakeTest is veZKCTest {
 
     // Test basic staking with approval
     function testStakeWithApproval() public {
-        uint256 lockEnd = block.timestamp + MAX_STAKE_TIME_S / 2; // Half max time
+        uint256 lockEnd = vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2; // Half max time
         
         vm.startPrank(alice);
         
@@ -50,7 +50,7 @@ contract veZKCStakeTest is veZKCTest {
         
         // Verify stake
         assertEq(veToken.ownerOf(tokenId), alice);
-        assertEq(veToken.userActivePosition(alice), tokenId);
+        assertEq(veToken.getActiveTokenId(alice), tokenId);
         
         (uint256 stakedAmount, uint256 actualLockEnd) = veToken.getStakedAmountAndExpiry(alice);
         assertEq(stakedAmount, STAKE_AMOUNT);
@@ -63,8 +63,8 @@ contract veZKCStakeTest is veZKCTest {
 
     // Test staking with permit
     function testStakeWithPermit() public {
-        uint256 lockEnd = block.timestamp + MAX_STAKE_TIME_S / 2; // Half max time
-        uint256 deadline = block.timestamp + 1 hours;
+        uint256 lockEnd = vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2; // Half max time
+        uint256 deadline = vm.getBlockTimestamp() + 1 hours;
         
         // Create permit signature
         (uint8 v, bytes32 r, bytes32 s) = _createPermitSignature(
@@ -80,7 +80,7 @@ contract veZKCStakeTest is veZKCTest {
         
         // Verify stake (same as approval test)
         assertEq(veToken.ownerOf(tokenId), alice);
-        assertEq(veToken.userActivePosition(alice), tokenId);
+        assertEq(veToken.getActiveTokenId(alice), tokenId);
         
         (uint256 stakedAmount, uint256 actualLockEnd) = veToken.getStakedAmountAndExpiry(alice);
         assertEq(stakedAmount, STAKE_AMOUNT);
@@ -94,7 +94,7 @@ contract veZKCStakeTest is veZKCTest {
     // Test add to stake with approval
     function testAddToStakeWithApproval() public {
         // Initial stake
-        uint256 lockEnd = block.timestamp + MAX_STAKE_TIME_S / 2; // Half max time
+        uint256 lockEnd = vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2; // Half max time
         
         vm.startPrank(alice);
         zkc.approve(address(veToken), STAKE_AMOUNT);
@@ -121,7 +121,7 @@ contract veZKCStakeTest is veZKCTest {
     // Test add to stake with permit
     function testAddToStakeWithPermit() public {
         // Initial stake with approval
-        uint256 lockEnd = block.timestamp + MAX_STAKE_TIME_S / 2; // Half max time
+        uint256 lockEnd = vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2; // Half max time
         
         vm.startPrank(alice);
         zkc.approve(address(veToken), STAKE_AMOUNT);
@@ -129,7 +129,7 @@ contract veZKCStakeTest is veZKCTest {
         vm.stopPrank();
         
         // Add to stake with permit
-        uint256 deadline = block.timestamp + 1 hours;
+        uint256 deadline = vm.getBlockTimestamp() + 1 hours;
         (uint8 v, bytes32 r, bytes32 s) = _createPermitSignature(
             alicePrivateKey,
             alice,
@@ -152,7 +152,7 @@ contract veZKCStakeTest is veZKCTest {
 
     // Test unstaking before lock expiry (should fail)
     function testUnstakeBeforeLockExpiry() public {
-        uint256 lockEnd = block.timestamp + MAX_STAKE_TIME_S / 2; // Half max time
+        uint256 lockEnd = vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2; // Half max time
         
         vm.startPrank(alice);
         zkc.approve(address(veToken), STAKE_AMOUNT);
@@ -166,7 +166,7 @@ contract veZKCStakeTest is veZKCTest {
 
     // Test unstaking after lock expiry
     function testUnstakeAfterLockExpiry() public {
-        uint256 lockEnd = block.timestamp + MIN_STAKE_TIME_S + 1 weeks; // Just over minimum
+        uint256 lockEnd = vm.getBlockTimestamp() + MIN_STAKE_TIME_S + 1 weeks; // Just over minimum
         
         vm.startPrank(alice);
         zkc.approve(address(veToken), STAKE_AMOUNT);
@@ -185,7 +185,7 @@ contract veZKCStakeTest is veZKCTest {
         veToken.unstake();
         
         // Verify unstake
-        assertEq(veToken.userActivePosition(alice), 0);
+        assertEq(veToken.getActiveTokenId(alice), 0);
         assertEq(zkc.balanceOf(alice), aliceBalanceBefore + STAKE_AMOUNT);
         assertEq(zkc.balanceOf(address(veToken)), 0);
         
@@ -203,7 +203,7 @@ contract veZKCStakeTest is veZKCTest {
         vm.stopPrank();
         
         // Verify first stake
-        assertEq(veToken.userActivePosition(alice), tokenId1);
+        assertEq(veToken.getActiveTokenId(alice), tokenId1);
         (uint256 stakedAmount1, uint256 actualLockEnd1) = veToken.getStakedAmountAndExpiry(alice);
         assertEq(stakedAmount1, STAKE_AMOUNT);
         
@@ -213,14 +213,14 @@ contract veZKCStakeTest is veZKCTest {
         veToken.unstake();
         
         // Verify unstaked
-        assertEq(veToken.userActivePosition(alice), 0);
+        assertEq(veToken.getActiveTokenId(alice), 0);
         
         // Second stake for max time period
         vm.prank(alice);
         uint256 tokenId2 = veToken.stake(STAKE_AMOUNT, type(uint256).max); // Use max for maximum duration
         
         // Verify second stake
-        assertEq(veToken.userActivePosition(alice), tokenId2);
+        assertEq(veToken.getActiveTokenId(alice), tokenId2);
         assertNotEq(tokenId1, tokenId2); // Should be different token IDs
         
         (uint256 stakedAmount2,) = veToken.getStakedAmountAndExpiry(alice);
@@ -237,8 +237,8 @@ contract veZKCStakeTest is veZKCTest {
 
     // Test permit vs approval gas efficiency (placeholder for manual gas testing)
     function testPermitVsApprovalComparison() public {
-        uint256 lockEnd = block.timestamp + MAX_STAKE_TIME_S / 2; // Half max time
-        uint256 deadline = block.timestamp + 1 hours;
+        uint256 lockEnd = vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2; // Half max time
+        uint256 deadline = vm.getBlockTimestamp() + 1 hours;
         
         // Test with approval (Alice)
         vm.startPrank(alice);
@@ -269,8 +269,8 @@ contract veZKCStakeTest is veZKCTest {
 
     // Test permit signature validation
     function testPermitSignatureValidation() public {
-        uint256 lockEnd = block.timestamp + MAX_STAKE_TIME_S / 2; // Half max time
-        uint256 deadline = block.timestamp + 1 hours;
+        uint256 lockEnd = vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2; // Half max time
+        uint256 deadline = vm.getBlockTimestamp() + 1 hours;
         
         // Create valid signature
         (uint8 v, bytes32 r, bytes32 s) = _createPermitSignature(
@@ -289,8 +289,8 @@ contract veZKCStakeTest is veZKCTest {
 
     // Test permit deadline validation
     function testPermitDeadlineValidation() public {
-        uint256 lockEnd = block.timestamp + MAX_STAKE_TIME_S / 2; // Half max time
-        uint256 deadline = block.timestamp - 1; // Past deadline
+        uint256 lockEnd = vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2; // Half max time
+        uint256 deadline = vm.getBlockTimestamp() - 1; // Past deadline
         
         (uint8 v, bytes32 r, bytes32 s) = _createPermitSignature(
             alicePrivateKey,
@@ -325,7 +325,7 @@ contract veZKCStakeTest is veZKCTest {
         veToken.unstake();
         
         // Verify unstaked
-        assertEq(veToken.userActivePosition(alice), 0);
+        assertEq(veToken.getActiveTokenId(alice), 0);
         
         // 3. Try to add to stake (should fail - no active position)
         vm.prank(alice);
@@ -356,7 +356,7 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(amountAfterFailedAdd, STAKE_AMOUNT, "Amount should not change after failed add");
         
         // 8. Extend the expired lock first (this should work and restore voting power)
-        uint256 newLockEnd = block.timestamp + MAX_STAKE_TIME_S / 2; // Half max time
+        uint256 newLockEnd = vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2; // Half max time
         vm.prank(alice);
         veToken.extendStakeLockup(newLockEnd);
         
@@ -382,7 +382,7 @@ contract veZKCStakeTest is veZKCTest {
         // Alice stakes first
         vm.startPrank(alice);
         zkc.approve(address(veToken), type(uint256).max);
-        uint256 aliceTokenId = veToken.stake(STAKE_AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
+        uint256 aliceTokenId = veToken.stake(STAKE_AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
         vm.stopPrank();
         
         // Get Alice's initial state
@@ -409,7 +409,7 @@ contract veZKCStakeTest is veZKCTest {
         
         // Verify Bob's balance decreased but he has no position
         assertEq(zkc.balanceOf(bob), AMOUNT * 10 - ADD_AMOUNT, "Bob's balance should decrease");
-        assertEq(veToken.userActivePosition(bob), 0, "Bob should have no active position");
+        assertEq(veToken.getActiveTokenId(bob), 0, "Bob should have no active position");
         assertEq(veToken.getVotes(bob), 0, "Bob should have no voting power");
         assertEq(veToken.getRewards(bob), 0, "Bob should have no reward power");
     }
@@ -419,7 +419,7 @@ contract veZKCStakeTest is veZKCTest {
         // Alice stakes first (set up approval for alice only)
         vm.startPrank(alice);
         zkc.approve(address(veToken), type(uint256).max);
-        uint256 aliceTokenId = veToken.stake(STAKE_AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
+        uint256 aliceTokenId = veToken.stake(STAKE_AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
         vm.stopPrank();
         
         // Get Alice's initial amount
@@ -427,7 +427,7 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(aliceInitialAmount, STAKE_AMOUNT, "Alice initial amount");
         
         // Bob donates using permit
-        uint256 deadline = block.timestamp + 1 hours;
+        uint256 deadline = vm.getBlockTimestamp() + 1 hours;
         (uint8 v, bytes32 r, bytes32 s) = _createPermitSignature(
             bobPrivateKey,
             bob,
@@ -444,7 +444,7 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(aliceUpdatedAmount, STAKE_AMOUNT + ADD_AMOUNT, "Alice amount should increase from donation");
         
         // Verify Bob has no position
-        assertEq(veToken.userActivePosition(bob), 0, "Bob should have no active position");
+        assertEq(veToken.getActiveTokenId(bob), 0, "Bob should have no active position");
     }
 
     // Test donation to expired position fails
@@ -499,12 +499,12 @@ contract veZKCStakeTest is veZKCTest {
         
         // Alice stakes first
         vm.startPrank(alice);
-        uint256 aliceTokenId = veToken.stake(STAKE_AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
+        uint256 aliceTokenId = veToken.stake(STAKE_AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
         vm.stopPrank();
         
         // Bob stakes his own position first, then donates to Alice
         vm.startPrank(bob);
-        uint256 bobTokenId = veToken.stake(STAKE_AMOUNT * 2, block.timestamp + MAX_STAKE_TIME_S / 4);
+        uint256 bobTokenId = veToken.stake(STAKE_AMOUNT * 2, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 4);
         veToken.addToStakeByTokenId(aliceTokenId, ADD_AMOUNT);
         vm.stopPrank();
         
@@ -523,8 +523,8 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(aliceRewardPower, STAKE_AMOUNT + ADD_AMOUNT + ADD_AMOUNT, "Alice reward power should reflect total amount");
         
         // Verify Bob still has his own position but Charlie has no position
-        assertEq(veToken.userActivePosition(bob), bobTokenId, "Bob should have his own position");
-        assertEq(veToken.userActivePosition(charlie), 0, "Charlie should have no position");
+        assertEq(veToken.getActiveTokenId(bob), bobTokenId, "Bob should have his own position");
+        assertEq(veToken.getActiveTokenId(charlie), 0, "Charlie should have no position");
         assertGt(veToken.getVotes(bob), 0, "Bob should have voting power from his own stake");
         assertGt(veToken.getRewards(bob), 0, "Bob should have reward power from his own stake");
         assertEq(veToken.getVotes(charlie), 0, "Charlie should have no voting power");

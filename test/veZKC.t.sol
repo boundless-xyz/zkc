@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "../src/veZKC.sol";
 import "../src/ZKC.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {Constants} from "../src/libraries/Constants.sol";
 
 contract veZKCTest is Test {
     veZKC public veToken;
@@ -46,8 +47,8 @@ contract veZKCTest is Test {
         );
         veToken = veZKC(address(new ERC1967Proxy(address(veImpl), veInitData)));
 
-        MAX_STAKE_TIME_S = veToken.MAX_STAKE_TIME_S();
-        MIN_STAKE_TIME_S = veToken.MIN_STAKE_TIME_S();
+        MAX_STAKE_TIME_S = Constants.MAX_STAKE_TIME_S;
+        MIN_STAKE_TIME_S = Constants.MIN_STAKE_TIME_S;
         vm.stopPrank();
     }
     

@@ -57,15 +57,19 @@ Once staked, ZKC can not be unstaked the end of the commited period. Each addres
 
 #### Staking Periods
 - **Minimum**: 4 weeks
-- **Maximum**: 104 weeks (2 years)
+- **Maximum**: 208 weeks (4 years)
+- **Rounding**: All lock end times are rounded down to the nearest week boundary for consistency
 
 #### Staking Management
 - **Stake**: Lock ZKC tokens for chosen duration → receive veZKC NFT
-- **Add Stake**: Increase ZKC amount in existing position (preserves decay rate)
+- **Add Stake (Top-up)**: Increase ZKC amount in existing position (preserves decay rate)
+  - **Note**: Cannot top-up expired locks - must extend first
 - **Extend Lock**: Incremental extensions to lock periods (increases voting power)
   - Extend by additional weeks: `extendLockByWeeks(tokenId, 1)`
   - Extend to specific end time: `extendLockToTime(tokenId, targetTime)`
+  - **Expired Lock Extensions**: Can extend expired locks (refreshes commitment)
 - **Unstake**: Direct withdrawal after lock expiry (no delay)
+- **Check Position**: Use `getStakedAmountAndExpiry(address)` to get exact lock amount and expiry timestamp
 
 ### Claiming Emissions
 
@@ -73,7 +77,7 @@ The portion of ZKC emissions that a user is eligible to claim is calculated base
 
 Rewards Power is accessible via the IRewards interface. The contracts that enable users to claim rewards use these values to calculate the portion of emissions that should be transferred to the user. 
 
-Currently reward power is simply equal to the amount of ZKC a user has staked, with no decay or adjustments to the power over time.
+Currently reward power is simply equal to the amount of ZKC a user has staked, with no decay or adjustments to the power over time. **Important**: Reward power persists even after locks expire, unlike voting power which decays to zero.
 
 ### Governance
 
@@ -87,22 +91,22 @@ Voting power decays over time following the "voting escrow" model. Committing st
 voting_power = (staked_amount × remaining_time) / MAXTIME
 ```
 
-- **MAXTIME**: 104 weeks (maximum stake period)
+- **MAXTIME**: 208 weeks (maximum stake period)
 - **Linear Decay**: Power decreases proportionally with remaining time
 
 #### Examples
 
 ##### Voting Decay
 ```
-Example 1: Stake for maximum time (104 weeks)
-Initial: 1000 ZKC staked for 104 weeks = 1000 voting power (1000 × 104/104)
-After 26 weeks: 1000 ZKC with 78 weeks remaining = 750 voting power  
-After 52 weeks: 1000 ZKC with 52 weeks remaining = 500 voting power
-After 104 weeks: 1000 ZKC with 0 weeks remaining = 0 voting power
+Example 1: Stake for maximum time (208 weeks)
+Initial: 1000 ZKC staked for 208 weeks = 1000 voting power (1000 × 208/208)
+After 52 weeks: 1000 ZKC with 156 weeks remaining = 750 voting power  
+After 104 weeks: 1000 ZKC with 104 weeks remaining = 500 voting power
+After 208 weeks: 1000 ZKC with 0 weeks remaining = 0 voting power
 
-Example 2: Stake for half maximum time (52 weeks)
-Initial: 1000 ZKC locked for 52 weeks = 500 voting power (1000 × 52/104)
-After 26 weeks: 1000 ZKC with 26 weeks remaining = 250 voting power
+Example 2: Stake for quarter maximum time (52 weeks)
+Initial: 1000 ZKC locked for 52 weeks = 250 voting power (1000 × 52/208)
+After 26 weeks: 1000 ZKC with 26 weeks remaining = 125 voting power
 After 52 weeks: 1000 ZKC with 0 weeks remaining = 0 voting power
 ```
 
@@ -110,19 +114,54 @@ After 52 weeks: 1000 ZKC with 0 weeks remaining = 0 voting power
 Adding additional stake to an existing position boosts your voting power while preserving the remaining lock time.
 
 ```
-Initial: 1000 ZKC locked for 52 weeks = 500 voting power (1000 × 52/104)
-After 26 weeks: 1000 ZKC with 26 weeks remaining = 250 voting power
-Add 500 ZKC: 1500 ZKC with 26 weeks remaining = 375 voting power (1500 × 26/104)
+Initial: 1000 ZKC locked for 52 weeks = 250 voting power (1000 × 52/208)
+After 26 weeks: 1000 ZKC with 26 weeks remaining = 125 voting power
+Add 500 ZKC: 1500 ZKC with 26 weeks remaining = 187.5 voting power (1500 × 26/208)
+
+**Important**: Cannot add stake to expired positions. If your lock has expired (0 weeks remaining), you must extend the lock first before adding more ZKC.
 ```
 
 ##### Extending staking period
 Extending your staking period increases your voting power by giving you more time remaining on your lock.
 
 ```
-Initial: 1000 ZKC locked for 26 weeks = 250 voting power (1000 × 26/104)
-Extend to 52 weeks: 1000 ZKC with 52 weeks remaining = 500 voting power (1000 × 52/104)
+Initial: 1000 ZKC locked for 26 weeks = 125 voting power (1000 × 26/208)
+Extend to 52 weeks: 1000 ZKC with 52 weeks remaining = 250 voting power (1000 × 52/208)
 ```
 
+
+##### Expired Lock Management
+When locks expire, voting power becomes zero but reward power persists. You can refresh your commitment by extending the expired lock:
+
+```
+Expired Position: 1000 ZKC with 0 weeks remaining
+- Voting Power: 0 (expired)
+- Reward Power: 1000 ZKC (persists)
+
+Extend to 52 weeks: 1000 ZKC with 52 weeks remaining
+- Voting Power: 250 (1000 × 52/208) - refreshed!
+- Reward Power: 1000 ZKC (unchanged)
+
+Now you can top-up: Add 500 ZKC to the refreshed position
+- Voting Power: 375 (1500 × 52/208)
+- Reward Power: 1500 ZKC
+```
+
+**Key Points:**
+- Expired locks retain reward power but lose voting power
+- Must extend expired locks before topping up
+- Extending refreshes voting power based on new lock duration
+- Top-ups are only allowed on active (non-expired) locks
+
+##### Week Rounding
+All lock end times are automatically rounded down to the nearest week boundary (Thursday 00:00 UTC) for consistency:
+
+```
+Example: Stake on Monday with 30-day duration
+- Requested end: Monday + 30 days
+- Actual end: Previous Thursday 00:00 UTC (rounded down)
+- Use getStakedAmountAndExpiry() to see exact expiry timestamp
+```
 
 #### IVotes Compatibility
 
@@ -136,26 +175,52 @@ veZKC is IVotes compatible, supporting historical queries of voting power and vo
 // Approve ZKC tokens
 zkc.approve(address(veZkcToken), 1000 ether);
 
-// Stake for 52 weeks (1/2 maximum lock)
+// Stake for 52 weeks (1/4 maximum lock)
 uint256 tokenId = veZkcToken.stake(1000 ether, block.timestamp + 52 weeks);
 
-// Check voting power (will be: 1000 * 52/104 = 500)
+// Check voting power (will be: 1000 * 52/208 = 250)
+// Get exact lock expiry (rounded to week boundary)
+(uint256 amount, uint256 expiry) = veZkcToken.getStakedAmountAndExpiry(msg.sender);
 uint256 power = veZkcToken.getVotes(msg.sender);
 ```
 
 ### Incremental Extensions
 ```solidity
-// Extend to specific end time (2 years from now)
-veZkcToken.extendLockToTime(tokenId, block.timestamp + 104 weeks);
+// Extend to specific end time (4 years from now - maximum)
+veZkcToken.extendLockToTime(tokenId, block.timestamp + 208 weeks);
+
+// Extend expired lock (refresh commitment)
+// This works even if the lock has already expired
+veZkcToken.extendLockToTime(tokenId, block.timestamp + 52 weeks);
 ```
 
 ### Position Management
 ```solidity
-// Add more ZKC to existing position
+// Check your exact position details
+(uint256 amount, uint256 expiry) = veZkcToken.getStakedAmountAndExpiry(msg.sender);
+
+// Add more ZKC to existing position (only if lock is active)
 veZkcToken.addToStake(tokenId, 500 ether);
 
 // Unstake after lock expires
 veZkcToken.unstake(tokenId); // Returns original ZKC
+```
+
+### Expired Lock Management
+```solidity
+// Check status of expired position
+uint256 votingPower = veZkcToken.getVotes(msg.sender); // 0 (expired)
+uint256 rewardPower = veZkcToken.getRewardPower(msg.sender); // 1000 (persists)
+(uint256 amount, uint256 expiry) = veZkcToken.getStakedAmountAndExpiry(msg.sender);
+// amount = 1000, expiry = 1234567890 (past timestamp)
+
+// Extend expired lock to refresh voting power
+veZkcToken.extendLockToTime(tokenId, block.timestamp + 52 weeks);
+uint256 newVotingPower = veZkcToken.getVotes(msg.sender); // 250 (refreshed)
+
+// Now you can top-up the refreshed position
+veZkcToken.addToStake(tokenId, 500 ether);
+uint256 finalVotingPower = veZkcToken.getVotes(msg.sender); // 375
 ```
 
 ### Governance Integration

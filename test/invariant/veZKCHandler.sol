@@ -7,6 +7,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {veZKC} from "../../src/veZKC.sol";
 import {ZKC} from "../../src/ZKC.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {Constants} from "../../src/libraries/Constants.sol";
 
 contract veZKCHandler is Test {
     veZKC public veToken;
@@ -90,7 +91,7 @@ contract veZKCHandler is Test {
         uint256 amount = bound(seed, MIN_STAKE_AMOUNT, maxAmount);
         
         // Generate random parameters with longer minimum lock times
-        uint256 lockWeeks = bound(seed >> 8, 20, veToken.MAX_STAKE_WEEKS()); // Min 20 weeks instead of 4
+        uint256 lockWeeks = bound(seed >> 8, 20, Constants.MAX_STAKE_WEEKS); // Min 20 weeks instead of 4
         uint256 expires = block.timestamp + (lockWeeks * 1 weeks);
         
         console.log(string.concat("STAKE_PARAMS: amount=", Strings.toString(amount), " lockWeeks=", Strings.toString(lockWeeks)));
@@ -103,7 +104,7 @@ contract veZKCHandler is Test {
             ghost_userTokenId[currentActor] = tokenId;
             ghost_hasActivePosition[currentActor] = true;
             ghost_tokenAmount[tokenId] = amount;
-            (,uint256 lockEnd) = veToken.locks(tokenId);
+            (,uint256 lockEnd) = veToken.getStakedAmountAndExpiry(currentActor);
             ghost_tokenExpiry[tokenId] = lockEnd;
             
             stakeCount++;
@@ -180,7 +181,7 @@ contract veZKCHandler is Test {
         console.log(string.concat("EXTEND_PARAMS: tokenId=", Strings.toString(tokenId), " addWeeks=", Strings.toString(additionalWeeks)));
         
         // Ensure doesn't exceed max duration from current time
-        uint256 maxExpiry = block.timestamp + veToken.MAX_STAKE_TIME_S();
+        uint256 maxExpiry = block.timestamp + Constants.MAX_STAKE_TIME_S;
         if (newExpiry > maxExpiry) {
             newExpiry = maxExpiry;
         }
@@ -188,7 +189,7 @@ contract veZKCHandler is Test {
         // Execute extend
         try veToken.extendStakeLockup(newExpiry) {
             // Update ghost variables
-            (,uint256 lockEnd) = veToken.locks(tokenId);
+            (,uint256 lockEnd) = veToken.getStakedAmountAndExpiry(currentActor);
             ghost_tokenExpiry[tokenId] = lockEnd;
             
             extendCount++;

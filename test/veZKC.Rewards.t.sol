@@ -9,7 +9,7 @@ contract veZKCRewardsTest is veZKCTest {
     function testBasicRewardPower() public {
         // Alice stakes for half max time
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
+        uint256 tokenId = veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
         
         // Reward power should equal staked amount
         uint256 rewardPower = veToken.getRewards(alice);
@@ -23,14 +23,14 @@ contract veZKCRewardsTest is veZKCTest {
     function testRewardPowerDoesNotDecay() public {
         // Alice stakes for a moderate duration
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 4);
+        uint256 tokenId = veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 4);
         
         // Initial reward power
         uint256 initialRewardPower = veToken.getRewards(alice);
         assertEq(initialRewardPower, AMOUNT, "Initial reward power should equal staked amount");
         
         // Fast forward halfway through the lock period
-        vm.warp(block.timestamp + MAX_STAKE_TIME_S / 8);
+        vm.warp(vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 8);
         
         // Reward power should remain the same (doesn't decay)
         uint256 halfwayRewardPower = veToken.getRewards(alice);
@@ -72,7 +72,7 @@ contract veZKCRewardsTest is veZKCTest {
         // Initial stake
         vm.startPrank(alice);
         
-        uint256 tokenId = veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
+        uint256 tokenId = veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
         
         // Initial reward power
         uint256 initialRewardPower = veToken.getRewards(alice);
@@ -123,7 +123,7 @@ contract veZKCRewardsTest is veZKCTest {
         
         // Extend the lock
         vm.prank(alice);
-        veToken.extendStakeLockup(block.timestamp + MAX_STAKE_TIME_S);
+        veToken.extendStakeLockup(vm.getBlockTimestamp() + MAX_STAKE_TIME_S);
         
         // Reward power should remain the same (amount doesn't change)
         uint256 rewardPowerAfterExtension = veToken.getRewards(alice);
@@ -157,20 +157,20 @@ contract veZKCRewardsTest is veZKCTest {
         // Alice stakes
         vm.startPrank(alice);
         
-        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
+        veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
         vm.stopPrank();
         
         // Bob stakes different amount
         uint256 bobAmount = AMOUNT * 2;
         vm.startPrank(bob);
         
-        veToken.stake(bobAmount, block.timestamp + MAX_STAKE_TIME_S / 4);
+        veToken.stake(bobAmount, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 4);
         vm.stopPrank();
         
         // Charlie stakes
         vm.startPrank(charlie);
         
-        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 8);
+        veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 8);
         vm.stopPrank();
         
         // Check individual reward powers
@@ -194,7 +194,7 @@ contract veZKCRewardsTest is veZKCTest {
         // Bob stakes with longer duration
         vm.startPrank(bob);
         
-        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S);
+        veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S);
         vm.stopPrank();
         
         uint256 totalBeforeExpiry = veToken.getTotalRewards();
@@ -218,16 +218,16 @@ contract veZKCRewardsTest is veZKCTest {
     }
 
     function testGetPastRewards() public {
-        uint256 t0 = block.timestamp;
+        uint256 t0 = vm.getBlockTimestamp();
         
         // Alice stakes at t0
         vm.prank(alice);
         
-        uint256 tokenId = veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
+        uint256 tokenId = veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
         
         // Move forward in time
         vm.warp(t0 + 1000);
-        uint256 t1 = block.timestamp;
+        uint256 t1 = vm.getBlockTimestamp();
         
         // Alice adds to stake
         vm.prank(alice);
@@ -235,17 +235,17 @@ contract veZKCRewardsTest is veZKCTest {
         
         // Move forward again
         vm.warp(t1 + 1000);
-        uint256 t2 = block.timestamp;
+        uint256 t2 = vm.getBlockTimestamp();
         
         // Current reward power should be full amount
         uint256 currentRewardPower = veToken.getRewards(alice);
         assertEq(currentRewardPower, AMOUNT + ADD_AMOUNT, "Current reward power should be full amount");
         
-        // Past reward power queries (these will return incorrect values until snapshotting is implemented)
+        // Past reward power queries
         uint256 pastRewardsBeforeT0 = veToken.getPastRewards(alice, t0 - 1);
         uint256 pastRewardsAfterT0 = veToken.getPastRewards(alice, t0);
         uint256 pastRewardsAtT1 = veToken.getPastRewards(alice, t1);
-        uint256 pastRewardsAtT2 = veToken.getPastRewards(alice, t2);
+        uint256 pastRewardsAtT2 = veToken.getPastRewards(alice, t2 - 1);
         assertEq(pastRewardsBeforeT0, 0, "Should have 0 reward power before staking");
         assertEq(pastRewardsAfterT0, AMOUNT, "Should have initial amount before adding");
         assertEq(pastRewardsAtT1, AMOUNT + ADD_AMOUNT, "Should have full amount after adding");
@@ -253,25 +253,25 @@ contract veZKCRewardsTest is veZKCTest {
     }
 
     function testGetPastTotalRewards() public {
-        uint256 t0 = block.timestamp;
+        uint256 t0 = vm.getBlockTimestamp();
         
         // Alice stakes
         vm.startPrank(alice);
         
-        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
+        veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
         vm.stopPrank();
         
         vm.warp(t0 + 1000);
-        uint256 t1 = block.timestamp;
+        uint256 t1 = vm.getBlockTimestamp();
         
         // Bob stakes
         vm.startPrank(bob);
         
-        veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
+        veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
         vm.stopPrank();
         
         vm.warp(t1 + 1000);
-        uint256 t2 = block.timestamp;
+        uint256 t2 = vm.getBlockTimestamp();
         
         // Current total should be both stakes
         uint256 currentTotalRewards = veToken.getTotalRewards();
@@ -287,7 +287,7 @@ contract veZKCRewardsTest is veZKCTest {
 
     function testPreDeploymentTimestamps() public {
         // Test behavior with timestamps before deployment
-        uint256 deploymentTime = block.timestamp;
+        uint256 deploymentTime = vm.getBlockTimestamp();
         uint256 preDeploymentTime = deploymentTime - 1000; // 1000 seconds before deployment
         
         // Test getPastRewards before any activity
@@ -322,10 +322,10 @@ contract veZKCRewardsTest is veZKCTest {
         
         // Now do some activity and test again
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
+        uint256 tokenId = veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
         
         // Move forward in time
-        vm.warp(block.timestamp + 1000);
+        vm.warp(vm.getBlockTimestamp() + 1000);
         
         // Pre-deployment timestamps should still return 0
         pastRewardsPreDeployment = veToken.getPastRewards(alice, preDeploymentTime);
@@ -365,7 +365,7 @@ contract veZKCRewardsTest is veZKCTest {
         
         // 4. Extend lock first to re-activate position
         vm.prank(alice);
-        veToken.extendStakeLockup(block.timestamp + MAX_STAKE_TIME_S / 2);
+        veToken.extendStakeLockup(vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
         
         // Voting power should be restored after extension
         assertGt(veToken.getVotes(alice), 0, "Voting power should be restored after extension");
@@ -389,5 +389,39 @@ contract veZKCRewardsTest is veZKCTest {
         // Now both should be 0
         assertEq(veToken.getRewards(alice), 0, "Reward power should be 0 after unstaking");
         assertEq(veToken.getVotes(alice), 0, "Voting power should be 0 after unstaking");
+    }
+    
+    function testRewardsTimepointValidation() public {
+        // Alice stakes first
+        vm.startPrank(alice);
+        zkc.approve(address(veToken), AMOUNT);
+        veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
+        vm.stopPrank();
+        
+        uint256 currentTime = vm.getBlockTimestamp();
+        
+        // Test that calling getPastRewards with current timestamp reverts
+        vm.expectRevert();
+        veToken.getPastRewards(alice, currentTime);
+        
+        // Test that calling getPastTotalRewards with current timestamp reverts
+        vm.expectRevert();
+        veToken.getPastTotalRewards(currentTime);
+        
+        // Test that calling with future timestamp reverts
+        vm.expectRevert();
+        veToken.getPastRewards(alice, currentTime + 1);
+        
+        vm.expectRevert();
+        veToken.getPastTotalRewards(currentTime + 1);
+        
+        // Test that calling with past timestamp works
+        vm.warp(currentTime + 1000);
+        
+        uint256 pastRewards = veToken.getPastRewards(alice, currentTime);
+        uint256 pastTotalRewards = veToken.getPastTotalRewards(currentTime);
+        
+        assertEq(pastRewards, AMOUNT, "Past rewards should equal staked amount");
+        assertEq(pastTotalRewards, AMOUNT, "Past total rewards should equal total staked");
     }
 }

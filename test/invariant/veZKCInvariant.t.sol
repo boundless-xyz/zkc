@@ -216,7 +216,7 @@ contract veZKCInvariantTest is StdInvariant, Test {
         
         for (uint256 i = 0; i < actorCount; i++) {
             address actor = handler.actors(i);
-            uint256 activePosition = veToken.userActivePosition(actor);
+            uint256 activePosition = veToken.getActiveTokenId(actor);
             
             if (activePosition != 0) {
                 // If user has active position, it should match our ghost tracking

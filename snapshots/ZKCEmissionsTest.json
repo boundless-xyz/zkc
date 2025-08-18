@@ -1,14 +1,14 @@
 {
-  "mintPoVWRewardsForEpoch: 0050 recipients": "1601929",
-  "mintPoVWRewardsForEpoch: 0250 recipients": "7680714",
-  "mintPoVWRewardsForEpoch: 1000 recipients": "30503987",
-  "mintPoVWRewardsForRecipient: batch of 0001": "111179",
-  "mintPoVWRewardsForRecipient: batch of 0015": "672653",
-  "mintPoVWRewardsForRecipient: batch of 0030": "1273891",
-  "mintStakingRewardsForEpoch: 0050 recipients": "1601928",
-  "mintStakingRewardsForEpoch: 0250 recipients": "7680713",
-  "mintStakingRewardsForEpoch: 1000 recipients": "30503986",
-  "mintStakingRewardsForRecipient: batch of 0001": "111223",
-  "mintStakingRewardsForRecipient: batch of 0015": "672697",
-  "mintStakingRewardsForRecipient: batch of 0030": "1273935"
+  "mintPoVWRewardsForEpoch: 0050 recipients": "1502953",
+  "mintPoVWRewardsForEpoch: 0250 recipients": "7233538",
+  "mintPoVWRewardsForEpoch: 1000 recipients": "28751061",
+  "mintPoVWRewardsForRecipient: batch of 0001": "99300",
+  "mintPoVWRewardsForRecipient: batch of 0015": "572537",
+  "mintPoVWRewardsForRecipient: batch of 0030": "1079224",
+  "mintStakingRewardsForEpoch: 0050 recipients": "1502848",
+  "mintStakingRewardsForEpoch: 0250 recipients": "7233433",
+  "mintStakingRewardsForEpoch: 1000 recipients": "28750956",
+  "mintStakingRewardsForRecipient: batch of 0001": "99327",
+  "mintStakingRewardsForRecipient: batch of 0015": "572326",
+  "mintStakingRewardsForRecipient: batch of 0030": "1078758"
 }
