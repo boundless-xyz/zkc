@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import {
-    StakingRewards, StakingRewardClaimed, AlreadyClaimed, EpochNotFinished
+    StakingRewards, AlreadyClaimed, EpochNotFinished
 } from "../src/rewards/StakingRewards.sol";
 import {veZKC} from "../src/veZKC.sol";
 import {ZKC} from "../src/ZKC.sol";
@@ -67,12 +67,8 @@ contract StakingRewardsTest is Test {
     // Internal function to claim rewards for a user and epochs
     function _claimRewards(address user, uint256[] memory epochs) internal returns (uint256) {
         uint256[] memory amounts = rewards.calculateRewards(user, epochs);
-        uint256 totalAmount = 0;
-        for (uint256 i = 0; i < amounts.length; i++) {
-            totalAmount += amounts[i];
-        }
         vm.expectEmit(true, true, true, true);
-        emit StakingRewardClaimed(user, epochs, totalAmount);
+        emit ZKC.StakingRewardsClaimed(user, epochs, amounts);
         vm.prank(user);
         uint256 amount = rewards.claimRewards(epochs);
         return amount;

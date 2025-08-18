@@ -8,9 +8,6 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {ZKC} from "../ZKC.sol";
 import {IRewards} from "../interfaces/IRewards.sol";
 
-/// @notice Event emitted when staking rewards are claimed
-event StakingRewardClaimed(address indexed user, uint256[] epochs, uint256 amount);
-
 /// @notice Error thrown when a user tries to claim rewards for an epoch they have already claimed
 error AlreadyClaimed(uint256 epoch);
 
@@ -138,7 +135,6 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         }
         if (amount == 0) return 0;
         zkc.mintStakingRewardsForRecipient(user, amounts, epochs);
-        emit StakingRewardClaimed(user, epochs, amount);
         return amount;
     }
 
