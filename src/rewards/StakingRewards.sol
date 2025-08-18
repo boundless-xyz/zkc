@@ -51,7 +51,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     }
 
     /**
-     * @notice Claim rewards for specific epochs
+     * @notice Claim rewards for the given epochs
      * @param epochs The epochs to claim rewards for
      * @return amount The amount of rewards claimed
      */

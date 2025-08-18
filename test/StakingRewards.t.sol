@@ -21,7 +21,7 @@ contract StakingRewardsTest is Test {
     address internal user1 = address(0xBEEF1);
     address internal user2 = address(0xBEEF2);
 
-    uint256 constant EPOCH_DURATION = 2 days;
+    uint256 internal EPOCH_DURATION;
 
     function setUp() public {
         vm.startPrank(admin);
@@ -30,6 +30,7 @@ contract StakingRewardsTest is Test {
         bytes memory zkcInit = abi.encodeCall(ZKC.initialize, (minter1, minter2, supply / 2, supply / 2, admin));
         zkc = ZKC(address(new ERC1967Proxy(address(zkcImpl), zkcInit)));
         zkc.initializeV2();
+        EPOCH_DURATION = zkc.EPOCH_DURATION();
 
         veZKC veImpl = new veZKC();
         bytes memory veInit = abi.encodeCall(veZKC.initialize, (address(zkc), admin));
