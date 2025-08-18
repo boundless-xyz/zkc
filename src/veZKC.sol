@@ -35,7 +35,7 @@ contract veZKC is
         // When the lock expires
         uint256 lockEnd;
     }
-    
+
     /**
      * @dev Point represents voting power at a specific moment that decays linearly over time
      * @dev Formula: voting_power(t) = bias - slope * (t - ts)
@@ -75,19 +75,19 @@ contract veZKC is
 
     mapping(uint256 tokenId => LockInfo) public locks;
     mapping(address account => address) private _delegatee;
-    
+
     /**
      * @dev Point-based Voting Power Tracking System
      * @dev User Point History: Pre-allocated array tracking power evolution per account.
      * @dev Used as checkpoints for calculating a users power at a specific timestamp.
      * @dev - Uses pre-allocated array of 1B slots for gas optimization
-     * @dev - Each Point stores bias (initial power) and slope (decay rate) at a timestamp  
+     * @dev - Each Point stores bias (initial power) and slope (decay rate) at a timestamp
      * @dev - New Points appended when: stake/unstake/delegate/extend lock
      * @dev - Enables binary search for historical queries
      * @dev - Array never shrinks, only grows via _userPointEpoch counter
      */
     mapping(address account => Point[1000000000]) private _userPointHistory;
-    
+
     /**
      * @dev User Point Epoch: Current index in the user's point history array
      * @dev - Points to the latest valid entry in _userPointHistory[account]
@@ -95,7 +95,7 @@ contract veZKC is
      * @dev - Used as upper bound for binary search operations
      */
     mapping(address account => uint256) private _userPointEpoch;
-    
+
     /**
      * @dev Global Point History: Protocol-wide voting power tracking
      * @dev - Uses mapping instead of pre-allocated array
@@ -103,19 +103,19 @@ contract veZKC is
      * @dev - Updated whenever any user's voting power changes
      */
     mapping(uint256 => Point) private _globalPointHistory;
-    
+
     /**
      * @dev Global Epoch: Current index for global point history
      * @dev - Points to latest entry in _globalPointHistory mapping
      * @dev - Always consecutive (0,1,2,3...) enabling binary search
      */
     uint256 private _globalPointEpoch;
-    
+
     /**
      * @dev Slope Changes: Scheduled global slope adjustments when locks expire
-     * @dev Slope changes can only occur on week boundaries, since we always 
+     * @dev Slope changes can only occur on week boundaries, since we always
      * @dev round down lock creations/extensions to the nearest week. This simplifies the process of
-     * @dev calculating the global amount of voting power at any given time. 
+     * @dev calculating the global amount of voting power at any given time.
      * @dev It also makes groups expiries together (gas efficient)
      * @dev - Maps timestamp -> total slope delta across all users
      * @dev - When user creates lock until time T: slopeChanges[T] += user_slope
@@ -125,7 +125,7 @@ contract veZKC is
      * @dev - Used by getTotalVotes() to accurately track global voting power decay
      */
     mapping(uint256 timestamp => int128) public slopeChanges;
-    
+
     /**
      * @dev Track which tokenIds belong to each account
      * @dev - One account can own multiple veZKC NFTs (though we limit to 1 active position)
@@ -149,7 +149,7 @@ contract veZKC is
     error StakeDurationTooShort();
     error StakeDurationTooLong();
     error UserAlreadyHasActivePosition();
-    
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -163,24 +163,19 @@ contract veZKC is
 
         zkcToken = ZKC(_zkcToken);
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
-        
+
         // Initialize first point at index 0 with zero values
         // This ensures we always have a base point for calculations
-        _globalPointHistory[0] = Point({
-            bias: 0,
-            slope: 0,
-            updatedAt: block.timestamp,
-            amount: 0
-        });
+        _globalPointHistory[0] = Point({bias: 0, slope: 0, updatedAt: block.timestamp, amount: 0});
     }
 
     // Staking functions (consolidated from StakingVault)
     function stake(uint256 amount, uint256 expires) external nonReentrant returns (uint256 tokenId) {
         if (amount == 0) revert ZeroAmount();
-        
+
         // Enforce single active position per user
         if (userActivePosition[msg.sender] != 0) revert UserAlreadyHasActivePosition();
-        
+
         // Get the expiry timestamp with proper week rounding and validation
         expires = _getWeekExpiry(expires);
 
@@ -197,19 +192,16 @@ contract veZKC is
         return tokenId;
     }
 
-    function stakeWithPermit(
-        uint256 amount, 
-        uint256 expires,
-        uint256 permitDeadline,
-        uint8 v, 
-        bytes32 r, 
-        bytes32 s
-    ) external nonReentrant returns (uint256 tokenId) {
+    function stakeWithPermit(uint256 amount, uint256 expires, uint256 permitDeadline, uint8 v, bytes32 r, bytes32 s)
+        external
+        nonReentrant
+        returns (uint256 tokenId)
+    {
         if (amount == 0) revert ZeroAmount();
-        
+
         // Enforce single active position per user
         if (userActivePosition[msg.sender] != 0) revert UserAlreadyHasActivePosition();
-        
+
         // Get the expiry timestamp with proper week rounding and validation
         expires = _getWeekExpiry(expires);
 
@@ -255,7 +247,7 @@ contract veZKC is
             if (expires <= block.timestamp + MIN_STAKE_TIME_S) revert StakeDurationTooShort();
             if (expires > block.timestamp + MAX_STAKE_TIME_S) revert StakeDurationTooLong();
         }
-        
+
         return expires;
     }
 
@@ -280,24 +272,21 @@ contract veZKC is
     function addToStake(uint256 amount) external nonReentrant {
         uint256 tokenId = userActivePosition[msg.sender];
         require(tokenId != 0, "No active position");
-        
+
         _addToStake(msg.sender, tokenId, amount);
     }
 
     /// @notice Add stake to your own active position using permit
-    function addToStakeWithPermit(
-        uint256 amount,
-        uint256 permitDeadline,
-        uint8 v, 
-        bytes32 r, 
-        bytes32 s
-    ) external nonReentrant {
+    function addToStakeWithPermit(uint256 amount, uint256 permitDeadline, uint8 v, bytes32 r, bytes32 s)
+        external
+        nonReentrant
+    {
         uint256 tokenId = userActivePosition[msg.sender];
         require(tokenId != 0, "No active position");
 
         // Use permit to approve tokens
         zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
-        
+
         _addToStake(msg.sender, tokenId, amount);
     }
 
@@ -311,13 +300,13 @@ contract veZKC is
         uint256 tokenId,
         uint256 amount,
         uint256 permitDeadline,
-        uint8 v, 
-        bytes32 r, 
+        uint8 v,
+        bytes32 r,
         bytes32 s
     ) external nonReentrant {
         // Use permit to approve tokens
         zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
-        
+
         _addToStake(msg.sender, tokenId, amount);
     }
 
@@ -326,17 +315,17 @@ contract veZKC is
         uint256 tokenId = userActivePosition[msg.sender];
         require(tokenId != 0, "No active position");
         require(ownerOf(tokenId) == msg.sender, "Not the owner of this NFT");
-        
+
         // Cannot extend if delegated to someone else
         address delegatee = delegates(msg.sender);
         require(delegatee == msg.sender, "Cannot extend lock while delegated");
 
         // Get current lock info
         LockInfo memory lock = locks[tokenId];
-        
+
         // Allow extending even if expired - this restores voting power
         // No reason to prevent this as it's a valid user action to re-activate their position
-        
+
         // Validate timestamp constraints
         newLockEndTime = _getWeekExpiry(newLockEndTime);
         require(newLockEndTime > lock.lockEnd, "Can only increase lock end time");
@@ -381,18 +370,18 @@ contract veZKC is
 
         LockInfo memory emptyLock; // Empty lock (new mint)
         LockInfo memory newLock = LockInfo({amount: amount, lockEnd: expires});
-        
+
         locks[tokenId] = newLock;
-        
+
         // Get delegatee (self-delegate if not set)
         // address delegatee = _delegatee[to];
         // if (delegatee == address(0)) {
         //     delegatee = to;
         //     _delegatee[to] = to;
         // }
-        
+
         // Create checkpoint for voting power change
-        _checkpoint(to, emptyLock, newLock);
+        _checkpoint(to, emptyLock, newLock, true);
 
         return tokenId;
     }
@@ -404,25 +393,22 @@ contract veZKC is
         LockInfo memory oldLock = locks[tokenId];
 
         // Create new lock state with added amount
-        LockInfo memory newLock = LockInfo({
-            amount: oldLock.amount + newAmount,
-            lockEnd: oldLock.lockEnd
-        });
+        LockInfo memory newLock = LockInfo({amount: oldLock.amount + newAmount, lockEnd: oldLock.lockEnd});
 
         locks[tokenId] = newLock;
-        
+
         address owner = ownerOf(tokenId);
-        
+
         // Get delegatee (self-delegate if not set)
         address delegatee = _delegatee[owner];
         if (delegatee == address(0)) {
             delegatee = owner;
             _delegatee[owner] = owner;
         }
-        
+
         // Create checkpoint for voting power change
         // This updates the delegatee's checkpoint (which could be owner or someone else)
-        _checkpoint(owner, oldLock, newLock);
+        _checkpoint(owner, oldLock, newLock, true);
 
         emit LockIncreased(tokenId, newAmount, newLock.amount);
     }
@@ -440,25 +426,22 @@ contract veZKC is
         require(roundedNewLockEnd <= block.timestamp + MAX_STAKE_TIME_S, "Lock cannot exceed max time");
 
         // Create new lock state with extended end time
-        LockInfo memory newLock = LockInfo({
-            amount: oldLock.amount,
-            lockEnd: roundedNewLockEnd
-        });
+        LockInfo memory newLock = LockInfo({amount: oldLock.amount, lockEnd: roundedNewLockEnd});
 
         locks[tokenId] = newLock;
-        
+
         address owner = ownerOf(tokenId);
-        
+
         // Get delegatee (self-delegate if not set)
         // address delegatee = _delegatee[owner];
         // if (delegatee == address(0)) {
         //     delegatee = owner;
         //     _delegatee[owner] = owner;
         // }
-        
+
         // Create checkpoint for voting power change
-        _checkpoint(owner, oldLock, newLock);
-        
+        _checkpoint(owner, oldLock, newLock, true);
+
         // Note: No need to update delegation here since extensions are blocked while delegated
 
         emit LockExtended(tokenId, newLock.lockEnd);
@@ -468,25 +451,25 @@ contract veZKC is
         require(_ownerOf(tokenId) != address(0), "Token does not exist");
 
         address owner = ownerOf(tokenId);
-        
+
         // Capture old state before modification
         LockInfo memory oldLock = locks[tokenId];
         // Empty lock (burned)
         LockInfo memory emptyLock;
-        
+
         delete locks[tokenId];
         _burn(tokenId);
-        
+
         // Get delegatee (self-delegate if not set)
         address delegatee = _delegatee[owner];
         if (delegatee == address(0)) {
             delegatee = owner;
             _delegatee[owner] = owner;
         }
-        
+
         // Create checkpoint for voting power change.
         // Essentially, we are saying to remove the old lock and then do nothing else (add an empty lock).
-        _checkpoint(owner, oldLock, emptyLock);
+        _checkpoint(owner, oldLock, emptyLock, true);
 
         emit LockExpired(tokenId);
     }
@@ -495,7 +478,7 @@ contract veZKC is
      * @dev IVotes implementation
      */
     function clock() public view override returns (uint48) {
-        return uint48(block.timestamp); 
+        return uint48(block.timestamp);
     }
 
     function CLOCK_MODE() public pure override returns (string memory) {
@@ -503,13 +486,12 @@ contract veZKC is
     }
 
     /**
-    * @dev Returns the voting power that 'account' can use (i.e., delegated TO them)
-    * @dev Not the voting power they own but may have delegated away
-    */
+     * @dev Returns the voting power that 'account' can use (i.e., delegated TO them)
+     * @dev Not the voting power they own but may have delegated away
+     */
     function getVotes(address account) public view override returns (uint256) {
         uint256 epoch = _userPointEpoch[account];
-        
-        
+
         return _getVotesFromEpoch(account, epoch, block.timestamp);
     }
 
@@ -518,11 +500,11 @@ contract veZKC is
         if (timepoint >= currentTimepoint) {
             revert ERC5805FutureLookup(timepoint, currentTimepoint);
         }
-        
+
         // Returns the voting power that 'account' should use at the given timepoint
         // Binary search for the right epoch at the given timestamp
         uint256 epoch = _findUserTimestampEpoch(account, timepoint);
-        
+
         return _getVotesFromEpoch(account, epoch, timepoint);
     }
 
@@ -531,41 +513,41 @@ contract veZKC is
         if (timepoint > currentTimepoint) {
             revert ERC5805FutureLookup(timepoint, currentTimepoint);
         }
-        
+
         // Binary search for the epoch right before the given timestamp
         uint256 epoch = _findTimestampEpoch(timepoint);
         if (epoch == 0) return 0;
-        
+
         Point memory lastPoint = _globalPointHistory[epoch];
-        
+
         // Move forward from the found point to the target timestamp
         // applying any scheduled global slope changes along the way.
         uint256 currentTimestamp = _timestampFloorToWeek(lastPoint.updatedAt);
         for (uint256 i = 0; i < 255; i++) {
             currentTimestamp += WEEK;
             int128 d_slope = 0;
-            
+
             if (currentTimestamp > timepoint) {
                 currentTimestamp = timepoint;
             } else {
                 d_slope = slopeChanges[currentTimestamp];
             }
-            
+
             // Calculate bias decay to currentTimestamp
             lastPoint.bias -= lastPoint.slope * int128(int256(currentTimestamp - lastPoint.updatedAt));
-            
+
             if (currentTimestamp == timepoint) {
                 break;
             }
-            
+
             // Apply slope change at week boundary
             lastPoint.slope += d_slope;
             lastPoint.updatedAt = currentTimestamp;
         }
-        
+
         // Ensure non-negative
         if (lastPoint.bias < 0) lastPoint.bias = 0;
-        
+
         return uint256(uint128(lastPoint.bias));
     }
 
@@ -576,30 +558,33 @@ contract veZKC is
 
     function delegate(address delegatee) public override {
         address account = _msgSender();
-        
+
         /// @dev Get both user's active positions
         uint256 myTokenId = userActivePosition[account];
         uint256 delegateeTokenId = userActivePosition[delegatee];
-        
+
         require(myTokenId != 0, "No active position");
         require(delegateeTokenId != 0, "Delegatee has no active position");
-        
+
         LockInfo memory myLock = locks[myTokenId];
         LockInfo memory delegateeLock = locks[delegateeTokenId];
-        
+
         /// @dev Extend my lock to match delegatee's lock if needed
         if (delegateeLock.lockEnd > myLock.lockEnd) {
             _extendLockAndCheckpoint(myTokenId, delegateeLock.lockEnd);
         }
-        
+
         _delegate(account, delegatee);
     }
 
-    function delegateBySig(address /*_delegatee*/, uint256 /*_nonce*/, uint256 /*_expiry*/, uint8 /*_v*/, bytes32 /*_r*/, bytes32 /*_s*/)
-        public
-        pure
-        override
-    {
+    function delegateBySig(
+        address, /*_delegatee*/
+        uint256, /*_nonce*/
+        uint256, /*_expiry*/
+        uint8, /*_v*/
+        bytes32, /*_r*/
+        bytes32 /*_s*/
+    ) public pure override {
         revert("Not implemented");
     }
 
@@ -611,11 +596,7 @@ contract veZKC is
         _checkpointDelegation(account, oldDelegate, delegatee);
 
         emit DelegateChanged(account, oldDelegate, delegatee);
-        emit DelegateVotesChanged(
-            delegatee,
-            getVotes(oldDelegate),
-            getVotes(delegatee)
-        );
+        emit DelegateVotesChanged(delegatee, getVotes(oldDelegate), getVotes(delegatee));
     }
 
     /**
@@ -653,15 +634,15 @@ contract veZKC is
      */
     function _getVotesFromEpoch(address account, uint256 epoch, uint256 timestamp) internal view returns (uint256) {
         if (epoch == 0) return 0;
-        
+
         Point memory point = _userPointHistory[account][epoch];
-        
+
         int128 dt = int128(int256(timestamp - point.updatedAt));
         int128 bias = point.bias - point.slope * dt;
-        
+
         /// @dev Ensure non-negative (voting power cannot be negative)
         if (bias < 0) bias = 0;
-        
+
         return uint256(uint128(bias));
     }
 
@@ -695,14 +676,14 @@ contract veZKC is
 
     // Custom error for ERC5805
     error ERC5805FutureLookup(uint256 timepoint, uint48 clock);
-    
+
     /**
      * @dev Binary search to find user's point at a specific timestamp
      */
     function _findUserTimestampEpoch(address user, uint256 timestamp) internal view returns (uint256) {
         uint256 min = 0;
         uint256 max = _userPointEpoch[user];
-        
+
         /// @dev Binary search by timestamp
         while (min < max) {
             uint256 mid = (min + max + 1) / 2;
@@ -712,17 +693,17 @@ contract veZKC is
                 max = mid - 1;
             }
         }
-        
+
         return min;
     }
-    
+
     /**
      * @dev Binary search to find global point at a specific timestamp
      */
     function _findTimestampEpoch(uint256 timestamp) internal view returns (uint256) {
         uint256 min = 0;
         uint256 max = _globalPointEpoch;
-        
+
         while (min < max) {
             uint256 mid = (min + max + 1) / 2;
             if (_globalPointHistory[mid].updatedAt <= timestamp) {
@@ -731,44 +712,42 @@ contract veZKC is
                 max = mid - 1;
             }
         }
-        
+
         return min;
     }
-    
+
     /**
      * @dev Main checkpoint function that updates user and global points
      * @dev Following standard veToken pattern with explicit old/new lock states
      * @dev One way to think of this function is that the oldLock field is the "old" state that
      * we want to remove, and newLock is the "new" state that we want to add.
      */
-    function _checkpoint(
-        address account, 
-        LockInfo memory oldLock, 
-        LockInfo memory newLock
-    ) internal {
+    function _checkpoint(address account, LockInfo memory oldLock, LockInfo memory newLock, bool adjustAmount)
+        internal
+    {
         // Track the users old point (if one exists, i.e. we are topping up or extending a lock)
         Point memory userOldPoint;
         // Track the users new point (either updated from old point, or newly created)
         Point memory userNewPoint;
-        
+
         // Track the impact on the global point's slope value as a result of the user's lock changes.
         int128 globalOldSlopeDelta = 0;
         int128 globalNewSlopeDelta = 0;
-        
+
         // Get the delegatee (self-delegate if not set)
         address user = delegates(account);
-        
+
         // If an old lock was provided, calculate the point that we will remove from the oldLock state.
         // For expired locks, we calculate a point, with the amount, but leave bias/slope empty. Since the lock has
         // already expired, voting power is already 0 as it must have decayed to 0, so no need to apply any
         // bias/slope changes, but we must remove the amount value from user + global tracking.
-        if (oldLock.amount > 0) {
+        if (oldLock.amount > 0 && adjustAmount) {
             if (oldLock.lockEnd > block.timestamp) {
                 // Active lock: calculate voting power and slope
                 int128 oldSlope = int128(int256(oldLock.amount)) / iMAX_STAKE_TIME_S;
                 int128 oldRemainingTime = int128(int256(oldLock.lockEnd - block.timestamp));
                 int128 oldBias = oldSlope * oldRemainingTime;
-                
+
                 userOldPoint = Point({
                     bias: int128(int256(oldBias)),
                     slope: oldSlope,
@@ -780,25 +759,19 @@ contract veZKC is
                 // expired so already decayed to 0, so leave as 0. Amount we do need to adjust,
                 // as it doesn't decay, so we set it here.
 
-                userOldPoint = Point({
-                    bias: 0,
-                    slope: 0,
-                    updatedAt: block.timestamp,
-                    amount: oldLock.amount
-                });
+                userOldPoint = Point({bias: 0, slope: 0, updatedAt: block.timestamp, amount: oldLock.amount});
             }
         }
 
-        
         // Calculate new point from explicit newLock state.
         // For reward power tracking, we need to track amount even for expired locks
-        if (newLock.amount > 0) {
+        if (newLock.amount > 0 && adjustAmount) {
             if (newLock.lockEnd > block.timestamp) {
                 // Active lock: calculate voting power and slope
                 int128 newSlope = int128(int256(newLock.amount)) / iMAX_STAKE_TIME_S;
                 int128 newRemainingTime = int128(int256(newLock.lockEnd - block.timestamp));
                 int128 newBias = newSlope * newRemainingTime;
-                
+
                 userNewPoint = Point({
                     bias: int128(int256(newBias)),
                     slope: newSlope,
@@ -807,15 +780,9 @@ contract veZKC is
                 });
             } else {
                 // Expired lock: voting power is 0 already, but amount persists for reward tracking
-                userNewPoint = Point({
-                    bias: 0,
-                    slope: 0,
-                    updatedAt: block.timestamp,
-                    amount: newLock.amount
-                });
+                userNewPoint = Point({bias: 0, slope: 0, updatedAt: block.timestamp, amount: newLock.amount});
             }
         }
-
 
         // Read slope changes that are already scheduled at these timestamps.
         // oldLock.lockEnd can be in the past or in the future
@@ -829,12 +796,13 @@ contract veZKC is
             }
         }
 
-        
         // Update user point history
-        uint256 userEpoch = _userPointEpoch[user] + 1;
-        _userPointEpoch[user] = userEpoch;
-        _userPointHistory[user][userEpoch] = userNewPoint;
-        
+        if (adjustAmount) {
+            uint256 userEpoch = _userPointEpoch[user] + 1;
+            _userPointEpoch[user] = userEpoch;
+            _userPointHistory[user][userEpoch] = userNewPoint;
+        }
+
         // Update global point
         Point memory lastGlobalPoint = Point({bias: 0, slope: 0, updatedAt: block.timestamp, amount: 0});
         uint256 globalEpoch = _globalPointEpoch;
@@ -842,26 +810,23 @@ contract veZKC is
             lastGlobalPoint = _globalPointHistory[globalEpoch];
         }
 
-
         uint256 lastCheckpoint = lastGlobalPoint.updatedAt;
 
-        
         // Backfill weekly global points.
-        // This ensures getPastTotalSupply works correctly for any timestamp 
+        // This ensures getPastTotalSupply works correctly for any timestamp
         // (since timestamps are always rounded down to the week on lock creation/extension)
         {
             uint256 curWeek = _timestampFloorToWeek(lastCheckpoint); // Round down to week
             for (uint256 i = 0; i < 255; i++) {
                 curWeek += WEEK;
                 int128 currentScheduledSlopeChange = 0;
-                
+
                 if (curWeek > block.timestamp) {
                     curWeek = block.timestamp; // Don't go beyond current time
                 } else {
                     currentScheduledSlopeChange = slopeChanges[curWeek]; // Get slope change for this week
                 }
 
-                
                 // Compute the delta in bias between the last checkpoint and the current week we are backfilling to.
                 // Apply it to the last global point's bias.
                 int128 biasDelta = lastGlobalPoint.slope * int128(int256(curWeek - lastCheckpoint));
@@ -875,7 +840,7 @@ contract veZKC is
 
                 // Apply the slope change for this week to the last global point's slope.
                 lastGlobalPoint.slope += currentScheduledSlopeChange;
-                
+
                 // Slope can never go negative. Added as a sanity check.
                 if (lastGlobalPoint.slope < 0) {
                     lastGlobalPoint.slope = 0;
@@ -884,7 +849,7 @@ contract veZKC is
                 lastCheckpoint = curWeek;
                 lastGlobalPoint.updatedAt = curWeek;
                 globalEpoch += 1;
-                
+
                 // Unlikely, but if the current timestamp (which is rounded down to the week)
                 // is the same as the block timestamp, we don't store it in history yet as
                 // we still need to apply the users changes to it.
@@ -892,19 +857,21 @@ contract veZKC is
                     break;
                 } else {
                     _globalPointHistory[globalEpoch] = lastGlobalPoint;
-                }                
+                }
             }
         }
 
         // At this point we have backfilled the global point history for all weeks before the current block timestamp.
         // Now apply the user's changes, and store the new latest global point.
         Point memory newGlobalPoint = Point({
-            bias: lastGlobalPoint.bias + userNewPoint.bias - userOldPoint.bias,
-            slope: lastGlobalPoint.slope + userNewPoint.slope - userOldPoint.slope,
+            bias: lastGlobalPoint.bias + (adjustAmount ? (userNewPoint.bias - userOldPoint.bias) : int128(0)),
+            slope: lastGlobalPoint.slope + (adjustAmount ? (userNewPoint.slope - userOldPoint.slope) : int128(0)),
             updatedAt: block.timestamp,
-            amount: lastGlobalPoint.amount + userNewPoint.amount - userOldPoint.amount
+            amount: adjustAmount
+                ? (lastGlobalPoint.amount + userNewPoint.amount - userOldPoint.amount)
+                : lastGlobalPoint.amount
         });
-        
+
         // Ensure non-negative bias and slope
         if (newGlobalPoint.bias < 0) {
             newGlobalPoint.bias = 0;
@@ -916,22 +883,24 @@ contract veZKC is
 
         // If we haven't already created a global point at the current block timestamp,
         // we increment the global point epoch so we can store it new.
-        // 
+        //
         // If we already created a global point at this block timestamp due to a previous
-        // transaction within the same block, we don't need to increment the global point epoch. 
+        // transaction within the same block, we don't need to increment the global point epoch.
         // We instead just update the existing global point.
-        if (lastGlobalPoint.updatedAt != block.timestamp) {
-            globalEpoch += 1;
+        if (adjustAmount) {
+            if (lastGlobalPoint.updatedAt != block.timestamp) {
+                globalEpoch += 1;
+            }
+
+            // Update global point history with final point
+            _globalPointHistory[globalEpoch] = newGlobalPoint;
+            _globalPointEpoch = globalEpoch;
         }
-        
-        // Update global point history with final point
-        _globalPointHistory[globalEpoch] = newGlobalPoint;
-        _globalPointEpoch = globalEpoch;
-        
+
         // Schedule slope changes.
-        if (oldLock.lockEnd > block.timestamp) {
+        if (adjustAmount && oldLock.lockEnd > block.timestamp) {
             // Cancel out the slope change that was previously scheduled by the old point.
-            // When a lock is removed or expires, slope becomes less negative (decay slows), 
+            // When a lock is removed or expires, slope becomes less negative (decay slows),
             // so we add to cancel out the decay.
             globalOldSlopeDelta += userOldPoint.slope;
             // If it is a new deposit, not extension, we apply the new slope to the same point.
@@ -941,7 +910,7 @@ contract veZKC is
             slopeChanges[oldLock.lockEnd] = globalOldSlopeDelta;
         }
 
-        if (newLock.lockEnd > block.timestamp) {
+        if (adjustAmount && newLock.lockEnd > block.timestamp) {
             // If its an extension, we schedule the slope to disappear at the new point.
             if (newLock.lockEnd > oldLock.lockEnd) {
                 globalNewSlopeDelta -= userNewPoint.slope;
@@ -949,7 +918,7 @@ contract veZKC is
             }
         }
     }
-    
+
     /**
      * @dev Handle delegation checkpointing for single NFT per user
      */
@@ -957,10 +926,10 @@ contract veZKC is
         // Get the user's single active position
         uint256 tokenId = userActivePosition[account];
         if (tokenId == 0) return; // No active position to delegate
-        
+
         LockInfo memory lock = locks[tokenId];
         if (lock.lockEnd <= block.timestamp) return; // Expired lock has no power
-        
+
         // When called from _addStakeAndCheckpoint with same old and new delegatee,
         // this is a re-checkpoint to update the delegatee with new amount
         if (oldDelegatee == newDelegatee && oldDelegatee != address(0)) {
@@ -968,23 +937,23 @@ contract veZKC is
             // We need to calculate the difference and add it to delegatee
             // The main _checkpoint already handled updating the owner's checkpoint
             // So we just need to update the delegatee's checkpoint with the difference
-           
+
             // TODO: skip since _checkpoint already handles it correctly?
             return;
         }
-        
+
         // Normal delegation change: transfer power from old to new delegatee
         // Create lock states for checkpointing
         LockInfo memory emptyLock; // Empty lock for removal/addition
-        
+
         // Remove from old delegatee's checkpoint
         if (oldDelegatee != address(0) && oldDelegatee != newDelegatee) {
-            _checkpoint(oldDelegatee, lock, emptyLock);
+            _checkpoint(oldDelegatee, lock, emptyLock, false);
         }
-        
+
         // Add to new delegatee's checkpoint
         if (newDelegatee != address(0) && oldDelegatee != newDelegatee) {
-            _checkpoint(newDelegatee, emptyLock, lock);
+            _checkpoint(newDelegatee, emptyLock, lock, false);
         }
     }
 }
