@@ -155,6 +155,11 @@ contract StakingRewardsTest is Test {
         uint256 exp2 = emission - exp1; // 3/4
         assertApproxEqRel(c1, exp1, 1e16, "Delegation changed delegator rewards");
         assertApproxEqRel(c2, exp2, 1e16, "Delegatee improperly gained reward power");
+        // checking voting power
+        uint256 user1VotingPower = vezkc.getVotes(user1);
+        uint256 user2VotingPower = vezkc.getVotes(user2);
+        assertEq(user1VotingPower, 0, "User1 should have no voting power");
+        assertEq(user2VotingPower, 400, "User2 should have full voting power");
     }
 
     // Claiming an epoch with no stake should mint nothing, mark claimed, and block later claims.
