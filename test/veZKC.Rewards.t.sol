@@ -60,7 +60,7 @@ contract veZKCRewardsTest is veZKCTest {
         
         // Reward power should STILL equal staked amount (doesn't depend on lock expiry)
         uint256 rewardPowerAfterExpiry = veToken.getRewards(alice);
-        assertEq(rewardPowerAfterExpiry, AMOUNT, "Reward power should remain after lock expiry");
+        assertEq(rewardPowerAfterExpiry, AMOUNT, "Reward power should remain after stake lockup expiry");
         assertEq(rewardPowerAfterExpiry, rewardPowerBeforeExpiry, "Reward power should not change on expiry");
         
         // Voting power should be 0 after expiry for comparison
@@ -87,7 +87,7 @@ contract veZKCRewardsTest is veZKCTest {
         assertEq(updatedRewardPower, AMOUNT + ADD_AMOUNT, "Reward power should increase with added stake");
     }
 
-    function testRewardPowerWithAddToExpiredStake() public {
+    function testCannotAddToExpiredStake() public {
         // Initial stake with minimum duration
         vm.startPrank(alice);
         
@@ -98,16 +98,18 @@ contract veZKCRewardsTest is veZKCTest {
         (, uint256 lockEnd) = veToken.getStakedAmountAndExpiry(alice);
         vm.warp(lockEnd + 1);
         
-        // Add to expired stake
+        // Verify position is expired
+        assertEq(veToken.getVotes(alice), 0, "Voting power should be 0 for expired lock");
+        assertEq(veToken.getRewards(alice), AMOUNT, "Reward power should remain for expired lock");
+        
+        // Try to add to expired stake - should fail
         vm.prank(alice);
+        vm.expectRevert("Cannot add to expired position");
         veToken.addToStake(ADD_AMOUNT);
         
-        // Reward power should reflect the full amount even though lock is expired
-        uint256 rewardPowerAfterAdd = veToken.getRewards(alice);
-        assertEq(rewardPowerAfterAdd, AMOUNT + ADD_AMOUNT, "Reward power should reflect full amount even with expired lock");
-        
-        // Voting power should still be 0
-        assertEq(veToken.getVotes(alice), 0, "Voting power should remain 0 for expired lock");
+        // Verify no change in amounts
+        uint256 rewardPowerAfterFailedAdd = veToken.getRewards(alice);
+        assertEq(rewardPowerAfterFailedAdd, AMOUNT, "Reward power should not change after failed add");
     }
 
     function testRewardPowerWithLockExtension() public {
@@ -215,7 +217,6 @@ contract veZKCRewardsTest is veZKCTest {
         assertEq(totalAfterAliceUnstake, AMOUNT, "Total should exclude unstaked amounts");
     }
 
-    // Test past rewards (will fail until we implement proper snapshotting)
     function testGetPastRewards() public {
         uint256 t0 = block.timestamp;
         
@@ -241,15 +242,16 @@ contract veZKCRewardsTest is veZKCTest {
         assertEq(currentRewardPower, AMOUNT + ADD_AMOUNT, "Current reward power should be full amount");
         
         // Past reward power queries (these will return incorrect values until snapshotting is implemented)
-        uint256 pastRewardsAtT0 = veToken.getPastRewards(alice, t0);
+        uint256 pastRewardsBeforeT0 = veToken.getPastRewards(alice, t0 - 1);
+        uint256 pastRewardsAfterT0 = veToken.getPastRewards(alice, t0);
         uint256 pastRewardsAtT1 = veToken.getPastRewards(alice, t1);
-        
-        // TODO: Once snapshotting is implemented, these should work:
-        // assertEq(pastRewardsAtT0, 0, "Should have 0 reward power before staking");
-        // assertEq(pastRewardsAtT1, AMOUNT, "Should have initial amount before adding");
+        uint256 pastRewardsAtT2 = veToken.getPastRewards(alice, t2);
+        assertEq(pastRewardsBeforeT0, 0, "Should have 0 reward power before staking");
+        assertEq(pastRewardsAfterT0, AMOUNT, "Should have initial amount before adding");
+        assertEq(pastRewardsAtT1, AMOUNT + ADD_AMOUNT, "Should have full amount after adding");
+        assertEq(pastRewardsAtT2, AMOUNT + ADD_AMOUNT, "Should have full amount after adding");
     }
 
-    // Test past total rewards (will fail until we implement proper snapshotting)
     function testGetPastTotalRewards() public {
         uint256 t0 = block.timestamp;
         
@@ -275,46 +277,71 @@ contract veZKCRewardsTest is veZKCTest {
         uint256 currentTotalRewards = veToken.getTotalRewards();
         assertEq(currentTotalRewards, AMOUNT * 2, "Current total should be both stakes");
         
-        // Past total reward queries (these will return incorrect values until snapshotting is implemented)
+        uint256 pastTotalBeforeT0 = veToken.getPastTotalRewards(t0 - 1);
         uint256 pastTotalAtT0 = veToken.getPastTotalRewards(t0);
         uint256 pastTotalAtT1 = veToken.getPastTotalRewards(t1);
-        
-        // TODO: Once snapshotting is implemented, these should work:
-        // assertEq(pastTotalAtT0, 0, "Should have 0 total before any stakes");
-        // assertEq(pastTotalAtT1, AMOUNT, "Should have Alice's stake before Bob joined");
+        assertEq(pastTotalBeforeT0, 0, "Should have 0 total before any stakes");
+        assertEq(pastTotalAtT0, AMOUNT, "Should have Alice's stake after staking");
+        assertEq(pastTotalAtT1, AMOUNT * 2, "Should have Alice's stake before Bob joined");
     }
 
-    function testRewardPowerVsVotingPowerComparison() public {
-        // Stake for half max time
-        vm.prank(alice);
+    function testPreDeploymentTimestamps() public {
+        // Test behavior with timestamps before deployment
+        uint256 deploymentTime = block.timestamp;
+        uint256 preDeploymentTime = deploymentTime - 1000; // 1000 seconds before deployment
         
+        // Test getPastRewards before any activity
+        uint256 pastRewardsPreDeployment = veToken.getPastRewards(alice, preDeploymentTime);
+        assertEq(pastRewardsPreDeployment, 0, "Should return 0 for pre-deployment timestamps");
+        
+        // Test getPastVotes before any activity  
+        uint256 pastVotesPreDeployment = veToken.getPastVotes(alice, preDeploymentTime);
+        assertEq(pastVotesPreDeployment, 0, "Should return 0 for pre-deployment timestamps");
+        
+        // Test getPastTotalRewards before any activity
+        uint256 pastTotalRewardsPreDeployment = veToken.getPastTotalRewards(preDeploymentTime);
+        assertEq(pastTotalRewardsPreDeployment, 0, "Should return 0 for pre-deployment timestamps");
+        
+        // Test getPastTotalSupply before any activity
+        uint256 pastTotalSupplyPreDeployment = veToken.getPastTotalSupply(preDeploymentTime);
+        assertEq(pastTotalSupplyPreDeployment, 0, "Should return 0 for pre-deployment timestamps");
+        
+        // Test edge case: just before deployment time (before any stakes)
+        uint256 pastRewardsAtDeployment = veToken.getPastRewards(alice, deploymentTime - 1);
+        assertEq(pastRewardsAtDeployment, 0, "Should return 0 just before deployment time");
+        
+        uint256 pastVotesAtDeployment = veToken.getPastVotes(alice, deploymentTime - 1);
+        assertEq(pastVotesAtDeployment, 0, "Should return 0 just before deployment time");
+        
+        // Test with timestamp = 0 (extreme edge case)
+        uint256 pastRewardsAtZero = veToken.getPastRewards(alice, 0);
+        assertEq(pastRewardsAtZero, 0, "Should return 0 for timestamp 0");
+        
+        uint256 pastVotesAtZero = veToken.getPastVotes(alice, 0);
+        assertEq(pastVotesAtZero, 0, "Should return 0 for timestamp 0");
+        
+        // Now do some activity and test again
+        vm.prank(alice);
         uint256 tokenId = veToken.stake(AMOUNT, block.timestamp + MAX_STAKE_TIME_S / 2);
         
-        // Initially, voting power should be less than reward power (due to time decay)
-        uint256 initialVotingPower = veToken.getVotes(alice);
-        uint256 initialRewardPower = veToken.getRewards(alice);
+        // Move forward in time
+        vm.warp(block.timestamp + 1000);
         
-        assertEq(initialRewardPower, AMOUNT, "Reward power should equal staked amount");
-        assertLt(initialVotingPower, initialRewardPower, "Voting power should be less than reward power");
+        // Pre-deployment timestamps should still return 0
+        pastRewardsPreDeployment = veToken.getPastRewards(alice, preDeploymentTime);
+        assertEq(pastRewardsPreDeployment, 0, "Should still return 0 for pre-deployment timestamps after staking");
         
-        // Fast forward significantly
-        vm.warp(block.timestamp + MAX_STAKE_TIME_S / 4);
+        pastVotesPreDeployment = veToken.getPastVotes(alice, preDeploymentTime);
+        assertEq(pastVotesPreDeployment, 0, "Should still return 0 for pre-deployment timestamps after staking");
         
-        uint256 laterVotingPower = veToken.getVotes(alice);
-        uint256 laterRewardPower = veToken.getRewards(alice);
+        pastTotalRewardsPreDeployment = veToken.getPastTotalRewards(preDeploymentTime);
+        assertEq(pastTotalRewardsPreDeployment, 0, "Should still return 0 for pre-deployment total rewards");
         
-        // Reward power should remain constant
-        assertEq(laterRewardPower, AMOUNT, "Reward power should remain constant");
-        assertEq(laterRewardPower, initialRewardPower, "Reward power should not change over time");
-        
-        // Voting power should have further decayed
-        assertLt(laterVotingPower, initialVotingPower, "Voting power should continue to decay");
-        assertLt(laterVotingPower, laterRewardPower, "Voting power should be less than constant reward power");
+        pastTotalSupplyPreDeployment = veToken.getPastTotalSupply(preDeploymentTime);
+        assertEq(pastTotalSupplyPreDeployment, 0, "Should still return 0 for pre-deployment total supply");
     }
 
     function testRewardPowerWithComplexFlow() public {
-        // Similar to the complex voting test but focusing on reward power behavior
-        
         // 1. Alice stakes
         vm.startPrank(alice);
         
@@ -331,23 +358,28 @@ contract veZKCRewardsTest is veZKCTest {
         assertEq(veToken.getRewards(alice), AMOUNT, "Reward power should remain after expiry");
         assertEq(veToken.getVotes(alice), 0, "Voting power should be 0 after expiry");
         
-        // 3. Add to expired stake
+        // 3. Try to add to expired stake (should fail)
+        vm.prank(alice);
+        vm.expectRevert("Cannot add to expired position");
+        veToken.addToStake(ADD_AMOUNT);
+        
+        // 4. Extend lock first to re-activate position
+        vm.prank(alice);
+        veToken.extendStakeLockup(block.timestamp + MAX_STAKE_TIME_S / 2);
+        
+        // Voting power should be restored after extension
+        assertGt(veToken.getVotes(alice), 0, "Voting power should be restored after extension");
+        assertEq(veToken.getRewards(alice), AMOUNT, "Reward power should remain same after extension");
+        
+        // 5. Now we can add to the re-activated position
         vm.prank(alice);
         veToken.addToStake(ADD_AMOUNT);
         
         // Reward power should increase
-        assertEq(veToken.getRewards(alice), AMOUNT + ADD_AMOUNT, "Reward power should increase after adding to expired stake");
-        assertEq(veToken.getVotes(alice), 0, "Voting power should still be 0");
+        assertEq(veToken.getRewards(alice), AMOUNT + ADD_AMOUNT, "Reward power should increase after adding to re-activated stake");
+        assertGt(veToken.getVotes(alice), 0, "Voting power should remain positive");
         
-        // 4. Extend lock
-        vm.prank(alice);
-        veToken.extendStakeLockup(block.timestamp + MAX_STAKE_TIME_S / 2);
-        
-        // Reward power should remain the same (amount unchanged)
-        assertEq(veToken.getRewards(alice), AMOUNT + ADD_AMOUNT, "Reward power should remain same after extension");
-        assertGt(veToken.getVotes(alice), 0, "Voting power should be restored after extension");
-        
-        // 5. Eventually unstake
+        // 6. Eventually unstake
         (, uint256 newLockEnd) = veToken.getStakedAmountAndExpiry(alice);
         vm.warp(newLockEnd + 1);
         

@@ -6,12 +6,30 @@ import "forge-std/console.sol";
 import "../../src/libraries/Supply.sol";
 import {UD60x18, ud, unwrap, pow} from "lib/prb-math/src/UD60x18.sol";
 
+// Wrapper contract to expose Supply library functions as external for gas snapshots
+contract SupplyWrapper {
+    using Supply for *;
+    
+    function getSupplyAtEpoch(uint256 epoch) external pure returns (uint256) {
+        return Supply.getSupplyAtEpoch(epoch);
+    }
+    
+    function getEmissionsForEpoch(uint256 epoch) external returns (uint256) {
+        return Supply.getEmissionsForEpoch(epoch);
+    }
+}
+
 contract SupplyTest is Test {
     using Supply for *;
+    SupplyWrapper public wrapper;
     
     uint256 constant SCALE = 1e18;
     uint256 constant INITIAL_SUPPLY = 1_000_000_000 * 10**18;
     uint256 constant EPOCHS_PER_YEAR = 182;
+    
+    function setUp() public {
+        wrapper = new SupplyWrapper();
+    }
     
     function testInitialSupply() public {
         assertEq(Supply.getSupplyAtEpoch(0), INITIAL_SUPPLY);
@@ -308,5 +326,37 @@ contract SupplyTest is Test {
         
         assertEq(supplyMidYear15, expectedMid, "Mid-year 15 supply should match calculation");
         assertGt(supplyMidYear15, supplyYear15, "Mid-year should be greater than year boundary");
+    }
+    
+    // Gas snapshot tests for getSupplyAtEpoch
+    function testGasGetSupplyAtEpoch_Year1Start() public {
+        wrapper.getSupplyAtEpoch(182); // Year 1 start
+        vm.snapshotGasLastCall("getSupplyAtEpoch: Year 1 start");
+    }
+    
+    function testGasGetSupplyAtEpoch_Year1Mid() public {
+        wrapper.getSupplyAtEpoch(273); // Year 1 mid (182 + 91)
+        vm.snapshotGasLastCall("getSupplyAtEpoch: Year 1 mid");
+    }
+    
+    function testGasGetSupplyAtEpoch_Year15Start() public {
+        wrapper.getSupplyAtEpoch(2730); // Year 15 start (15 * 182)
+        vm.snapshotGasLastCall("getSupplyAtEpoch: Year 15 start");
+    }
+    
+    function testGasGetSupplyAtEpoch_Year15Mid() public {
+        wrapper.getSupplyAtEpoch(2821); // Year 15 mid (2730 + 91)
+        vm.snapshotGasLastCall("getSupplyAtEpoch: Year 15 mid");
+    }
+    
+    // Gas snapshot tests for getEmissionsForEpoch
+    function testGasGetEmissionsForEpoch_Year1Mid() public {
+        wrapper.getEmissionsForEpoch(273); // Year 1 mid
+        vm.snapshotGasLastCall("getEmissionsForEpoch: Year 1 mid");
+    }
+    
+    function testGasGetEmissionsForEpoch_Year15Mid() public {
+        wrapper.getEmissionsForEpoch(2821); // Year 15 mid
+        vm.snapshotGasLastCall("getEmissionsForEpoch: Year 15 mid");
     }
 }

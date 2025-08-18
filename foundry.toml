@@ -3,4 +3,12 @@ src = "src"
 out = "out"
 libs = ["lib"]
 
+# Invariant testing configuration
+[invariant]
+runs = 50                    # Faster execution while maintaining good coverage
+depth = 200                  # Sufficient depth for complex state evolution
+fail_on_revert = false      # Don't fail on individual reverts
+call_override = false       # Use default call behavior
+dictionary_weight = 80      # Weight for using dictionary values
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

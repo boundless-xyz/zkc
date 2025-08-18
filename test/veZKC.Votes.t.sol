@@ -286,7 +286,7 @@ contract veZKCVotesTest is veZKCTest {
     }
 
     // Test adding to expired lock doesn't restore voting power
-    function testAddToExpiredLockKeepsZeroVotingPower() public {
+    function testCannotAddToExpiredLock() public {
         uint256 ADD_AMOUNT = 5_000 * 10**18;
         
         // Stake with minimum duration
@@ -302,18 +302,19 @@ contract veZKCVotesTest is veZKCTest {
         vm.warp(lockEnd + 1);
         assertEq(veToken.getVotes(alice), 0, "Voting power should be 0 after expiry");
         
-        // Add to expired stake
+        // Try to add to expired stake (should fail)
         vm.prank(alice);
+        vm.expectRevert("Cannot add to expired position");
         veToken.addToStake(ADD_AMOUNT);
         
-        // Verify amount increased but voting power still 0
+        // Verify amounts haven't changed
         (uint256 newAmount,) = veToken.getStakedAmountAndExpiry(alice);
-        assertEq(newAmount, AMOUNT + ADD_AMOUNT, "Amount should increase");
+        assertEq(newAmount, AMOUNT, "Amount should not change after failed add");
         assertEq(veToken.getVotes(alice), 0, "Voting power should remain 0");
         
-        // But reward power should reflect full amount
+        // Reward power should also not change since add failed
         uint256 rewardPower = veToken.getRewards(alice);
-        assertEq(rewardPower, AMOUNT + ADD_AMOUNT, "Reward power should equal total staked amount");
+        assertEq(rewardPower, AMOUNT, "Reward power should not change after failed add");
     }
 
     // Test complex flow: stake -> expire -> add -> extend to verify slope changes
@@ -354,19 +355,20 @@ contract veZKCVotesTest is veZKCTest {
         // Check slope change is still there (it already executed)
         assertEq(veToken.slopeChanges(initialLockEnd), initialSlopeChange, "Slope change should remain");
         
-        // 4. Alice adds to expired stake
+        // 4. Alice tries to add to expired stake (should fail)
         vm.prank(alice);
+        vm.expectRevert("Cannot add to expired position");
         veToken.addToStake(ADD_AMOUNT);
         
-        // Verify amounts but voting power still 0
-        (uint256 amountAfterAdd,) = veToken.getStakedAmountAndExpiry(alice);
-        assertEq(amountAfterAdd, AMOUNT + ADD_AMOUNT, "Amount should be updated");
+        // Verify amounts haven't changed
+        (uint256 amountAfterFailedAdd,) = veToken.getStakedAmountAndExpiry(alice);
+        assertEq(amountAfterFailedAdd, AMOUNT, "Amount should not change after failed add");
         assertEq(veToken.getVotes(alice), 0, "Alice voting power should still be 0");
         
         // Slope change at old lock end should still be the same
-        assertEq(veToken.slopeChanges(initialLockEnd), initialSlopeChange, "Slope change should not change when adding to expired");
+        assertEq(veToken.slopeChanges(initialLockEnd), initialSlopeChange, "Slope change should not change");
         
-        // 5. Alice extends the expired lock
+        // 5. Alice extends the expired lock first
         uint256 newLockEnd = block.timestamp + MAX_STAKE_TIME_S / 4;
         vm.prank(alice);
         veToken.extendStakeLockup(newLockEnd);
@@ -374,15 +376,23 @@ contract veZKCVotesTest is veZKCTest {
         // Get actual new lock end after week rounding
         (, uint256 actualNewLockEnd) = veToken.getStakedAmountAndExpiry(alice);
         
-        // 6. Verify voting power is restored with FULL amount
+        // 6. Now Alice can add to the re-activated position
+        vm.prank(alice);
+        veToken.addToStake(ADD_AMOUNT);
+        
+        // Verify amounts updated
+        (uint256 amountAfterAdd,) = veToken.getStakedAmountAndExpiry(alice);
+        assertEq(amountAfterAdd, AMOUNT + ADD_AMOUNT, "Amount should be updated after extension");
+        
+        // 7. Verify voting power reflects the FULL amount
         uint256 restoredVotingPower = veToken.getVotes(alice);
         assertGt(restoredVotingPower, 0, "Voting power should be restored");
         
         // Calculate expected voting power for full amount
         uint256 expectedVotingPower = _calculateExpectedVotePower(AMOUNT + ADD_AMOUNT, block.timestamp, actualNewLockEnd);
-        assertApproxEqRel(restoredVotingPower, expectedVotingPower, 0.01e18, "Voting power should reflect full amount after extension");
+        assertApproxEqRel(restoredVotingPower, expectedVotingPower, 0.01e18, "Voting power should reflect full amount after add");
         
-        // 7. Check new slope change is scheduled correctly
+        // 8. Check new slope change is scheduled correctly
         int128 newSlopeChange = veToken.slopeChanges(actualNewLockEnd);
         assertTrue(newSlopeChange < 0, "New slope change should be scheduled");
         

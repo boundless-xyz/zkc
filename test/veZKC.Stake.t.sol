@@ -346,25 +346,29 @@ contract veZKCStakeTest is veZKCTest {
         uint256 votingPowerExpired = veToken.getVotes(alice);
         assertEq(votingPowerExpired, 0, "Voting power should be 0 after expiry");
         
-        // 7. Add to expired stake (should work now, but voting power stays 0)
+        // 7. Try to add to expired stake (should fail now)
         vm.prank(alice);
+        vm.expectRevert("Cannot add to expired position");
         veToken.addToStake(ADD_AMOUNT);
         
-        // Verify amount increased but voting power still 0
-        (uint256 amountAfterAdd,) = veToken.getStakedAmountAndExpiry(alice);
-        assertEq(amountAfterAdd, STAKE_AMOUNT + ADD_AMOUNT, "Amount should increase");
-        assertEq(veToken.getVotes(alice), 0, "Voting power should still be 0 after adding to expired lock");
+        // Verify amount hasn't changed
+        (uint256 amountAfterFailedAdd,) = veToken.getStakedAmountAndExpiry(alice);
+        assertEq(amountAfterFailedAdd, STAKE_AMOUNT, "Amount should not change after failed add");
         
-        // 8. Extend the expired lock (this should work and restore voting power)
+        // 8. Extend the expired lock first (this should work and restore voting power)
         uint256 newLockEnd = block.timestamp + MAX_STAKE_TIME_S / 2; // Half max time
         vm.prank(alice);
         veToken.extendStakeLockup(newLockEnd);
         
-        // 9. Verify voting power is now > 0 and reflects the increased amount
+        // 9. Verify voting power is now > 0
         uint256 votingPowerAfterExtension = veToken.getVotes(alice);
         assertGt(votingPowerAfterExtension, 0, "Voting power should be > 0 after extending expired lock");
         
-        // Voting power should reflect the already increased amount (STAKE_AMOUNT + ADD_AMOUNT)
+        // 10. Now we can add to the re-activated position
+        vm.prank(alice);
+        veToken.addToStake(ADD_AMOUNT);
+        
+        // Verify amount increased
         (uint256 finalAmount, uint256 finalLockEnd) = veToken.getStakedAmountAndExpiry(alice);
         assertEq(finalAmount, STAKE_AMOUNT + ADD_AMOUNT, "Final amount should include both stake and add");
     }
@@ -443,8 +447,8 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(veToken.userActivePosition(bob), 0, "Bob should have no active position");
     }
 
-    // Test donation to expired position
-    function testDonationToExpiredPosition() public {
+    // Test donation to expired position fails
+    function testDonationToExpiredPositionFails() public {
         // Set up approvals
         vm.prank(alice);
         zkc.approve(address(veToken), type(uint256).max);
@@ -464,15 +468,16 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(veToken.getVotes(alice), 0, "Alice voting power should be 0 after expiry");
         assertEq(veToken.getRewards(alice), STAKE_AMOUNT, "Alice reward power should remain");
         
-        // Bob donates to Alice's expired position
+        // Bob tries to donate to Alice's expired position (should fail)
         vm.prank(bob);
+        vm.expectRevert("Cannot add to expired position");
         veToken.addToStakeByTokenId(aliceTokenId, ADD_AMOUNT);
         
-        // Verify Alice's amount increased but voting power still 0
+        // Verify Alice's amounts haven't changed
         (uint256 aliceUpdatedAmount,) = veToken.getStakedAmountAndExpiry(alice);
-        assertEq(aliceUpdatedAmount, STAKE_AMOUNT + ADD_AMOUNT, "Alice amount should increase");
+        assertEq(aliceUpdatedAmount, STAKE_AMOUNT, "Alice amount should not change");
         assertEq(veToken.getVotes(alice), 0, "Alice voting power should still be 0");
-        assertEq(veToken.getRewards(alice), STAKE_AMOUNT + ADD_AMOUNT, "Alice reward power should increase");
+        assertEq(veToken.getRewards(alice), STAKE_AMOUNT, "Alice reward power should not change");
     }
 
     // Test donation to non-existent token fails
@@ -510,7 +515,7 @@ contract veZKCStakeTest is veZKCTest {
         // Verify Alice's position has both donations
         (uint256 aliceUpdatedAmount,) = veToken.getStakedAmountAndExpiry(alice);
         assertEq(aliceUpdatedAmount, STAKE_AMOUNT + ADD_AMOUNT + ADD_AMOUNT, "Alice should have received both donations");
-        
+            
         // Verify Alice's powers increased accordingly
         uint256 aliceVotingPower = veToken.getVotes(alice);
         uint256 aliceRewardPower = veToken.getRewards(alice);
