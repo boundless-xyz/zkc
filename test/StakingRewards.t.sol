@@ -52,15 +52,18 @@ contract StakingRewardsTest is Test {
         vm.warp(block.timestamp + 1);
     }
 
+    // Helper functions for staking
     function _stake(address user, uint256 amount) internal {
         vm.prank(user);
         vezkc.stake(amount, type(uint256).max); // max lock
     }
 
+    // Helper function to fast-forward epochs
     function _endEpochs(uint256 n) internal {
         vm.warp(block.timestamp + n * EPOCH_DURATION);
     }
 
+    // Internal function to claim rewards for a user and epochs
     function _claimRewards(address user, uint256[] memory epochs) internal returns (uint256) {
         uint256[] memory amounts = rewards.calculateRewards(user, epochs);
         uint256 totalAmount = 0;
@@ -74,12 +77,14 @@ contract StakingRewardsTest is Test {
         return amount;
     }
 
+    // Helper function to claim rewards for a user in a single epoch
     function _claimRewardsForEpoch(address user, uint256 epoch) internal returns (uint256) {
         uint256[] memory epochs = new uint256[](1);
         epochs[0] = epoch;
         return _claimRewards(user, epochs);
     }
 
+    // Test single user gets full emission
     function testSingleUserGetsFullEmission() public {
         _stake(user1, 100e18);
         _endEpochs(1);
@@ -87,6 +92,7 @@ contract StakingRewardsTest is Test {
         assertEq(claimed, zkc.getStakingEmissionsForEpoch(0));
     }
 
+    // Test two users split pro-rata
     function testTwoUsersSplitProRata() public {
         _stake(user1, 100e18);
         _stake(user2, 300e18);
@@ -99,6 +105,7 @@ contract StakingRewardsTest is Test {
         assertApproxEqRel(c2, total * 300 / 400, 1e16);
     }
 
+    // Test cannot claim rewards for future epoch
     function testCannotClaimFutureEpoch() public {
         _stake(user1, 50e18);
         uint256[] memory epochs = new uint256[](1);
@@ -108,6 +115,7 @@ contract StakingRewardsTest is Test {
         rewards.claimRewards(epochs);
     }
 
+    // Test cannot claim rewards for an epoch that has already been claimed
     function testCannotDoubleClaim() public {
         _stake(user1, 50e18);
         _endEpochs(1);
@@ -120,6 +128,7 @@ contract StakingRewardsTest is Test {
         rewards.claimRewards(epochs);
     }
 
+    // Test batch claim for multiple epochs
     function testBatchClaim() public {
         _stake(user1, 50e18);
         _endEpochs(3);
@@ -135,8 +144,112 @@ contract StakingRewardsTest is Test {
         assertEq(totalClaim, expected);
     }
 
-    // Gas Benchmarks
+    // Delegation should not transfer reward power to delegatee.
+    function testDelegationDoesNotAffectRewards() public {
+        _stake(user1, 100e18);
+        _stake(user2, 300e18);
+        // Delegate voting power from user1 to user2
+        vm.prank(user1);
+        vezkc.delegate(user2);
+        _endEpochs(1);
+        uint256 emission = zkc.getStakingEmissionsForEpoch(0);
+        uint256 c1 = _claimRewardsForEpoch(user1, 0);
+        uint256 c2 = _claimRewardsForEpoch(user2, 0);
+        assertEq(c1 + c2, emission, "Total emission mismatch");
+        uint256 exp1 = (emission * 100) / 400;
+        uint256 exp2 = emission - exp1; // remainder
+        assertApproxEqRel(c1, exp1, 1e16, "Delegation changed delegator rewards");
+        assertApproxEqRel(c2, exp2, 1e16, "Delegatee improperly gained reward power");
+    }
 
+    // Claiming an epoch with no stake should mint nothing, mark claimed, and block later claims.
+    function testClaimZeroNoStake() public {
+        _endEpochs(1); // finish epoch 0 with no stakers
+        uint256 balBefore = zkc.balanceOf(user1);
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 0;
+        vm.prank(user1);
+        uint256 claimed = rewards.claimRewards(epochs);
+        assertEq(claimed, 0);
+        assertEq(zkc.balanceOf(user1), balBefore, "Balance changed despite zero claim");
+        // Second attempt reverts because marked claimed even if zero
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(AlreadyClaimed.selector, 0));
+        rewards.claimRewards(epochs);
+    }
+
+    // Mixed past + future epochs in one batch should revert on the future epoch.
+    function testCannotClaimBatchContainingFutureEpoch() public {
+        _stake(user1, 100e18);
+        _endEpochs(2); // epochs 0 and 1 finished; currentEpoch == 2
+        uint256[] memory epochs = new uint256[](2);
+        epochs[0] = 0;
+        epochs[1] = 2; // future
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(EpochNotFinished.selector, 2));
+        rewards.claimRewards(epochs);
+    }
+
+    // Duplicate epoch in the same batch should revert on second encounter.
+    function testDuplicateEpochInSameBatchReverts() public {
+        _stake(user1, 50e18);
+        _endEpochs(1);
+        uint256[] memory epochs = new uint256[](2);
+        epochs[0] = 0;
+        epochs[1] = 0; // duplicate
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(AlreadyClaimed.selector, 0));
+        rewards.claimRewards(epochs);
+    }
+
+    // Calling calculateRewards must not mark epochs as claimed.
+    function testCalculateDoesNotAffectClaimStatus() public {
+        _stake(user1, 80e18);
+        _endEpochs(1);
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 0;
+        rewards.calculateRewards(user1, epochs); // should not affect
+        assertFalse(rewards.hasUserClaimedRewards(user1, 0));
+        vm.prank(user1);
+        rewards.claimRewards(epochs); // should succeed
+    }
+
+    // User staking after an epoch ends cannot retroactively earn that epoch; claim marks it and blocks later retroactive attempts.
+    function testNoRetroactiveEarningForPastEpoch() public {
+        _endEpochs(1); // epoch 0 ends with no stake
+        _stake(user1, 100e18); // stake in epoch 1
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 0; // past epoch with zero power
+        vm.prank(user1);
+        uint256 claimed = rewards.claimRewards(epochs);
+        assertEq(claimed, 0);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(AlreadyClaimed.selector, 0));
+        rewards.claimRewards(epochs);
+    }
+
+    // Unsorted epoch list should still succeed and sum emissions correctly.
+    function testUnsortedEpochBatchClaim() public {
+        _stake(user1, 120e18);
+        _endEpochs(3); // epochs 0,1,2
+        uint256[] memory epochs = new uint256[](3);
+        epochs[0] = 2;
+        epochs[1] = 0;
+        epochs[2] = 1;
+        uint256 expected =
+            zkc.getStakingEmissionsForEpoch(0) + zkc.getStakingEmissionsForEpoch(1) + zkc.getStakingEmissionsForEpoch(2);
+        uint256[] memory calc = rewards.calculateRewards(user1, epochs);
+        uint256 sum;
+        for (uint256 i; i < calc.length; ++i) {
+            sum += calc[i];
+        }
+        vm.prank(user1);
+        uint256 claimed = rewards.claimRewards(epochs);
+        assertEq(claimed, sum, "Claimed != calculated sum");
+        assertEq(claimed, expected, "Claimed != expected emissions (single staker)");
+    }
+
+    // Gas Benchmarks
     function _runBatchGas(uint256 epochsToSimulate, uint256 stakeAmount, string memory label) internal {
         _stake(user1, stakeAmount);
         _endEpochs(epochsToSimulate);
@@ -160,23 +273,5 @@ contract StakingRewardsTest is Test {
 
     function testGas_BatchClaim30Epochs() public {
         _runBatchGas(30, 300e18, "stake claim: batch30");
-    }
-
-    // Delegation should not transfer reward power to delegatee.
-    function testDelegationDoesNotAffectRewards() public {
-        _stake(user1, 100e18);
-        _stake(user2, 300e18);
-        // Delegate voting power from user1 to user2
-        vm.prank(user1);
-        vezkc.delegate(user2);
-        _endEpochs(1);
-        uint256 emission = zkc.getStakingEmissionsForEpoch(0);
-        uint256 c1 = _claimRewardsForEpoch(user1, 0);
-        uint256 c2 = _claimRewardsForEpoch(user2, 0);
-        assertEq(c1 + c2, emission, "Total emission mismatch");
-        uint256 exp1 = (emission * 100) / 400;
-        uint256 exp2 = emission - exp1; // remainder
-        assertApproxEqRel(c1, exp1, 1e16, "Delegation changed delegator rewards");
-        assertApproxEqRel(c2, exp2, 1e16, "Delegatee improperly gained reward power");
     }
 }
