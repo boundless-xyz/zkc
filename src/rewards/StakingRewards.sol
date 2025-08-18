@@ -128,7 +128,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
             if (_userClaimed[epoch][user]) revert AlreadyClaimed(epoch);
             // Epoch must have ended
             if (epoch >= currentEpoch) revert ZKC.EpochNotEnded(epoch);
-            _userClaimed[epoch][user] = true; // mark even if 0
+            _userClaimed[epoch][user] = true;
             amount += amounts[i];
         }
         if (amount == 0) return 0;
