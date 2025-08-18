@@ -157,8 +157,8 @@ contract StakingRewardsTest is Test {
         uint256 c1 = _claimRewardsForEpoch(user1, 0);
         uint256 c2 = _claimRewardsForEpoch(user2, 0);
         assertEq(c1 + c2, emission, "Total emission mismatch");
-        uint256 exp1 = (emission * 100) / 400;
-        uint256 exp2 = emission - exp1; // remainder
+        uint256 exp1 = (emission * 100) / 400; // 1/4
+        uint256 exp2 = emission - exp1; // 3/4
         assertApproxEqRel(c1, exp1, 1e16, "Delegation changed delegator rewards");
         assertApproxEqRel(c2, exp2, 1e16, "Delegatee improperly gained reward power");
     }
