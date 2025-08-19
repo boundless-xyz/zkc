@@ -11,6 +11,7 @@ import {IStaking} from "../interfaces/IStaking.sol";
 import {Checkpoints} from "../libraries/Checkpoints.sol";
 import {StakeManager} from "../libraries/StakeManager.sol";
 import {ZKC} from "../ZKC.sol";
+import {RewardPower} from "../libraries/RewardPower.sol";
 
 /**
  * @title Staking Component
@@ -148,7 +149,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         if (ownerOf(tokenId) != msg.sender) revert TokenDoesNotExist();
         
         // Cannot extend if delegated to someone else
-        address delegatee = delegates(msg.sender);
+        address delegatee = _delegates(msg.sender);
         if (delegatee != msg.sender) revert CannotExtendLockWhileDelegated();
 
         // Get current lock info
@@ -242,8 +243,16 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         
         address owner = ownerOf(tokenId);
         
-        // Create checkpoint for voting power change
-        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldLock, newLock);
+        // If this owner is a delegatee with incoming delegated amount, rebuild combined synthetic lock
+        uint256 delegatedIn = _incomingDelegatedAmount[owner];
+        if (delegatedIn > 0) {
+            Checkpoints.LockInfo memory oldCombined = Checkpoints.LockInfo({amount: oldLock.amount + delegatedIn, lockEnd: oldLock.lockEnd});
+            Checkpoints.LockInfo memory newCombined = Checkpoints.LockInfo({amount: newLock.amount + delegatedIn, lockEnd: newLock.lockEnd});
+            Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldCombined, newCombined);
+        } else {
+            // Normal checkpoint for intrinsic lock only
+            Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldLock, newLock);
+        }
 
         emit LockExtended(tokenId, newLock.lockEnd);
     }
@@ -288,8 +297,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
      */
     function _updateDelegationOnStakeChange(address owner, Checkpoints.LockInfo memory oldLock, Checkpoints.LockInfo memory newLock) private {
         // Check if user has delegated voting power
-        address voteDelegatee = delegates(owner);
-        
+        address voteDelegatee = _delegates(owner);
+
         if (voteDelegatee != owner) {
             // User has delegated voting - update delegatee's power with new amounts
             uint256 delegateeTokenId = _userActivePosition[voteDelegatee];
@@ -320,20 +329,31 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
                 Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, voteDelegatee, oldCombinedLock, newCombinedLock);
             }
         } else {
-            // User hasn't delegated voting - update their own checkpoint
-            Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldLock, newLock);
+            // User hasn't delegated voting - update their own checkpoint (consider incoming delegations)
+            uint256 delegatedIn = _incomingDelegatedAmount[owner];
+            if (delegatedIn > 0) {
+                Checkpoints.LockInfo memory oldCombined = Checkpoints.LockInfo({amount: oldLock.amount + delegatedIn, lockEnd: oldLock.lockEnd});
+                Checkpoints.LockInfo memory newCombined = Checkpoints.LockInfo({amount: newLock.amount + delegatedIn, lockEnd: newLock.lockEnd});
+                Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldCombined, newCombined);
+            } else {
+                Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldLock, newLock);
+            }
         }
-        
-        // Check if user has delegated reward power
-        address rewardCollector = _rewardDelegatee[owner] == address(0) ? owner : _rewardDelegatee[owner];
-        
-        if (rewardCollector != owner) {
-            // User has delegated rewards - update collector's power
-            uint256 amountDelta = newLock.amount - oldLock.amount;
-            RewardPower.addAmount(_userCheckpoints, rewardCollector, amountDelta);
+
+        // Reward delegation adjustment (non-decaying). If rewards delegated, update collector by delta.
+        address rewardsCollector = _rewardDelegatee[owner];
+        if (rewardsCollector != address(0)) {
+            uint256 delta = newLock.amount - oldLock.amount;
+            if (delta > 0) {
+                RewardPower.addAmount(_userCheckpoints, rewardsCollector, delta);
+            }
         } else {
             // User collects their own rewards - this is handled by the voting checkpoint above
         }
     }
 
+    function _delegates(address account) internal view returns (address) {
+        address delegatee = _delegatee[account];
+        return delegatee == address(0) ? account : delegatee;
+    }
 }

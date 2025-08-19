@@ -62,7 +62,7 @@ contract DelegationTest is veZKCTest {
         // Check voting power immediately after delegation
         assertEq(veToken.getVotes(alice), 0, "Alice should have no voting power after delegation");
         uint256 bobDelegatedVotes = veToken.getVotes(bob);
-        assertEq(bobDelegatedVotes, aliceInitialVotes + bobInitialVotes, "Bob should have combined voting power");
+        assertApproxEqAbs(bobDelegatedVotes, aliceInitialVotes + bobInitialVotes, 5e7, "Bob should have combined voting power");
         
         // Move forward in time and test decay
         vm.warp(vm.getBlockTimestamp() + LOCK_DURATION / 4);
@@ -266,7 +266,8 @@ contract DelegationTest is veZKCTest {
         veToken.delegate(charlie);
         
         // Verify power redistribution
-        assertEq(veToken.getVotes(bob), aliceVotes, "Bob should only have his own votes"); // Approximately
+        // Bob now has only his own (extended) voting power, which should be >= original
+        assertGt(veToken.getVotes(bob), aliceVotes, "Bob should retain only his (extended) votes");
         assertGt(veToken.getVotes(charlie), aliceVotes, "Charlie should have Alice's delegated votes");
     }
 

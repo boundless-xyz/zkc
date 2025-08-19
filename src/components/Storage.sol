@@ -21,6 +21,7 @@ abstract contract Storage {
     // Delegation storage
     mapping(address account => address) internal _delegatee;       // Voting delegation
     mapping(address account => address) internal _rewardDelegatee; // Reward delegation
+    mapping(address delegatee => uint256) internal _incomingDelegatedAmount; // aggregate voting amount delegated in
     
     // Token tracking for NFT management
     uint256 internal _currentTokenId;
