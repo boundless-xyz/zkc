@@ -37,12 +37,15 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
     uint256 public deploymentTime;
     mapping(uint256 => uint256) public epochPoVWMinted;      // Track PoVW minting per epoch
     mapping(uint256 => uint256) public epochStakingMinted;   // Track staking minting per epoch
+    uint256 public poVWMinted;                              // Track total PoVW minting
+    uint256 public stakingMinted;                          // Track total staking minting
 
-    event PoVWRewardsClaimed(address indexed recipient, uint256[] epochs, uint256[] amounts);
-    event StakingRewardsClaimed(address indexed recipient, uint256[] epochs, uint256[] amounts);
+    event PoVWRewardsClaimed(address indexed recipient, uint256 amount);
+    event StakingRewardsClaimed(address indexed recipient, uint256 amount);
 
     error EpochNotEnded(uint256 epoch);
     error EpochAllocationExceeded(uint256 epoch);
+    error TotalAllocationExceeded();
     error InvalidInputLength();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -94,108 +97,30 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         }
     }
 
-    function mintPoVWRewardsForRecipient(address recipient, uint256[] calldata amounts, uint256[] calldata epochs) external onlyRole(POVW_MINTER_ROLE) {
-        _mintRewardsForRecipient(getPoVWEmissionsForEpoch, epochPoVWMinted, recipient, amounts, epochs);
-        emit PoVWRewardsClaimed(recipient, epochs, amounts);
+    function mintPoVWRewardsForRecipient(address recipient, uint256 amount) external onlyRole(POVW_MINTER_ROLE) {
+        _mintRewardsForRecipient(getTotalPoVWEmissions, poVWMinted, recipient, amount);
+        emit PoVWRewardsClaimed(recipient, amount);
     }
 
-    function mintStakingRewardsForRecipient(address recipient, uint256[] calldata amounts, uint256[] calldata epochs) external onlyRole(STAKING_MINTER_ROLE) {
-        _mintRewardsForRecipient(getStakingEmissionsForEpoch, epochStakingMinted, recipient, amounts, epochs);
-        emit StakingRewardsClaimed(recipient, epochs, amounts);
-    }
-
-    function mintPoVWRewardsForEpoch(uint256 epoch, address[] calldata recipients, uint256[] calldata amounts) external onlyRole(POVW_MINTER_ROLE) {
-        _mintRewardsForEpoch(getPoVWEmissionsForEpoch, epochPoVWMinted, epoch, recipients, amounts);
-        for (uint256 i = 0; i < recipients.length; i++) {
-            uint256[] memory singleEpoch = new uint256[](1);
-            uint256[] memory singleAmount = new uint256[](1);
-            singleEpoch[0] = epoch;
-            singleAmount[0] = amounts[i];
-            emit PoVWRewardsClaimed(recipients[i], singleEpoch, singleAmount);
-        }
-    }
-
-    function mintStakingRewardsForEpoch(uint256 epoch, address[] calldata recipients, uint256[] calldata amounts) external onlyRole(STAKING_MINTER_ROLE) {
-        _mintRewardsForEpoch(getStakingEmissionsForEpoch, epochStakingMinted, epoch, recipients, amounts);
-        for (uint256 i = 0; i < recipients.length; i++) {
-            uint256[] memory singleEpoch = new uint256[](1);
-            uint256[] memory singleAmount = new uint256[](1);
-            singleEpoch[0] = epoch;
-            singleAmount[0] = amounts[i];
-            emit StakingRewardsClaimed(recipients[i], singleEpoch, singleAmount);
-        }
+    function mintStakingRewardsForRecipient(address recipient, uint256 amount) external onlyRole(STAKING_MINTER_ROLE) {
+        _mintRewardsForRecipient(getTotalStakingEmissions, stakingMinted, recipient, amount);
+        emit StakingRewardsClaimed(recipient, amount);
     }
 
     function _mintRewardsForRecipient(
-        function(uint256) returns (uint256) getEmissionsForEpochFn,
-        mapping(uint256 => uint256) storage mintedMapping,
+        function(uint256) returns (uint256) getTotalEmissionsFn,
+        uint256 storage alreadyMinted,
         address recipient, 
-        uint256[] calldata amounts, 
-        uint256[] calldata epochs
+        uint256 amount
     ) internal {
-        if (amounts.length != epochs.length) {
-            revert InvalidInputLength();
-        }
-        
-        uint256 currentEpoch = getCurrentEpoch();
-        uint256 totalAmount = 0;
-        
-        for (uint256 i = 0; i < amounts.length; i++) {
-            uint256 epoch = epochs[i];
-            if (epoch >= currentEpoch) {
-                revert EpochNotEnded(epoch);
-            }
-            
-            uint256 epochEmissionTotal = getEmissionsForEpochFn(epoch);
-            uint256 alreadyMinted = mintedMapping[epoch];
-            uint256 mintedTotal = alreadyMinted + amounts[i];
-            if (mintedTotal > epochEmissionTotal) {
-                revert EpochAllocationExceeded(epoch);
-            }
-            
-            mintedMapping[epoch] = mintedTotal;
-            totalAmount += amounts[i];
+        uint256 totalEmissions = getTotalEmissionsFn(getCurrentEpoch() - 1);
+        uint256 mintedTotal = alreadyMinted + amount;
+        if (mintedTotal > totalEmissions) {
+            revert TotalAllocationExceeded();
         }
 
-        _mint(recipient, totalAmount);
-    }
-
-    function _mintRewardsForEpoch(
-        function(uint256) returns (uint256) getEmissionsForEpochFn,
-        mapping(uint256 => uint256) storage mintedMapping,
-        uint256 epoch,
-        address[] calldata recipients,
-        uint256[] calldata amounts
-    ) internal {
-        if (recipients.length != amounts.length) {
-            revert InvalidInputLength();
-        }
-        
-        uint256 currentEpoch = getCurrentEpoch();
-        if (epoch >= currentEpoch) {
-            revert EpochNotEnded(epoch);
-        }
-        
-        uint256 epochEmissionTotal = getEmissionsForEpochFn(epoch);
-        uint256 alreadyMinted = mintedMapping[epoch];
-        uint256 totalAmountForEpoch = 0;
-        
-        // Calculate total amount for this epoch
-        for (uint256 i = 0; i < amounts.length; i++) {
-            totalAmountForEpoch += amounts[i];
-        }
-        
-        uint256 mintedTotal = alreadyMinted + totalAmountForEpoch;
-        if (mintedTotal > epochEmissionTotal) {
-            revert EpochAllocationExceeded(epoch);
-        }
-        
-        mintedMapping[epoch] = mintedTotal;
-        
-        // Mint to each recipient
-        for (uint256 i = 0; i < recipients.length; i++) {
-            _mint(recipients[i], amounts[i]);
-        }
+        alreadyMinted = mintedTotal;
+        _mint(recipient, amount);
     }
 
     // Returns the supply at the start of the provided epoch.
@@ -215,6 +140,20 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
     function getPoVWEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
         return (totalEmission * POVW_ALLOCATION_BPS) / BASIS_POINTS;
+    }
+
+    // Returns the amount of ZKC that will have been emitted for PoVW rewards since the start of ZKC
+    // to the end of the provided epoch (so includes emissions from the provided epoch).
+    function getTotalPoVWEmissions(uint256 epoch) public returns (uint256) {
+        uint256 totalEmissions = getSupplyAtEpoch(epoch + 1) - INITIAL_SUPPLY;
+        return (totalEmissions * POVW_ALLOCATION_BPS) / BASIS_POINTS;
+    }
+
+    // Returns the total amount of ZKC that will have been emitted for staking rewards 
+    // from the start of ZKC to the end of the provided epoch (so includes emissions from the provided epoch).
+    function getTotalStakingEmissions(uint256 epoch) public returns (uint256) {
+        uint256 totalEmissions = getSupplyAtEpoch(epoch + 1) - INITIAL_SUPPLY;
+        return (totalEmissions * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
     // Returns the amount of ZKC that will be emitted for staking rewards at the end of the provided epoch.
@@ -242,14 +181,14 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
     }
 
     // Returns the start time of the provided epoch.
-    function getEpochStartTime(uint256 epoch) external view returns (uint256) {
+    function getEpochStartTime(uint256 epoch) public view returns (uint256) {
         return deploymentTime + (epoch * EPOCH_DURATION);
     }
 
     // Returns the end time of the provided epoch. Meaning the final timestamp
     // at which the epoch is "active". After this timestamp is finalized, the 
     // state at this timestamp represents the final state of the epoch.
-    function getEpochEndTime(uint256 epoch) external view returns (uint256) {
+    function getEpochEndTime(uint256 epoch) public view returns (uint256) {
         return getEpochStartTime(epoch + 1) - 1;
     }
 

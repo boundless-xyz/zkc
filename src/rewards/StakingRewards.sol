@@ -131,7 +131,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
             amount += amounts[i];
         }
         if (amount == 0) return 0;
-        zkc.mintStakingRewardsForRecipient(user, amounts, epochs);
+        zkc.mintStakingRewardsForRecipient(user, amount);
         return amount;
     }
 
