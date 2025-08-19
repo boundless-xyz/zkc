@@ -87,7 +87,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
      * @return endTimestamp The end timestamp of the epoch
      */
     function _epochEndTimestamp(uint256 epoch) internal view returns (uint256) {
-        return zkc.getEpochStartTime(epoch + 1);
+        return zkc.getEpochEndTime(epoch);
     }
 
     /**

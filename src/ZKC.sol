@@ -246,6 +246,13 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         return deploymentTime + (epoch * EPOCH_DURATION);
     }
 
+    // Returns the end time of the provided epoch. Meaning the final timestamp
+    // at which the epoch is "active". After this timestamp is finalized, the 
+    // state at this timestamp represents the final state of the epoch.
+    function getEpochEndTime(uint256 epoch) external view returns (uint256) {
+        return getEpochStartTime(epoch + 1) - 1;
+    }
+
     /**
      * @notice This is the total supply during the current epoch.
      * @dev This is the total supply during the current epoch. Emissions for the epoch
