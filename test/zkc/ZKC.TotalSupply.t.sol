@@ -44,14 +44,13 @@ contract ZKCTotalSupplyTest is ZKCTest {
     }
     
     function testClaimedTotalSupplyAfterRewardMint() public {
-        // Move to epoch 2 to mint rewards for epoch 1
+        // Move to epoch 2 to allow minting
         vm.warp(block.timestamp + 2 * zkc.EPOCH_DURATION());
         
         uint256 mintAmount = 1000 * 10**18;
         
-        (uint256[] memory amounts, uint256[] memory epochs) = _buildSingleArrayInputs(mintAmount, 1);
         vm.prank(povwMinter);
-        zkc.mintPoVWRewardsForRecipient(user, amounts, epochs);
+        zkc.mintPoVWRewardsForRecipient(user, mintAmount);
 
         assertEq(zkc.claimedTotalSupply(), mintAmount);
         assertEq(zkc.totalSupply(), Supply.getSupplyAtEpoch(2));
@@ -61,11 +60,10 @@ contract ZKCTotalSupplyTest is ZKCTest {
         // Move to epoch 5
         vm.warp(block.timestamp + 5 * zkc.EPOCH_DURATION());
         
-        // Mint some rewards for epoch 1
+        // Mint some rewards
         uint256 mintAmount = 1000 * 10**18;
-        (uint256[] memory amounts, uint256[] memory epochs) = _buildSingleArrayInputs(mintAmount, 1);
         vm.prank(povwMinter);
-        zkc.mintPoVWRewardsForRecipient(user, amounts, epochs);
+        zkc.mintPoVWRewardsForRecipient(user, mintAmount);
         
         // totalSupply should be much higher than claimed
         uint256 theoretical = zkc.totalSupply();
@@ -106,26 +104,85 @@ contract ZKCTotalSupplyTest is ZKCTest {
         assertGt(zkc.totalSupply(), zkc.INITIAL_SUPPLY());
     }
     
-    function testSuppliesWithPartialEpochClaims() public {
-        // Move to epoch 3
+    function testSuppliesWithMixedMinting() public {
+        // Move to epoch 3 to allow reward minting
         vm.warp(block.timestamp + 3 * zkc.EPOCH_DURATION());
         
-        // Mint partial rewards for epoch 1
-        uint256 epoch1Emissions = zkc.getPoVWEmissionsForEpoch(1);
-        (uint256[] memory amounts, uint256[] memory epochs) = _buildSingleArrayInputs(epoch1Emissions / 2, 1);
+        // Initial mint
+        address[] memory recipients = new address[](1);
+        recipients[0] = user;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 100_000 * 10**18;
+        
+        vm.prank(minter1);
+        zkc.initialMint(recipients, amounts);
+        
+        // PoVW reward mint
+        uint256 povwAmount = 1000 * 10**18;
         vm.prank(povwMinter);
-        zkc.mintPoVWRewardsForRecipient(user, amounts, epochs);
+        zkc.mintPoVWRewardsForRecipient(user, povwAmount);
         
-        // Mint full rewards for epoch 2 staking
-        uint256 epoch2StakingEmissions = zkc.getStakingEmissionsForEpoch(2);
-        (uint256[] memory amounts2, uint256[] memory epochs2) = _buildSingleArrayInputs(epoch2StakingEmissions, 2);
+        // Staking reward mint
+        uint256 stakingAmount = 500 * 10**18;
         vm.prank(stakingMinter);
-        zkc.mintStakingRewardsForRecipient(user, amounts2, epochs2);
+        zkc.mintStakingRewardsForRecipient(user, stakingAmount);
         
-        uint256 totalMinted = epoch1Emissions / 2 + epoch2StakingEmissions;
-        
-        assertEq(zkc.claimedTotalSupply(), totalMinted);
+        uint256 expectedClaimed = amounts[0] + povwAmount + stakingAmount;
+        assertEq(zkc.claimedTotalSupply(), expectedClaimed);
         assertEq(zkc.totalSupply(), Supply.getSupplyAtEpoch(3));
         assertGt(zkc.totalSupply(), zkc.claimedTotalSupply());
+    }
+
+    function testClaimedSupplyTracksOnlyMintedTokens() public {
+        uint256 claimedBefore = zkc.claimedTotalSupply();
+        assertEq(claimedBefore, 0);
+        
+        // Mint some initial tokens
+        address[] memory recipients = new address[](1);
+        recipients[0] = user;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 50_000 * 10**18;
+        
+        vm.prank(minter1);
+        zkc.initialMint(recipients, amounts);
+        assertEq(zkc.claimedTotalSupply(), amounts[0]);
+        
+        // Move to epoch 1 so there's allocation available for reward minting
+        vm.warp(deploymentTime + zkc.EPOCH_DURATION());
+        
+        // Mint reward tokens
+        uint256 rewardAmount = 2000 * 10**18;
+        vm.prank(povwMinter);
+        zkc.mintPoVWRewardsForRecipient(user, rewardAmount);
+        
+        assertEq(zkc.claimedTotalSupply(), amounts[0] + rewardAmount);
+    }
+
+    function testTheoreticalSupplyGrowsWithTime() public {
+        uint256 supplyEpoch0 = zkc.totalSupply();
+        
+        // Move to epoch 10
+        vm.warp(deploymentTime + 10 * zkc.EPOCH_DURATION());
+        uint256 supplyEpoch10 = zkc.totalSupply();
+        
+        // Move to epoch 100  
+        vm.warp(deploymentTime + 100 * zkc.EPOCH_DURATION());
+        uint256 supplyEpoch100 = zkc.totalSupply();
+        
+        // Theoretical supply should grow over time
+        assertGt(supplyEpoch10, supplyEpoch0);
+        assertGt(supplyEpoch100, supplyEpoch10);
+        
+        // But claimed supply should remain 0 (no minting)
+        assertEq(zkc.claimedTotalSupply(), 0);
+    }
+
+    function testSupplyFunctionsDelegation() public {
+        // Test that totalSupply delegates to Supply library via getSupplyAtEpochStart
+        vm.warp(deploymentTime + 50 * zkc.EPOCH_DURATION());
+        
+        uint256 currentEpoch = zkc.getCurrentEpoch();
+        assertEq(zkc.totalSupply(), Supply.getSupplyAtEpoch(currentEpoch));
+        assertEq(zkc.totalSupply(), zkc.getSupplyAtEpochStart(currentEpoch));
     }
 }

@@ -6,16 +6,19 @@ pragma solidity ^0.8.20;
  * @notice Shared constants used across the veZKC system
  */
 library Constants {
-    /// @dev 4 weeks minimum
-    uint256 public constant MIN_STAKE_WEEKS = 4;
-    /// @dev 2 years maximum (104 weeks)
-    uint256 public constant MAX_STAKE_WEEKS = 104;
-    /// @dev 1 week in seconds
+    /// @dev Withdrawal period - 30 days
+    uint256 public constant WITHDRAWAL_PERIOD = 30 days;
+    
+    /// @dev Voting power scalar (1 = 1:1 ratio in token units)
+    /// @dev Example: 1 means 1 ZKC = 1e18 voting power (same as token decimals)
+    /// @dev Example: 2 means 1 ZKC = 0.5e18 voting power  
+    uint256 public constant VOTING_POWER_SCALAR = 1;
+    
+    /// @dev Reward power scalar (1 = 1:1 ratio in token units)
+    /// @dev Example: 1 means 1 ZKC = 1e18 reward power (same as token decimals)
+    /// @dev Example: 2 means 1 ZKC = 0.5e18 reward power
+    uint256 public constant REWARD_POWER_SCALAR = 1;
+    
+    /// @dev 1 week in seconds (kept for potential future use)
     uint256 public constant WEEK = 1 weeks;
-    /// @dev Minimum lock time
-    uint256 public constant MIN_STAKE_TIME_S = MIN_STAKE_WEEKS * WEEK;
-    /// @dev Maximum lock time
-    uint256 public constant MAX_STAKE_TIME_S = MAX_STAKE_WEEKS * WEEK;
-    /// @dev Maximum lock time as int128
-    int128 public constant iMAX_STAKE_TIME_S = int128(int256(MAX_STAKE_WEEKS * WEEK));
 }

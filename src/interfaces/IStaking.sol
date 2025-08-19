@@ -15,35 +15,32 @@ interface IStaking is IERC721 {
     error UserAlreadyHasActivePosition();
     error NoActivePosition();
     error TokenDoesNotExist();
-    error CannotAddToExpiredPosition();
-    error LockHasNotExpiredYet();
+    error CannotAddToWithdrawingPosition();
+    error WithdrawalAlreadyInitiated();
+    error WithdrawalNotInitiated();
+    error WithdrawalPeriodNotComplete();
     error NonTransferable();
-    error CannotExtendLockWhileDelegated();
-    error CanOnlyIncreaseLockEndTime();
-    error LockCannotExceedMaxTime();
-    error NewLockEndMustBeInFuture();
     
     // Events
     event Staked(address indexed user, uint256 amount, uint256 indexed tokenId);
     event StakeAdded(address indexed user, uint256 indexed tokenId, uint256 addedAmount);
     event Unstaked(address indexed user, uint256 indexed tokenId, uint256 amount);
-    event LockCreated(uint256 indexed tokenId, address indexed owner, uint256 amount);
-    event LockIncreased(uint256 indexed tokenId, uint256 addedAmount, uint256 newTotal);
-    event LockExtended(uint256 indexed tokenId, uint256 newLockEnd);
-    event LockExpired(uint256 indexed tokenId);
+    event StakeCreated(uint256 indexed tokenId, address indexed owner, uint256 amount);
+    event StakeIncreased(uint256 indexed tokenId, uint256 addedAmount, uint256 newTotal);
+    event StakeBurned(uint256 indexed tokenId);
+    event UnstakeInitiated(address indexed user, uint256 indexed tokenId, uint256 amount);
+    event WithdrawalInitiated(address indexed user, uint256 indexed tokenId, uint256 withdrawableAt);
     
     /**
      * @notice Stake ZKC tokens to mint veZKC NFT
      * @param amount Amount of ZKC to stake
-     * @param expires Lock expiry timestamp (0 for min, type(uint256).max for max)
      * @return tokenId The minted veZKC NFT token ID
      */
-    function stake(uint256 amount, uint256 expires) external returns (uint256 tokenId);
+    function stake(uint256 amount) external returns (uint256 tokenId);
     
     /**
      * @notice Stake ZKC tokens using permit to avoid pre-approval
      * @param amount Amount of ZKC to stake
-     * @param expires Lock expiry timestamp
      * @param permitDeadline Permit deadline
      * @param v Permit signature v
      * @param r Permit signature r
@@ -51,8 +48,7 @@ interface IStaking is IERC721 {
      * @return tokenId The minted veZKC NFT token ID
      */
     function stakeWithPermit(
-        uint256 amount, 
-        uint256 expires,
+        uint256 amount,
         uint256 permitDeadline,
         uint8 v, 
         bytes32 r, 
@@ -107,23 +103,22 @@ interface IStaking is IERC721 {
     ) external;
     
     /**
-     * @notice Extend lock duration for your active position
-     * @param newLockEndTime New lock end timestamp
+     * @notice Initiate unstaking process (30-day withdrawal period)
      */
-    function extendStakeLockup(uint256 newLockEndTime) external;
+    function initiateUnstake() external;
     
     /**
-     * @notice Unstake ZKC tokens after lock expiry
+     * @notice Complete unstaking after withdrawal period
      */
-    function unstake() external;
+    function completeUnstake() external;
     
     /**
-     * @notice Get staked amount and expiry for an account
+     * @notice Get staked amount and withdrawal completion time for an account
      * @param account Account to query
      * @return amount Staked amount
-     * @return expiry Lock expiry timestamp
+     * @return withdrawableAt Timestamp when withdrawal can be completed (0 if not withdrawing)
      */
-    function getStakedAmountAndExpiry(address account) external view returns (uint256 amount, uint256 expiry);
+    function getStakedAmountAndWithdrawalTime(address account) external view returns (uint256 amount, uint256 withdrawableAt);
     
     /**
      * @notice Get active token ID for a user

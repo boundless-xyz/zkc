@@ -8,7 +8,7 @@ import {Constants} from "../../src/libraries/Constants.sol";
 
 /**
  * @title RewardPower Library Test
- * @notice Simple unit tests for RewardPower library
+ * @notice Simple unit tests for RewardPower library with withdrawal-based system
  */
 contract RewardPowerTest is Test {
     using Checkpoints for Checkpoints.UserCheckpointStorage;
@@ -21,76 +21,87 @@ contract RewardPowerTest is Test {
     uint256 internal constant AMOUNT = 1000 * 10**18;
     
     function setUp() public {
-        // Initialize with a user point
+        // Initialize with a user point (active stake)
         userStorage.userPointHistory[alice][1] = Checkpoints.Point({
-            bias: int128(int256(AMOUNT)),
-            slope: int128(int256(AMOUNT / Constants.MAX_STAKE_TIME_S)),
-            updatedAt: block.timestamp,
-            amount: AMOUNT
+            amount: AMOUNT,
+            updatedAt: vm.getBlockTimestamp(),
+            withdrawing: false
         });
         userStorage.userPointEpoch[alice] = 1;
         
         // Initialize global
         Checkpoints.initializeGlobalPoint(globalStorage);
         globalStorage.globalPointHistory[1] = Checkpoints.Point({
-            bias: int128(int256(AMOUNT)),
-            slope: int128(int256(AMOUNT / Constants.MAX_STAKE_TIME_S)),
-            updatedAt: block.timestamp,
-            amount: AMOUNT
+            amount: AMOUNT,
+            updatedAt: vm.getBlockTimestamp(),
+            withdrawing: false // Global never withdraws
         });
         globalStorage.globalPointEpoch = 1;
     }
     
     function testGetRewards() public {
         uint256 rewards = RewardPower.getRewards(userStorage, alice);
-        assertEq(rewards, AMOUNT);
+        assertEq(rewards, AMOUNT / Constants.REWARD_POWER_SCALAR);
         
-        // Reward power doesn't decay over time
-        vm.warp(block.timestamp + 52 weeks);
+        // Reward power doesn't change over time (no decay)
+        vm.warp(vm.getBlockTimestamp() + 52 weeks);
         uint256 rewardsLater = RewardPower.getRewards(userStorage, alice);
-        assertEq(rewardsLater, AMOUNT);
+        assertEq(rewardsLater, AMOUNT / Constants.REWARD_POWER_SCALAR);
     }
     
     function testGetPastRewards() public {
-        uint256 t0 = block.timestamp;
+        uint256 t0 = vm.getBlockTimestamp();
         
         vm.warp(t0 + 10 weeks);
         uint256 pastRewards = RewardPower.getPastRewards(userStorage, alice, t0);
-        assertEq(pastRewards, AMOUNT);
+        assertEq(pastRewards, AMOUNT / Constants.REWARD_POWER_SCALAR);
     }
     
     function testGetTotalRewards() public {
         uint256 totalRewards = RewardPower.getTotalRewards(globalStorage);
-        assertEq(totalRewards, AMOUNT);
+        assertEq(totalRewards, AMOUNT / Constants.REWARD_POWER_SCALAR);
         
-        // Total rewards don't decay
-        vm.warp(block.timestamp + 52 weeks);
+        // Total rewards don't change over time
+        vm.warp(vm.getBlockTimestamp() + 52 weeks);
         uint256 totalRewardsLater = RewardPower.getTotalRewards(globalStorage);
-        assertEq(totalRewardsLater, AMOUNT);
+        assertEq(totalRewardsLater, AMOUNT / Constants.REWARD_POWER_SCALAR);
     }
     
     function testGetPastTotalRewards() public {
-        uint256 t0 = block.timestamp;
+        uint256 t0 = vm.getBlockTimestamp();
         
         vm.warp(t0 + 10 weeks);
         uint256 pastTotalRewards = RewardPower.getPastTotalRewards(globalStorage, t0);
-        assertEq(pastTotalRewards, AMOUNT);
+        assertEq(pastTotalRewards, AMOUNT / Constants.REWARD_POWER_SCALAR);
     }
     
-    function testExpiredLockRewardPower() public {
-        // Create an expired lock point
+    function testWithdrawingUserRewardPower() public {
+        // Create a withdrawing user point
         userStorage.userPointHistory[alice][2] = Checkpoints.Point({
-            bias: 0, // Expired, no bias
-            slope: 0, // Expired, no slope
-            updatedAt: block.timestamp + Constants.MAX_STAKE_TIME_S,
-            amount: AMOUNT // Amount persists
+            amount: AMOUNT,
+            updatedAt: vm.getBlockTimestamp(),
+            withdrawing: true // User is withdrawing
         });
         userStorage.userPointEpoch[alice] = 2;
         
-        vm.warp(block.timestamp + Constants.MAX_STAKE_TIME_S + 1);
-        
-        // Reward power persists even after expiry
+        // Reward power should be 0 for withdrawing users
         uint256 rewards = RewardPower.getRewards(userStorage, alice);
-        assertEq(rewards, AMOUNT);
+        assertEq(rewards, 0);
+    }
+    
+    function testZeroAmountRewardPower() public view {
+        // Test user with no stake
+        uint256 rewards = RewardPower.getRewards(userStorage, address(0xBEEF));
+        assertEq(rewards, 0);
+    }
+    
+    function testScalarDivision() public {
+        // Test that reward power is correctly divided by scalar
+        uint256 expectedRewards = AMOUNT / Constants.REWARD_POWER_SCALAR;
+        uint256 actualRewards = RewardPower.getRewards(userStorage, alice);
+        assertEq(actualRewards, expectedRewards);
+        
+        // With scalar = 1, should equal the amount
+        assertEq(actualRewards, AMOUNT);
     }
 }

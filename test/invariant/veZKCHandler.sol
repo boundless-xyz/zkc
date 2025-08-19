@@ -31,8 +31,9 @@ contract veZKCHandler is Test {
     mapping(address => uint256) public ghost_userStaked;
     mapping(address => uint256) public ghost_userTokenId;
     mapping(address => bool) public ghost_hasActivePosition;
+    mapping(address => bool) public ghost_isWithdrawing;
+    mapping(address => uint256) public ghost_withdrawalRequestTime;
     mapping(uint256 => uint256) public ghost_tokenAmount;
-    mapping(uint256 => uint256) public ghost_tokenExpiry;
     
     // Track historical values for consistency checks
     uint256[] public ghost_historicalTimestamps;
@@ -42,8 +43,8 @@ contract veZKCHandler is Test {
     uint256 public callCount;
     uint256 public stakeCount;
     uint256 public addStakeCount;
-    uint256 public extendCount;
-    uint256 public unstakeCount;
+    uint256 public initiateWithdrawalCount;
+    uint256 public completeWithdrawalCount;
     uint256 public timeWarpCount;
     
     modifier useActor() {
@@ -90,31 +91,26 @@ contract veZKCHandler is Test {
         uint256 maxAmount = balance > MAX_STAKE_AMOUNT ? MAX_STAKE_AMOUNT : balance;
         uint256 amount = bound(seed, MIN_STAKE_AMOUNT, maxAmount);
         
-        // Generate random parameters with longer minimum lock times
-        uint256 lockWeeks = bound(seed >> 8, 20, Constants.MAX_STAKE_WEEKS); // Min 20 weeks instead of 4
-        uint256 expires = block.timestamp + (lockWeeks * 1 weeks);
-        
-        console.log(string.concat("STAKE_PARAMS: amount=", Strings.toString(amount), " lockWeeks=", Strings.toString(lockWeeks)));
+        console.log(string.concat("STAKE_PARAMS: amount=", Strings.toString(amount)));
         
         // Execute stake
-        try veToken.stake(amount, expires) returns (uint256 tokenId) {
+        try veToken.stake(amount) returns (uint256 tokenId) {
             // Update ghost variables
             ghost_totalStaked += amount;
             ghost_userStaked[currentActor] += amount;
             ghost_userTokenId[currentActor] = tokenId;
             ghost_hasActivePosition[currentActor] = true;
+            ghost_isWithdrawing[currentActor] = false;
             ghost_tokenAmount[tokenId] = amount;
-            (,uint256 lockEnd) = veToken.getStakedAmountAndExpiry(currentActor);
-            ghost_tokenExpiry[tokenId] = lockEnd;
             
             stakeCount++;
             
-            console.log(string.concat("STAKE SUCCESS: amount=", Strings.toString(amount), " tokenId=", Strings.toString(tokenId), " lockEnd=", Strings.toString(lockEnd)));
+            console.log(string.concat("STAKE SUCCESS: amount=", Strings.toString(amount), " tokenId=", Strings.toString(tokenId)));
             
             // Record historical snapshot
             _recordHistoricalSnapshot();
         } catch {
-            console.log(string.concat("STAKE FAILED: amount=", Strings.toString(amount), " expires=", Strings.toString(expires)));
+            console.log(string.concat("STAKE FAILED: amount=", Strings.toString(amount)));
         }
     }
     
@@ -124,15 +120,16 @@ contract veZKCHandler is Test {
         if (!ghost_hasActivePosition[currentActor]) {
             console.log("AUTO-STAKING: User has no position, creating stake first");
             stake(seed);
+            return;
+        }
+        
+        // Cannot add to stake while withdrawing
+        if (ghost_isWithdrawing[currentActor]) {
+            console.log("SKIP: Cannot add to stake while withdrawing");
+            return;
         }
         
         uint256 tokenId = ghost_userTokenId[currentActor];
-        
-        // Check if position is expired
-        if (block.timestamp >= ghost_tokenExpiry[tokenId]) {
-            console.log("AUTO-EXTENDING: Position is expired, extending");
-            extendStake(seed);
-        }
         
         // Check if user has sufficient balance, refill if needed
         uint256 balance = zkc.balanceOf(currentActor);
@@ -163,93 +160,89 @@ contract veZKCHandler is Test {
         }
     }
     
-    // Action: Extend lock duration
-    function extendStake(uint256 seed) public useActor {
-        // If user doesn't have active position, create one instead
+    // Action: Initiate withdrawal
+    function initiateWithdrawal() public useActor {
         if (!ghost_hasActivePosition[currentActor]) {
-            console.log("AUTO-STAKING: User has no position, creating stake first");
-            stake(seed);
+            return;
+        }
+        
+        // Skip if already withdrawing
+        if (ghost_isWithdrawing[currentActor]) {
+            return;
         }
         
         uint256 tokenId = ghost_userTokenId[currentActor];
-        uint256 currentExpiry = ghost_tokenExpiry[tokenId];
         
-        // Generate new expiry (extend by 1-52 weeks)
-        uint256 additionalWeeks = bound(seed, 8, 52);
-        uint256 newExpiry = currentExpiry + (additionalWeeks * 1 weeks);
+        console.log(string.concat("INITIATE_WITHDRAWAL_PARAMS: tokenId=", Strings.toString(tokenId)));
         
-        console.log(string.concat("EXTEND_PARAMS: tokenId=", Strings.toString(tokenId), " addWeeks=", Strings.toString(additionalWeeks)));
-        
-        // Ensure doesn't exceed max duration from current time
-        uint256 maxExpiry = block.timestamp + Constants.MAX_STAKE_TIME_S;
-        if (newExpiry > maxExpiry) {
-            newExpiry = maxExpiry;
-        }
-        
-        // Execute extend
-        try veToken.extendStakeLockup(newExpiry) {
+        // Execute initiate withdrawal
+        try veToken.initiateUnstake() {
             // Update ghost variables
-            (,uint256 lockEnd) = veToken.getStakedAmountAndExpiry(currentActor);
-            ghost_tokenExpiry[tokenId] = lockEnd;
+            ghost_isWithdrawing[currentActor] = true;
+            ghost_withdrawalRequestTime[currentActor] = vm.getBlockTimestamp();
             
-            extendCount++;
+            initiateWithdrawalCount++;
             
-            console.log(string.concat("EXTEND_STAKE SUCCESS: tokenId=", Strings.toString(tokenId), " newExpiry=", Strings.toString(newExpiry), " actualLockEnd=", Strings.toString(lockEnd)));
+            console.log(string.concat("INITIATE_WITHDRAWAL SUCCESS: tokenId=", Strings.toString(tokenId), " requestTime=", Strings.toString(vm.getBlockTimestamp())));
             
             // Record historical snapshot
             _recordHistoricalSnapshot();
         } catch {
-            console.log(string.concat("EXTEND_STAKE FAILED: tokenId=", Strings.toString(tokenId), " newExpiry=", Strings.toString(newExpiry)));
+            console.log(string.concat("INITIATE_WITHDRAWAL FAILED: tokenId=", Strings.toString(tokenId)));
         }
     }
     
-    // Action: Unstake tokens
-    function unstake() public useActor {
-        if (!ghost_hasActivePosition[currentActor]) {
+    // Action: Complete withdrawal
+    function completeWithdrawal() public useActor {
+        if (!ghost_hasActivePosition[currentActor] || !ghost_isWithdrawing[currentActor]) {
+            return;
+        }
+        
+        uint256 withdrawalRequestTime = ghost_withdrawalRequestTime[currentActor];
+        
+        // Check if withdrawal period has passed
+        if (vm.getBlockTimestamp() < withdrawalRequestTime + Constants.WITHDRAWAL_PERIOD) {
             return;
         }
         
         uint256 tokenId = ghost_userTokenId[currentActor];
-        
-        // Check if lock has expired
-        if (block.timestamp < ghost_tokenExpiry[tokenId]) {
-            return;
-        }
-        
         uint256 amountToUnstake = ghost_tokenAmount[tokenId];
         
-        // Execute unstake
-        try veToken.unstake() {
+        console.log(string.concat("COMPLETE_WITHDRAWAL_PARAMS: tokenId=", Strings.toString(tokenId), " amount=", Strings.toString(amountToUnstake)));
+        
+        // Execute complete withdrawal
+        try veToken.completeUnstake() {
             // Update ghost variables
             ghost_totalUnstaked += amountToUnstake;
             ghost_userStaked[currentActor] -= amountToUnstake;
             ghost_hasActivePosition[currentActor] = false;
+            ghost_isWithdrawing[currentActor] = false;
+            ghost_withdrawalRequestTime[currentActor] = 0;
             delete ghost_userTokenId[currentActor];
             delete ghost_tokenAmount[tokenId];
-            delete ghost_tokenExpiry[tokenId];
             
-            unstakeCount++;
+            completeWithdrawalCount++;
             
-            console.log(string.concat("UNSTAKE SUCCESS: amount=", Strings.toString(amountToUnstake), " tokenId=", Strings.toString(tokenId)));
+            console.log(string.concat("COMPLETE_WITHDRAWAL SUCCESS: amount=", Strings.toString(amountToUnstake), " tokenId=", Strings.toString(tokenId)));
             
             // Record historical snapshot
             _recordHistoricalSnapshot();
         } catch {
-            console.log(string.concat("UNSTAKE FAILED: tokenId=", Strings.toString(tokenId), " expiry=", Strings.toString(ghost_tokenExpiry[tokenId]), " currentTime=", Strings.toString(block.timestamp)));
+            console.log(string.concat("COMPLETE_WITHDRAWAL FAILED: tokenId=", Strings.toString(tokenId), " requestTime=", Strings.toString(withdrawalRequestTime), " currentTime=", Strings.toString(vm.getBlockTimestamp())));
         }
     }
     
     // Action: Advance time
     function warpTime(uint256 seed) public {
         uint256 timeToWarp = bound(seed, MIN_TIME_WARP, MAX_TIME_WARP);
-        uint256 oldTime = block.timestamp;
+        uint256 oldTime = vm.getBlockTimestamp();
         uint256 warpHours = timeToWarp / 1 hours;
         console.log(string.concat("WARP_PARAMS: hours=", Strings.toString(warpHours)));
         
         skip(timeToWarp);
         timeWarpCount++;
         
-        console.log(string.concat("WARP_TIME: from=", Strings.toString(oldTime), " to=", Strings.toString(block.timestamp), " delta=", Strings.toString(timeToWarp)));
+        console.log(string.concat("WARP_TIME: from=", Strings.toString(oldTime), " to=", Strings.toString(vm.getBlockTimestamp()), " delta=", Strings.toString(timeToWarp)));
         
         // Record historical snapshot after time warp
         _recordHistoricalSnapshot();
@@ -257,7 +250,7 @@ contract veZKCHandler is Test {
     
     // Helper: Record historical snapshot for later verification
     function _recordHistoricalSnapshot() internal {
-        uint256 timestamp = block.timestamp;
+        uint256 timestamp = vm.getBlockTimestamp();
         
         // Only record if this is a new timestamp and it's not block 0
         if (timestamp > 0 && 
@@ -282,27 +275,27 @@ contract veZKCHandler is Test {
         console.log(string.concat(
             "=== ACTION: seed=", Strings.toString(action),
             " actor=", Strings.toHexString(currentActor),
-            " time=", Strings.toString(block.timestamp)
+            " time=", Strings.toString(vm.getBlockTimestamp())
         ));
         
-        if (action < 20) {
-            // 20% chance: stake (prioritize getting users started)
+        if (action < 25) {
+            // 25% chance: stake (prioritize getting users started)
             console.log("Action: STAKE");
             stake(seed >> 8);
         } else if (action < 50) {
-            // 30% chance: add to stake (will auto-stake if needed)
+            // 25% chance: add to stake (will auto-stake if needed)
             console.log("Action: ADD_TO_STAKE");
             addToStake(seed >> 8);
-        } else if (action < 80) {
-            // 30% chance: extend (will auto-stake if needed)
-            console.log("Action: EXTEND_STAKE");
-            extendStake(seed >> 8);
-        } else if (action < 90) {
-            // 10% chance: unstake
-            console.log("Action: UNSTAKE");
-            unstake();
+        } else if (action < 70) {
+            // 20% chance: initiate withdrawal
+            console.log("Action: INITIATE_WITHDRAWAL");
+            initiateWithdrawal();
+        } else if (action < 85) {
+            // 15% chance: complete withdrawal
+            console.log("Action: COMPLETE_WITHDRAWAL");
+            completeWithdrawal();
         } else {
-            // 10% chance: warp time
+            // 15% chance: warp time
             console.log("Action: WARP_TIME");
             warpTime(seed >> 8);
         }
@@ -325,5 +318,14 @@ contract veZKCHandler is Test {
     
     function getHistoricalSnapshotCount() public view returns (uint256) {
         return ghost_historicalTimestamps.length;
+    }
+    
+    function getActiveNonWithdrawingStaked() public view returns (uint256 sum) {
+        for (uint256 i = 0; i < actors.length; i++) {
+            address actor = actors[i];
+            if (ghost_hasActivePosition[actor] && !ghost_isWithdrawing[actor]) {
+                sum += ghost_userStaked[actor];
+            }
+        }
     }
 }

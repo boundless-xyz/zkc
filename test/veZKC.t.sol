@@ -18,8 +18,6 @@ contract veZKCTest is Test {
     
     uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 10**18;
     uint256 public constant AMOUNT = 10_000 * 10**18;
-    uint256 public MAX_STAKE_TIME_S;
-    uint256 public MIN_STAKE_TIME_S;
 
     
     function deployContracts() internal {
@@ -47,8 +45,6 @@ contract veZKCTest is Test {
         );
         veToken = veZKC(address(new ERC1967Proxy(address(veImpl), veInitData)));
 
-        MAX_STAKE_TIME_S = Constants.MAX_STAKE_TIME_S;
-        MIN_STAKE_TIME_S = Constants.MIN_STAKE_TIME_S;
         vm.stopPrank();
     }
     

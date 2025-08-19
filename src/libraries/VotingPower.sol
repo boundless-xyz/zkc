@@ -7,23 +7,17 @@ import {Constants} from "./Constants.sol";
 /**
  * @title VotingPower Library
  * @notice Voting power calculation logic for IVotes interface implementation
- * @dev This library handles all voting-specific calculations while using shared checkpoint state
+ * @dev Voting power = staked_amount / VOTING_POWER_SCALAR (0 if withdrawing)
  */
 library VotingPower {
 
     /**
-     * @dev Calculate voting power from a point at given timestamp
-     * @dev Applies the linear decay formula: voting_power = bias - slope * dt
+     * @dev Calculate voting power from a point
+     * @dev Returns amount / VOTING_POWER_SCALAR if not withdrawing, else 0
      */
-    function getVotesFromEpoch(Checkpoints.Point memory point, uint256 timestamp) internal pure returns (uint256) {
-        if (point.updatedAt == 0) return 0;
-        
-        int128 dt = int128(int256(timestamp - point.updatedAt));
-        int128 bias = point.bias - point.slope * dt;
-        
-        if (bias < 0) bias = 0;
-        
-        return uint256(uint128(bias));
+    function getVotesFromPoint(Checkpoints.Point memory point) internal pure returns (uint256) {
+        if (point.withdrawing) return 0;
+        return point.amount / Constants.VOTING_POWER_SCALAR;
     }
 
     /**
@@ -34,7 +28,10 @@ library VotingPower {
         address account
     ) internal view returns (uint256) {
         uint256 epoch = userStorage.userPointEpoch[account];
-        return getVotesFromEpoch(userStorage, account, epoch, block.timestamp);
+        if (epoch == 0) return 0;
+        
+        Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
+        return getVotesFromPoint(point);
     }
 
     /**
@@ -46,24 +43,12 @@ library VotingPower {
         uint256 timepoint
     ) internal view returns (uint256) {
         uint256 epoch = Checkpoints.findUserTimestampEpoch(userStorage, account, timepoint);
-        return getVotesFromEpoch(userStorage, account, epoch, timepoint);
-    }
-
-    /**
-     * @dev Internal function to get voting power for an account at a specific epoch and timestamp
-     * @dev This is a direct extraction of the existing _getVotesFromEpoch logic
-     */
-    function getVotesFromEpoch(
-        Checkpoints.UserCheckpointStorage storage userStorage,
-        address account,
-        uint256 epoch,
-        uint256 timestamp
-    ) private view returns (uint256) {
         if (epoch == 0) return 0;
         
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
-        return getVotesFromEpoch(point, timestamp);
+        return getVotesFromPoint(point);
     }
+
 
     /**
      * @dev Calculate total voting power at current timestamp
@@ -75,12 +60,11 @@ library VotingPower {
         if (globalEpoch == 0) return 0;
         
         Checkpoints.Point memory lastPoint = globalStorage.globalPointHistory[globalEpoch];
-        return getVotesFromEpoch(lastPoint, block.timestamp);
+        return getVotesFromPoint(lastPoint);
     }
 
     /**
      * @dev Calculate total voting power at a specific timestamp
-     * @dev Walks through historical checkpoints applying slope changes to get accurate total supply
      */
     function getPastTotalSupply(
         Checkpoints.GlobalCheckpointStorage storage globalStorage,
@@ -89,37 +73,8 @@ library VotingPower {
         uint256 epoch = Checkpoints.findTimestampEpoch(globalStorage, timepoint);
         if (epoch == 0) return 0;
         
-        Checkpoints.Point memory lastPoint = globalStorage.globalPointHistory[epoch];
-        
-        // Move forward from the found point to the target timestamp
-        // applying any scheduled global slope changes along the way.
-        uint256 currentTimestamp = Checkpoints.timestampFloorToWeek(lastPoint.updatedAt);
-        for (uint256 i = 0; i < 255; i++) {
-            currentTimestamp += Constants.WEEK;
-            int128 d_slope = 0;
-            
-            if (currentTimestamp > timepoint) {
-                currentTimestamp = timepoint;
-            } else {
-                d_slope = globalStorage.slopeChanges[currentTimestamp];
-            }
-            
-            // Calculate bias decay to currentTimestamp
-            lastPoint.bias -= lastPoint.slope * int128(int256(currentTimestamp - lastPoint.updatedAt));
-            
-            if (currentTimestamp == timepoint) {
-                break;
-            }
-            
-            // Apply slope change at week boundary
-            lastPoint.slope += d_slope;
-            lastPoint.updatedAt = currentTimestamp;
-        }
-        
-        // Ensure non-negative
-        if (lastPoint.bias < 0) lastPoint.bias = 0;
-        
-        return uint256(uint128(lastPoint.bias));
+        Checkpoints.Point memory point = globalStorage.globalPointHistory[epoch];
+        return getVotesFromPoint(point);
     }
 
 }

@@ -10,6 +10,7 @@ import {Storage} from "./Storage.sol";
 import {IStaking} from "../interfaces/IStaking.sol";
 import {Checkpoints} from "../libraries/Checkpoints.sol";
 import {StakeManager} from "../libraries/StakeManager.sol";
+import {Constants} from "../libraries/Constants.sol";
 import {ZKC} from "../ZKC.sol";
 
 /**
@@ -48,17 +49,14 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
     /**
      * @dev Stake ZKC tokens to mint veZKC NFT
      */
-    function stake(uint256 amount, uint256 expires) external nonReentrant returns (uint256 tokenId) {
+    function stake(uint256 amount) external nonReentrant returns (uint256 tokenId) {
         StakeManager.validateStake(amount, _userActivePosition[msg.sender]);
-        
-        // Get the expiry timestamp with proper week rounding and validation
-        expires = StakeManager.getWeekExpiry(expires);
 
         // Transfer ZKC from user
         StakeManager.transferTokensIn(IERC20(address(_zkcToken)), msg.sender, amount);
 
         // Mint veZKC NFT with voting/reward power
-        tokenId = _stakeAndCheckpoint(msg.sender, amount, expires);
+        tokenId = _stakeAndCheckpoint(msg.sender, amount);
 
         // Track user's active position
         _userActivePosition[msg.sender] = tokenId;
@@ -68,17 +66,13 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
     }
 
     function stakeWithPermit(
-        uint256 amount, 
-        uint256 expires,
+        uint256 amount,
         uint256 permitDeadline,
         uint8 v, 
         bytes32 r, 
         bytes32 s
     ) external nonReentrant returns (uint256 tokenId) {
         StakeManager.validateStake(amount, _userActivePosition[msg.sender]);
-        
-        // Get the expiry timestamp with proper week rounding and validation
-        expires = StakeManager.getWeekExpiry(expires);
 
         // Use permit to approve tokens
         _zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
@@ -87,7 +81,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         StakeManager.transferTokensIn(IERC20(address(_zkcToken)), msg.sender, amount);
 
         // Mint veZKC NFT with voting/reward power
-        tokenId = _stakeAndCheckpoint(msg.sender, amount, expires);
+        tokenId = _stakeAndCheckpoint(msg.sender, amount);
 
         // Track user's active position
         _userActivePosition[msg.sender] = tokenId;
@@ -141,51 +135,54 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         _addToStake(msg.sender, tokenId, amount);
     }
 
-    function extendStakeLockup(uint256 newLockEndTime) external nonReentrant {
+    function initiateUnstake() external nonReentrant {
         // Get user's active position
         uint256 tokenId = _userActivePosition[msg.sender];
         if (tokenId == 0) revert NoActivePosition();
         if (ownerOf(tokenId) != msg.sender) revert TokenDoesNotExist();
         
-        // Cannot extend if delegated to someone else
-        // address delegatee = delegates(msg.sender);
-        // if (delegatee != msg.sender) revert CannotExtendLockWhileDelegated();
-
-        // Get current lock info
-        Checkpoints.LockInfo memory lock = _locks[tokenId];
+        // Get current stake info
+        Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
         
-        // Validate and get new lock end time
-        uint256 validatedNewLockEnd = StakeManager.validateLockExtension(lock, newLockEndTime);
+        // Validate withdrawal can be initiated
+        StakeManager.validateWithdrawalInitiation(stakeInfo);
 
-        // Extend the lock to new end time
-        _extendLockAndCheckpoint(tokenId, validatedNewLockEnd);
+        // Mark as withdrawing and checkpoint (powers drop to 0)
+        _initiateUnstakeAndCheckpoint(tokenId);
 
-        emit LockExtended(tokenId, _locks[tokenId].lockEnd);
+        emit UnstakeInitiated(msg.sender, tokenId, stakeInfo.amount);
     }
 
-    function unstake() external nonReentrant {
+    function completeUnstake() external nonReentrant {
         address user = msg.sender;
         uint256 tokenId = _userActivePosition[user];
         
-        Checkpoints.LockInfo memory lock = _locks[tokenId];
-        StakeManager.validateUnstake(tokenId, lock);
+        Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
+        StakeManager.validateUnstakeCompletion(tokenId, stakeInfo);
 
         // Remove user's active position tracking
         delete _userActivePosition[user];
 
         // Burn the veZKC NFT
-        _burnLock(tokenId);
+        _burnStake(tokenId);
 
         // Transfer ZKC back to user
-        StakeManager.transferTokensOut(IERC20(address(_zkcToken)), user, lock.amount);
+        StakeManager.transferTokensOut(IERC20(address(_zkcToken)), user, stakeInfo.amount);
 
-        emit Unstaked(user, tokenId, lock.amount);
+        emit Unstaked(user, tokenId, stakeInfo.amount);
     }
 
-    function getStakedAmountAndExpiry(address account) public view returns (uint256, uint256) {
+    function getStakedAmountAndWithdrawalTime(address account) public view returns (uint256, uint256) {
         uint256 tokenId = _userActivePosition[account];
         if (tokenId == 0) return (0, 0);
-        return (_locks[tokenId].amount, _locks[tokenId].lockEnd);
+        
+        Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
+        uint256 withdrawableAt = 0;
+        if (stakeInfo.withdrawalRequestedAt > 0) {
+            withdrawableAt = stakeInfo.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
+        }
+        
+        return (stakeInfo.amount, withdrawableAt);
     }
 
     function getActiveTokenId(address user) public view returns (uint256) {
@@ -194,19 +191,19 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
     // ====== INTERNAL STAKING IMPLEMENTATION ======
 
-    function _stakeAndCheckpoint(address to, uint256 amount, uint256 expires) internal returns (uint256) {
+    function _stakeAndCheckpoint(address to, uint256 amount) internal returns (uint256) {
         uint256 tokenId = ++_currentTokenId;
         _mint(to, tokenId);
 
-        Checkpoints.LockInfo memory emptyLock; // Empty lock (new mint)
-        Checkpoints.LockInfo memory newLock = StakeManager.createLock(amount, expires);
+        Checkpoints.StakeInfo memory emptyStake; // Empty stake (new mint)
+        Checkpoints.StakeInfo memory newStake = StakeManager.createStake(amount);
         
-        _locks[tokenId] = newLock;
+        _stakes[tokenId] = newStake;
         
         // Create checkpoint for voting power change
-        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, to, emptyLock, newLock);
+        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, to, emptyStake, newStake);
 
-        emit LockCreated(tokenId, to, amount);
+        emit StakeCreated(tokenId, to, amount);
         return tokenId;
     }
 
@@ -214,64 +211,54 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
 
         // Capture old state before modification
-        Checkpoints.LockInfo memory oldLock = _locks[tokenId];
+        Checkpoints.StakeInfo memory oldStake = _stakes[tokenId];
 
-        // Create new lock state with added amount
-        Checkpoints.LockInfo memory newLock = StakeManager.addToLock(oldLock, newAmount);
+        // Create new stake state with added amount
+        Checkpoints.StakeInfo memory newStake = StakeManager.addToStake(oldStake, newAmount);
 
-        _locks[tokenId] = newLock;
+        _stakes[tokenId] = newStake;
         
         address owner = ownerOf(tokenId);
         
         // Create checkpoint for voting power change
-        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldLock, newLock);
+        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldStake, newStake);
 
-        emit LockIncreased(tokenId, newAmount, newLock.amount);
+        emit StakeIncreased(tokenId, newAmount, newStake.amount);
     }
 
-    function _extendLockAndCheckpoint(uint256 tokenId, uint256 newLockEndTime) internal {
+    function _initiateUnstakeAndCheckpoint(uint256 tokenId) internal {
         if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
 
         // Capture old state before modification
-        Checkpoints.LockInfo memory oldLock = _locks[tokenId];
+        Checkpoints.StakeInfo memory oldStake = _stakes[tokenId];
 
-        // Create new lock state with extended end time
-        Checkpoints.LockInfo memory newLock = StakeManager.extendLock(oldLock, newLockEndTime);
+        // Create new stake state with withdrawal initiated
+        Checkpoints.StakeInfo memory newStake = StakeManager.initiateWithdrawal(oldStake);
 
-        _locks[tokenId] = newLock;
+        _stakes[tokenId] = newStake;
         
         address owner = ownerOf(tokenId);
         
-        // Create checkpoint for voting power change
-        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldLock, newLock);
+        // Create checkpoint for voting power change (powers drop to 0)
+        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldStake, newStake);
 
-        emit LockExtended(tokenId, newLock.lockEnd);
+        emit WithdrawalInitiated(owner, tokenId, newStake.withdrawalRequestedAt);
     }
 
-    function _burnLock(uint256 tokenId) internal {
+    function _burnStake(uint256 tokenId) internal {
         if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
-
-        address owner = ownerOf(tokenId);
         
-        // Capture old state before modification
-        Checkpoints.LockInfo memory oldLock = _locks[tokenId];
-        // Empty lock (burned)
-        Checkpoints.LockInfo memory emptyLock = StakeManager.emptyLock();
-        
-        delete _locks[tokenId];
+        delete _stakes[tokenId];
         _burn(tokenId);
-        
-        // Create checkpoint for voting power change
-        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldLock, emptyLock);
 
-        emit LockExpired(tokenId);
+        emit StakeBurned(tokenId);
     }
 
     function _addToStake(address from, uint256 tokenId, uint256 amount) private {
         if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
         
-        Checkpoints.LockInfo memory lock = _locks[tokenId];
-        StakeManager.validateAddToStake(amount, lock);
+        Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
+        StakeManager.validateAddToStake(amount, stakeInfo);
 
         // Transfer ZKC from user
         StakeManager.transferTokensIn(IERC20(address(_zkcToken)), from, amount);

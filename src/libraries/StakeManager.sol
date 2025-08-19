@@ -9,135 +9,89 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 /**
  * @title StakeManager Library
- * @notice Combined staking operations and lock management logic
- * @dev This library handles all staking and lock-related business logic extracted from veZKC
+ * @notice Staking operations and withdrawal management logic
+ * @dev Handles staking validation and withdrawal period logic
  */
 library StakeManager {
     using SafeERC20 for IERC20;
 
-    // Custom errors (combined from staking and lock management)
+    // Custom errors
     error ZeroAmount();
     error UserAlreadyHasActivePosition();
-    error StakeDurationTooShort();
-    error StakeDurationTooLong();
-    error CannotAddToExpiredPosition();
+    error CannotAddToWithdrawingPosition();
     error NoActivePosition();
-    error LockHasNotExpiredYet();
-    error CanOnlyIncreaseLockEndTime();
-    error LockCannotExceedMaxTime();
-    error NewLockEndMustBeInFuture();
+    error WithdrawalAlreadyInitiated();
+    error WithdrawalNotInitiated();
+    error WithdrawalPeriodNotComplete();
 
     // Events
-    event LockCreated(uint256 indexed tokenId, address indexed owner, uint256 amount);
-    event LockIncreased(uint256 indexed tokenId, uint256 addedAmount, uint256 newTotal);
-    event LockExtended(uint256 indexed tokenId, uint256 newLockEnd);
-    event LockExpired(uint256 indexed tokenId);
+    event StakeCreated(uint256 indexed tokenId, address indexed owner, uint256 amount);
+    event StakeIncreased(uint256 indexed tokenId, uint256 addedAmount, uint256 newTotal);
+    event StakeBurned(uint256 indexed tokenId);
     event Staked(address indexed user, uint256 amount, uint256 indexed tokenId);
     event StakeAdded(address indexed user, uint256 indexed tokenId, uint256 addedAmount);
     event Unstaked(address indexed user, uint256 indexed tokenId, uint256 amount);
+    event UnstakeInitiated(address indexed user, uint256 indexed tokenId, uint256 amount);
+    event WithdrawalInitiated(address indexed user, uint256 indexed tokenId, uint256 withdrawableAt);
 
     /**
-     * @dev Helper function to get expiry timestamp with proper week rounding and validation
-     * @dev This is a direct extraction of the existing _getWeekExpiry logic
-     * @param expires The requested expiry (0 for min, type(uint256).max for max, or specific timestamp)
-     * @return The validated and week-rounded expiry timestamp
+     * @dev Create a new stake info struct
      */
-    function getWeekExpiry(uint256 expires) internal view returns (uint256) {
-        if (expires == 0) {
-            // Stake for minimum duration
-            expires = Checkpoints.timestampFloorToWeek(block.timestamp + Constants.MIN_STAKE_TIME_S);
-            // Only add extra week if the result is too short
-            if (expires <= block.timestamp + Constants.MIN_STAKE_TIME_S) {
-                expires = Checkpoints.timestampFloorToWeek(block.timestamp + Constants.MIN_STAKE_TIME_S + Constants.WEEK);
-            }
-        } else if (expires == type(uint256).max) {
-            // Stake for maximum duration
-            expires = Checkpoints.timestampFloorToWeek(block.timestamp + Constants.MAX_STAKE_TIME_S);
-        } else {
-            // Check that the provided stake duration is valid
-            expires = Checkpoints.timestampFloorToWeek(expires);
-            if (expires <= block.timestamp + Constants.MIN_STAKE_TIME_S) revert StakeDurationTooShort();
-            if (expires > block.timestamp + Constants.MAX_STAKE_TIME_S) revert StakeDurationTooLong();
-        }
-        
-        return expires;
-    }
-
-
-    /**
-     * @dev Validate lock extension parameters
-     * @dev Extracted validation logic from extendStakeLockup
-     */
-    function validateLockExtension(
-        Checkpoints.LockInfo memory currentLock,
-        uint256 newLockEndTime
-    ) internal view returns (uint256) {
-        uint256 roundedNewLockEnd = getWeekExpiry(newLockEndTime);
-        if (roundedNewLockEnd <= currentLock.lockEnd) revert CanOnlyIncreaseLockEndTime();
-        if (roundedNewLockEnd > block.timestamp + Constants.MAX_STAKE_TIME_S) revert LockCannotExceedMaxTime();
-        if (roundedNewLockEnd <= block.timestamp) revert NewLockEndMustBeInFuture();
-        
-        return roundedNewLockEnd;
-    }
-
-    /**
-     * @dev Check if a lock has expired
-     */
-    function isExpired(Checkpoints.LockInfo memory lock) internal view returns (bool) {
-        return block.timestamp >= lock.lockEnd;
-    }
-
-    /**
-     * @dev Check if a lock is active (not expired)
-     */
-    function isActive(Checkpoints.LockInfo memory lock) internal view returns (bool) {
-        return !isExpired(lock);
-    }
-
-    /**
-     * @dev Create a new lock info struct
-     */
-    function createLock(uint256 amount, uint256 lockEnd) internal pure returns (Checkpoints.LockInfo memory) {
-        return Checkpoints.LockInfo({
+    function createStake(uint256 amount) internal pure returns (Checkpoints.StakeInfo memory) {
+        return Checkpoints.StakeInfo({
             amount: amount,
-            lockEnd: lockEnd
+            withdrawalRequestedAt: 0
         });
     }
 
     /**
-     * @dev Create an extended lock info struct
+     * @dev Create a stake with added amount (top-up)
      */
-    function extendLock(
-        Checkpoints.LockInfo memory currentLock,
-        uint256 newLockEnd
-    ) internal pure returns (Checkpoints.LockInfo memory) {
-        return Checkpoints.LockInfo({
-            amount: currentLock.amount,
-            lockEnd: newLockEnd
-        });
-    }
-
-    /**
-     * @dev Create a lock with added amount (top-up)
-     */
-    function addToLock(
-        Checkpoints.LockInfo memory currentLock,
+    function addToStake(
+        Checkpoints.StakeInfo memory currentStake,
         uint256 additionalAmount
-    ) internal pure returns (Checkpoints.LockInfo memory) {
-        return Checkpoints.LockInfo({
-            amount: currentLock.amount + additionalAmount,
-            lockEnd: currentLock.lockEnd
+    ) internal pure returns (Checkpoints.StakeInfo memory) {
+        return Checkpoints.StakeInfo({
+            amount: currentStake.amount + additionalAmount,
+            withdrawalRequestedAt: 0 // Reset withdrawal when adding stake
         });
     }
 
     /**
-     * @dev Create an empty lock (for burning)
+     * @dev Initiate withdrawal for a stake
      */
-    function emptyLock() internal pure returns (Checkpoints.LockInfo memory) {
-        return Checkpoints.LockInfo({
-            amount: 0,
-            lockEnd: 0
+    function initiateWithdrawal(
+        Checkpoints.StakeInfo memory currentStake
+    ) internal view returns (Checkpoints.StakeInfo memory) {
+        return Checkpoints.StakeInfo({
+            amount: currentStake.amount,
+            withdrawalRequestedAt: block.timestamp
         });
+    }
+
+    /**
+     * @dev Create an empty stake (for burning)
+     */
+    function emptyStake() internal pure returns (Checkpoints.StakeInfo memory) {
+        return Checkpoints.StakeInfo({
+            amount: 0,
+            withdrawalRequestedAt: 0
+        });
+    }
+
+    /**
+     * @dev Check if a stake is withdrawing
+     */
+    function isWithdrawing(Checkpoints.StakeInfo memory stake) internal pure returns (bool) {
+        return stake.withdrawalRequestedAt > 0;
+    }
+
+    /**
+     * @dev Check if withdrawal can be completed
+     */
+    function canCompleteWithdrawal(Checkpoints.StakeInfo memory stake) internal view returns (bool) {
+        return isWithdrawing(stake) && 
+               block.timestamp >= stake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
     }
 
     // ====== STAKING OPERATIONS ======
@@ -158,21 +112,31 @@ library StakeManager {
      */
     function validateAddToStake(
         uint256 amount,
-        Checkpoints.LockInfo memory lock
-    ) internal view {
+        Checkpoints.StakeInfo memory stake
+    ) internal pure {
         if (amount == 0) revert ZeroAmount();
-        if (lock.lockEnd <= block.timestamp) revert CannotAddToExpiredPosition();
+        if (isWithdrawing(stake)) revert CannotAddToWithdrawingPosition();
     }
 
     /**
-     * @dev Validate unstaking parameters
+     * @dev Validate withdrawal initiation
      */
-    function validateUnstake(
+    function validateWithdrawalInitiation(
+        Checkpoints.StakeInfo memory stake
+    ) internal pure {
+        if (isWithdrawing(stake)) revert WithdrawalAlreadyInitiated();
+    }
+
+    /**
+     * @dev Validate unstaking completion
+     */
+    function validateUnstakeCompletion(
         uint256 tokenId,
-        Checkpoints.LockInfo memory lock
+        Checkpoints.StakeInfo memory stake
     ) internal view {
         if (tokenId == 0) revert NoActivePosition();
-        if (block.timestamp < lock.lockEnd) revert LockHasNotExpiredYet();
+        if (!isWithdrawing(stake)) revert WithdrawalNotInitiated();
+        if (!canCompleteWithdrawal(stake)) revert WithdrawalPeriodNotComplete();
     }
 
     /**

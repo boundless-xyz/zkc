@@ -119,32 +119,27 @@ contract veZKCInvariantTest is StdInvariant, Test {
     }
     
     /**
-     * Invariant 4: Expired locks have zero voting power
+     * Invariant 4: Withdrawing positions have zero voting power
      */
-    function invariant_ExpiredLocksHaveZeroPower() public view {
+    function invariant_WithdrawingPositionsHaveZeroPower() public view {
         uint256 actorCount = handler.getActorCount();
         
         for (uint256 i = 0; i < actorCount; i++) {
             address actor = handler.actors(i);
             
-            if (handler.ghost_hasActivePosition(actor)) {
-                uint256 tokenId = handler.ghost_userTokenId(actor);
-                uint256 expiry = handler.ghost_tokenExpiry(tokenId);
-                
-                if (block.timestamp >= expiry) {
-                    uint256 votingPower = veToken.getVotes(actor);
-                    assertEq(
-                        votingPower,
-                        0,
-                        "Expired position should have zero voting power"
-                    );
-                }
+            if (handler.ghost_hasActivePosition(actor) && handler.ghost_isWithdrawing(actor)) {
+                uint256 votingPower = veToken.getVotes(actor);
+                assertEq(
+                    votingPower,
+                    0,
+                    "Withdrawing position should have zero voting power"
+                );
             }
         }
     }
     
     /**
-     * Invariant 5: Reward power equals staked amount (doesn't decay)
+     * Invariant 5: Reward power equals staked amount for non-withdrawing positions
      */
     function invariant_RewardPowerMatchesStaked() public view {
         uint256 actorCount = handler.getActorCount();
@@ -152,15 +147,22 @@ contract veZKCInvariantTest is StdInvariant, Test {
         for (uint256 i = 0; i < actorCount; i++) {
             address actor = handler.actors(i);
             
-            if (handler.ghost_hasActivePosition(actor)) {
-                uint256 tokenId = handler.ghost_userTokenId(actor);
-                uint256 expectedAmount = handler.ghost_tokenAmount(tokenId);
+            if (handler.ghost_hasActivePosition(actor) && !handler.ghost_isWithdrawing(actor)) {
+                uint256 expectedAmount = handler.ghost_userStaked(actor);
                 uint256 actualRewardPower = veToken.getRewards(actor);
                 
                 assertEq(
                     actualRewardPower,
                     expectedAmount,
-                    "Reward power should equal staked amount"
+                    "Reward power should equal staked amount for active positions"
+                );
+            } else if (handler.ghost_hasActivePosition(actor) && handler.ghost_isWithdrawing(actor)) {
+                // Withdrawing positions should have zero reward power
+                uint256 rewardPower = veToken.getRewards(actor);
+                assertEq(
+                    rewardPower,
+                    0,
+                    "Withdrawing position should have zero reward power"
                 );
             } else {
                 // No position means no reward power
@@ -194,7 +196,7 @@ contract veZKCInvariantTest is StdInvariant, Test {
             
             // Only check timestamps that are definitively in the past
             // Skip very recent timestamps that might equal current block.timestamp
-            if (timestamp >= block.timestamp) continue;
+            if (timestamp >= vm.getBlockTimestamp()) continue;
             
             // getPastTotalSupply should not revert for valid historical timestamps
             uint256 pastSupply = veToken.getPastTotalSupply(timestamp);
@@ -241,19 +243,75 @@ contract veZKCInvariantTest is StdInvariant, Test {
     }
     
     /**
-     * Invariant 8: Total reward power equals sum of all staked amounts
+     * Invariant 8: Total reward power equals sum of non-withdrawing staked amounts
      */
     function invariant_TotalRewardPowerConsistent() public view {
         uint256 totalRewardPower = veToken.getTotalRewards();
-        uint256 expectedTotal = handler.getTotalActiveStaked();
+        uint256 expectedTotal = handler.getActiveNonWithdrawingStaked();
         
         assertEq(
             totalRewardPower,
             expectedTotal,
-            "Total reward power should equal total staked"
+            "Total reward power should equal total non-withdrawing staked"
         );
     }
     
+    /**
+     * Invariant 9: Withdrawal period is enforced correctly
+     */
+    function invariant_WithdrawalPeriodEnforced() public view {
+        uint256 actorCount = handler.getActorCount();
+        
+        for (uint256 i = 0; i < actorCount; i++) {
+            address actor = handler.actors(i);
+            
+            if (handler.ghost_hasActivePosition(actor) && handler.ghost_isWithdrawing(actor)) {
+                uint256 withdrawalRequestTime = handler.ghost_withdrawalRequestTime(actor);
+                
+                // If withdrawal was requested, it should be in the past
+                assertTrue(
+                    withdrawalRequestTime <= vm.getBlockTimestamp(),
+                    "Withdrawal request time should not be in future"
+                );
+                
+                // If withdrawal request time is valid, request should have been made
+                if (withdrawalRequestTime > 0) {
+                    assertTrue(
+                        handler.ghost_isWithdrawing(actor),
+                        "Ghost state should show withdrawing if request time exists"
+                    );
+                }
+            } else if (!handler.ghost_isWithdrawing(actor)) {
+                // Non-withdrawing users should have no withdrawal request time
+                assertEq(
+                    handler.ghost_withdrawalRequestTime(actor),
+                    0,
+                    "Non-withdrawing user should have no withdrawal request time"
+                );
+            }
+        }
+    }
+    
+    /**
+     * Invariant 10: Total voting power equals sum of non-withdrawing staked amounts
+     */
+    function invariant_TotalVotingPowerConsistent() public view {
+        // Calculate total voting power by summing individual voting powers
+        uint256 totalVotingPower = 0;
+        uint256 actorCount = handler.getActorCount();
+        for (uint256 i = 0; i < actorCount; i++) {
+            address actor = handler.actors(i);
+            totalVotingPower += veToken.getVotes(actor);
+        }
+        
+        uint256 expectedTotal = handler.getActiveNonWithdrawingStaked();
+        
+        assertEq(
+            totalVotingPower,
+            expectedTotal,
+            "Total voting power should equal total non-withdrawing staked"
+        );
+    }
     
     /**
      * This invariant runs last and prints comprehensive statistics
@@ -266,22 +324,23 @@ contract veZKCInvariantTest is StdInvariant, Test {
         console.log("Action breakdown:");
         console.log("  - Stake calls:", handler.stakeCount());
         console.log("  - Add stake calls:", handler.addStakeCount());
-        console.log("  - Extend calls:", handler.extendCount());
-        console.log("  - Unstake calls:", handler.unstakeCount());
+        console.log("  - Initiate withdrawal calls:", handler.initiateWithdrawalCount());
+        console.log("  - Complete withdrawal calls:", handler.completeWithdrawalCount());
         console.log("  - Time warp calls:", handler.timeWarpCount());
         console.log("Active participants:", handler.getActorCount());
         console.log("Total amount staked:", handler.getTotalActiveStaked());
+        console.log("Active non-withdrawing staked:", handler.getActiveNonWithdrawingStaked());
         console.log("Historical snapshots recorded:", handler.getHistoricalSnapshotCount());
         
         // Calculate percentages for action distribution
         uint256 totalActions = handler.stakeCount() + handler.addStakeCount() + 
-                              handler.extendCount() + handler.unstakeCount();
+                              handler.initiateWithdrawalCount() + handler.completeWithdrawalCount();
         if (totalActions > 0) {
             console.log("\nAction distribution:");
             console.log("  - Stake %:", (handler.stakeCount() * 100) / totalActions);
             console.log("  - Add stake %:", (handler.addStakeCount() * 100) / totalActions);
-            console.log("  - Extend %:", (handler.extendCount() * 100) / totalActions);
-            console.log("  - Unstake %:", (handler.unstakeCount() * 100) / totalActions);
+            console.log("  - Initiate withdrawal %:", (handler.initiateWithdrawalCount() * 100) / totalActions);
+            console.log("  - Complete withdrawal %:", (handler.completeWithdrawalCount() * 100) / totalActions);
         }
         console.log("===============================================\n");
     }

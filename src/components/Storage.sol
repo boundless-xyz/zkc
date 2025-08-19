@@ -14,8 +14,8 @@ abstract contract Storage {
     Checkpoints.UserCheckpointStorage internal _userCheckpoints;
     Checkpoints.GlobalCheckpointStorage internal _globalCheckpoints;
     
-    // Lock and position storage
-    mapping(uint256 tokenId => Checkpoints.LockInfo) internal _locks;
+    // Stake and position storage
+    mapping(uint256 tokenId => Checkpoints.StakeInfo) internal _stakes;
     mapping(address user => uint256 activeTokenId) internal _userActivePosition;
     
     // Delegation storage (used by voting)
@@ -28,8 +28,4 @@ abstract contract Storage {
     mapping(address account => uint256[]) internal _ownedTokens;
     mapping(uint256 tokenId => uint256) internal _ownedTokensIndex;
     
-    // Public getter for slope changes (used by tests)
-    function slopeChanges(uint256 timestamp) public view returns (int128) {
-        return _globalCheckpoints.slopeChanges[timestamp];
-    }
 }

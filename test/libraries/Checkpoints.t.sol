@@ -33,28 +33,15 @@ contract CheckpointsTest is Test {
     }
     
     // =============================================================
-    //                  WEEK ROUNDING TESTS
+    //                  BASIC CHECKPOINT TESTS
     // =============================================================
     
-    function testTimestampFloorToWeek() public {
-        // Unix epoch (Jan 1, 1970) was a Thursday at 00:00 UTC
-        // So week boundaries occur every Thursday at 00:00 UTC
-        // Dec 31, 2020 00:00 UTC is a Thursday (week boundary)
-        uint256 weekStart = 1609372800; // Thursday Dec 31, 2020 00:00 UTC (week boundary)
-        uint256 midWeek = weekStart + 3 days + 12 hours; // Sunday 12:00
+    function testInitializeGlobalPoint() public {
+        Checkpoints.Point memory point = Checkpoints.getGlobalPoint(globalStorage, 0);
+        assertEq(point.amount, 0, "Initial global amount should be 0");
+        assertEq(point.updatedAt, block.timestamp, "Initial timestamp should be block.timestamp");
+        assertEq(point.withdrawing, false, "Initial withdrawing should be false");
         
-        uint256 roundedWeekStart = Checkpoints.timestampFloorToWeek(weekStart);
-        uint256 roundedMidWeek = Checkpoints.timestampFloorToWeek(midWeek);
-        
-        assertEq(roundedWeekStart, weekStart, "Week start should not change");
-        assertEq(roundedMidWeek, weekStart, "Mid-week should round down to week start");
-        
-        // Test that any time during the week rounds to the same start
-        for (uint256 i = 0; i < 7; i++) {
-            uint256 dayInWeek = weekStart + (i * 1 days) + (i * 3600); // Add some hours too
-            uint256 rounded = Checkpoints.timestampFloorToWeek(dayInWeek);
-            assertEq(rounded, weekStart, "All times in week should round to same start");
-        }
     }
     
     // =============================================================
@@ -70,10 +57,9 @@ contract CheckpointsTest is Test {
         // Add a single point for Alice
         uint256 testTime = vm.getBlockTimestamp();
         userStorage.userPointHistory[alice][1] = Checkpoints.Point({
-            bias: 1000e18,
-            slope: 48116,
+            amount: 1000e18,
             updatedAt: testTime,
-            amount: 1000e18
+            withdrawing: false
         });
         userStorage.userPointEpoch[alice] = 1;
         
@@ -97,13 +83,13 @@ contract CheckpointsTest is Test {
         uint256 time3 = time2 + 2 weeks;
         
         userStorage.userPointHistory[alice][1] = Checkpoints.Point({
-            bias: 1000e18, slope: 48116, updatedAt: time1, amount: 1000e18
+            amount: 1000e18, updatedAt: time1, withdrawing: false
         });
         userStorage.userPointHistory[alice][2] = Checkpoints.Point({
-            bias: 1500e18, slope: 72174, updatedAt: time2, amount: 1500e18
+            amount: 1500e18, updatedAt: time2, withdrawing: false
         });
         userStorage.userPointHistory[alice][3] = Checkpoints.Point({
-            bias: 2000e18, slope: 96232, updatedAt: time3, amount: 2000e18
+            amount: 2000e18, updatedAt: time3, withdrawing: false
         });
         userStorage.userPointEpoch[alice] = 3;
         
@@ -125,7 +111,7 @@ contract CheckpointsTest is Test {
         // Add another global point
         uint256 time1 = vm.getBlockTimestamp() + 1 weeks;
         globalStorage.globalPointHistory[1] = Checkpoints.Point({
-            bias: 1000e18, slope: 48116, updatedAt: time1, amount: 1000e18
+            amount: 1000e18, updatedAt: time1, withdrawing: false
         });
         globalStorage.globalPointEpoch = 1;
         
@@ -142,27 +128,24 @@ contract CheckpointsTest is Test {
     function testGetUserPoint() public {
         // Add a point for Alice
         Checkpoints.Point memory testPoint = Checkpoints.Point({
-            bias: 1000e18,
-            slope: 48116,
+            amount: 1000e18,
             updatedAt: vm.getBlockTimestamp(),
-            amount: 1000e18
+            withdrawing: false
         });
         
         userStorage.userPointHistory[alice][5] = testPoint;
         
         Checkpoints.Point memory retrieved = Checkpoints.getUserPoint(userStorage, alice, 5);
-        assertEq(retrieved.bias, testPoint.bias, "Bias should match");
-        assertEq(retrieved.slope, testPoint.slope, "Slope should match");
-        assertEq(retrieved.updatedAt, testPoint.updatedAt, "UpdatedAt should match");
         assertEq(retrieved.amount, testPoint.amount, "Amount should match");
+        assertEq(retrieved.updatedAt, testPoint.updatedAt, "UpdatedAt should match");
+        assertEq(retrieved.withdrawing, testPoint.withdrawing, "Withdrawing should match");
     }
     
     function testGetGlobalPoint() public {
         Checkpoints.Point memory retrieved = Checkpoints.getGlobalPoint(globalStorage, 0);
-        assertEq(retrieved.bias, 0, "Initial global point bias should be 0");
-        assertEq(retrieved.slope, 0, "Initial global point slope should be 0");
-        assertEq(retrieved.updatedAt, vm.getBlockTimestamp(), "Initial global point should have current timestamp");
         assertEq(retrieved.amount, 0, "Initial global point amount should be 0");
+        assertEq(retrieved.updatedAt, vm.getBlockTimestamp(), "Initial global point should have current timestamp");
+        assertEq(retrieved.withdrawing, false, "Initial global point withdrawing should be false");
     }
     
     function testGetUserEpoch() public {
@@ -181,139 +164,139 @@ contract CheckpointsTest is Test {
     //                  CHECKPOINT INTEGRATION TESTS
     // =============================================================
     
-    function testCheckpointNewLock() public {
-        // Create a new lock
-        Checkpoints.LockInfo memory emptyLock;
-        Checkpoints.LockInfo memory newLock = Checkpoints.LockInfo({
+    function testCheckpointNewStake() public {
+        // Create a new stake
+        Checkpoints.StakeInfo memory emptyStake;
+        Checkpoints.StakeInfo memory newStake = Checkpoints.StakeInfo({
             amount: AMOUNT,
-            lockEnd: vm.getBlockTimestamp() + Constants.MAX_STAKE_TIME_S / 2
+            withdrawalRequestedAt: 0
         });
         
-        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyLock, newLock);
+        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyStake, newStake);
         
         // Verify user checkpoint was created
         assertEq(userStorage.userPointEpoch[alice], 1, "User epoch should be 1");
         Checkpoints.Point memory userPoint = userStorage.userPointHistory[alice][1];
         assertEq(userPoint.amount, AMOUNT, "User point amount should match");
-        assertGt(userPoint.bias, 0, "User point should have positive bias");
-        assertGt(userPoint.slope, 0, "User point should have positive slope");
+        assertEq(userPoint.withdrawing, false, "User point should not be withdrawing");
+        assertEq(userPoint.updatedAt, block.timestamp, "User point should have current timestamp");
         
         // Verify global checkpoint was updated
         assertEq(globalStorage.globalPointEpoch, 1, "Global epoch should be 1");
         Checkpoints.Point memory globalPoint = globalStorage.globalPointHistory[1];
         assertEq(globalPoint.amount, AMOUNT, "Global point amount should match");
-        assertGt(globalPoint.bias, 0, "Global point should have positive bias");
-        assertGt(globalPoint.slope, 0, "Global point should have positive slope");
-        
-        // Verify slope change was scheduled
-        int128 slopeChange = globalStorage.slopeChanges[newLock.lockEnd];
-        assertLt(slopeChange, 0, "Slope change should be negative (decay scheduled)");
+        assertEq(globalPoint.withdrawing, false, "Global point should never be withdrawing");
     }
     
-    function testCheckpointTopUp() public {
-        // First create a lock
-        Checkpoints.LockInfo memory emptyLock;
-        Checkpoints.LockInfo memory initialLock = Checkpoints.LockInfo({
+    function testCheckpointAddStake() public {
+        // First create a stake
+        Checkpoints.StakeInfo memory emptyStake;
+        Checkpoints.StakeInfo memory initialStake = Checkpoints.StakeInfo({
             amount: AMOUNT,
-            lockEnd: vm.getBlockTimestamp() + Constants.MAX_STAKE_TIME_S / 2
+            withdrawalRequestedAt: 0
         });
         
-        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyLock, initialLock);
+        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyStake, initialStake);
 
         Checkpoints.Point memory globalPoint1 = globalStorage.globalPointHistory[1];
         assertEq(globalPoint1.amount, AMOUNT, "Global point amount should be the initial amount");
 
-        // Now top up the lock
-        Checkpoints.LockInfo memory topUpLock = Checkpoints.LockInfo({
+        // Now add to the stake (in same block)
+        Checkpoints.StakeInfo memory addedStake = Checkpoints.StakeInfo({
             amount: AMOUNT * 2, // Double the amount
-            lockEnd: initialLock.lockEnd // Same end time
+            withdrawalRequestedAt: 0 // Still not withdrawing
         });
         
-        Checkpoints.checkpoint(userStorage, globalStorage, alice, initialLock, topUpLock);
+        Checkpoints.checkpoint(userStorage, globalStorage, alice, initialStake, addedStake);
         
         // Verify user checkpoint was updated
         assertEq(userStorage.userPointEpoch[alice], 2, "User epoch should be 2");
         Checkpoints.Point memory userPoint = userStorage.userPointHistory[alice][2];
         assertEq(userPoint.amount, AMOUNT * 2, "User point amount should be doubled");
+        assertEq(userPoint.withdrawing, false, "User should still not be withdrawing");
         
-        // Verify global checkpoint reflects the change (should have merged the changes to a single global)
-        assertEq(globalStorage.globalPointEpoch, 1, "Global epoch should be 1");
+        // Verify global checkpoint was merged (same block, so updates existing epoch)
+        assertEq(globalStorage.globalPointEpoch, 1, "Global epoch should still be 1 (merged)");
         Checkpoints.Point memory globalPoint2 = globalStorage.globalPointHistory[1];
         assertEq(globalPoint2.amount, AMOUNT * 2, "Global point amount should be doubled");
     }
     
-    function testCheckpointExtendLock() public {
-        // First create a lock
-        uint256 initialEnd = vm.getBlockTimestamp() + Constants.MAX_STAKE_TIME_S / 4;
-        uint256 extendedEnd = vm.getBlockTimestamp() + Constants.MAX_STAKE_TIME_S / 2;
-        
-        Checkpoints.LockInfo memory emptyLock;
-        Checkpoints.LockInfo memory initialLock = Checkpoints.LockInfo({
+    function testCheckpointInitiateWithdrawal() public {
+        // First create a stake
+        Checkpoints.StakeInfo memory emptyStake;
+        Checkpoints.StakeInfo memory activeStake = Checkpoints.StakeInfo({
             amount: AMOUNT,
-            lockEnd: initialEnd
+            withdrawalRequestedAt: 0
         });
         
-        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyLock, initialLock);
+        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyStake, activeStake);
         
-        // Extend the lock
-        Checkpoints.LockInfo memory extendedLock = Checkpoints.LockInfo({
+        // Verify initial state
+        Checkpoints.Point memory initialGlobalPoint = globalStorage.globalPointHistory[1];
+        assertEq(initialGlobalPoint.amount, AMOUNT, "Initial global amount should be AMOUNT");
+        
+        // Initiate withdrawal
+        Checkpoints.StakeInfo memory withdrawingStake = Checkpoints.StakeInfo({
             amount: AMOUNT,
-            lockEnd: extendedEnd
+            withdrawalRequestedAt: vm.getBlockTimestamp()
         });
         
-        Checkpoints.checkpoint(userStorage, globalStorage, alice, initialLock, extendedLock);
+        Checkpoints.checkpoint(userStorage, globalStorage, alice, activeStake, withdrawingStake);
         
-        // Verify slope changes were updated
-        int128 oldSlopeChange = globalStorage.slopeChanges[initialEnd];
-        int128 newSlopeChange = globalStorage.slopeChanges[extendedEnd];
+        // Verify user checkpoint shows withdrawing
+        Checkpoints.Point memory userPoint = userStorage.userPointHistory[alice][2];
+        assertEq(userPoint.amount, AMOUNT, "Amount should remain the same");
+        assertEq(userPoint.withdrawing, true, "User should be withdrawing");
         
-        assertEq(oldSlopeChange, 0, "Old slope change should be cancelled");
-        assertLt(newSlopeChange, 0, "New slope change should be scheduled");
+        // Global amount should drop to 0 since user is withdrawing (powers = 0)
+        Checkpoints.Point memory globalPoint = globalStorage.globalPointHistory[1]; // Should update same epoch in same block
+        assertEq(globalPoint.amount, 0, "Global amount should be 0 when user is withdrawing");
     }
     
-    function testCheckpointExpiredLock() public {
-        // Create a lock that's already expired
-        Checkpoints.LockInfo memory emptyLock;
-        Checkpoints.LockInfo memory expiredLock = Checkpoints.LockInfo({
+    function testCheckpointCompleteWithdrawal() public {
+        // First create an active stake
+        Checkpoints.StakeInfo memory emptyStake;
+        Checkpoints.StakeInfo memory activeStake = Checkpoints.StakeInfo({
             amount: AMOUNT,
-            lockEnd: vm.getBlockTimestamp() - 1 // Already expired
+            withdrawalRequestedAt: 0
         });
         
-        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyLock, expiredLock);
+        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyStake, activeStake);
         
-        // Verify user checkpoint has amount but no voting power
-        Checkpoints.Point memory userPoint = userStorage.userPointHistory[alice][1];
-        assertEq(userPoint.amount, AMOUNT, "Expired lock should track amount");
-        assertEq(userPoint.bias, 0, "Expired lock should have 0 bias");
-        assertEq(userPoint.slope, 0, "Expired lock should have 0 slope");
+        // Verify active stake created global amount
+        Checkpoints.Point memory activeGlobalPoint = globalStorage.globalPointHistory[1];
+        assertEq(activeGlobalPoint.amount, AMOUNT, "Active stake should create global amount");
         
-        // Verify no slope change was scheduled (since already expired)
-        int128 slopeChange = globalStorage.slopeChanges[expiredLock.lockEnd];
-        assertEq(slopeChange, 0, "No slope change should be scheduled for expired lock");
-    }
-    
-    function testCheckpointBurnLock() public {
-        // First create a lock
-        Checkpoints.LockInfo memory emptyLock;
-        Checkpoints.LockInfo memory lock = Checkpoints.LockInfo({
+        // Move to next block and initiate withdrawal
+        vm.warp(vm.getBlockTimestamp() + 1);
+        uint256 withdrawalTime = vm.getBlockTimestamp();
+        
+        Checkpoints.StakeInfo memory withdrawingStake = Checkpoints.StakeInfo({
             amount: AMOUNT,
-            lockEnd: vm.getBlockTimestamp() + Constants.MAX_STAKE_TIME_S / 2
+            withdrawalRequestedAt: withdrawalTime
         });
         
-        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyLock, lock);
+        // Checkpoint: active → withdrawing
+        Checkpoints.checkpoint(userStorage, globalStorage, alice, activeStake, withdrawingStake);
         
-        // Now burn it (set to empty)
-        Checkpoints.checkpoint(userStorage, globalStorage, alice, lock, emptyLock);
+        // Verify withdrawing state has 0 global amount
+        Checkpoints.Point memory withdrawingGlobalPoint = globalStorage.globalPointHistory[2];
+        assertEq(withdrawingGlobalPoint.amount, 0, "Global amount should be 0 during withdrawal");
+        
+        // Warp forward past the withdrawal period + 1 block
+        vm.warp(withdrawalTime + Constants.WITHDRAWAL_PERIOD + 1);
+        
+        // Complete withdrawal (burn)
+        Checkpoints.checkpoint(userStorage, globalStorage, alice, withdrawingStake, emptyStake);
         
         // Verify user checkpoint was zeroed
-        Checkpoints.Point memory userPoint = userStorage.userPointHistory[alice][2];
-        assertEq(userPoint.amount, 0, "Burned lock should have 0 amount");
-        assertEq(userPoint.bias, 0, "Burned lock should have 0 bias");
-        assertEq(userPoint.slope, 0, "Burned lock should have 0 slope");
+        Checkpoints.Point memory userPoint = userStorage.userPointHistory[alice][3];
+        assertEq(userPoint.amount, 0, "Withdrawn stake should have 0 amount");
+        assertEq(userPoint.withdrawing, false, "Should no longer be withdrawing");
         
-        // Verify global checkpoint was updated
-        Checkpoints.Point memory globalPoint = globalStorage.globalPointHistory[2];
-        assertEq(globalPoint.amount, 0, "Global amount should be 0 after burn");
+        // Verify global checkpoint remains 0
+        Checkpoints.Point memory globalPoint = globalStorage.globalPointHistory[3]; // New block, new epoch
+        assertEq(globalPoint.amount, 0, "Global amount should remain 0 after withdrawal");
     }
     
     // =============================================================
@@ -322,23 +305,23 @@ contract CheckpointsTest is Test {
     
     function testCheckpointSameBlock() public {
         console.log("block timestamp", vm.getBlockTimestamp());
-        // Create two locks in the same block
-        Checkpoints.LockInfo memory emptyLock;
-        Checkpoints.LockInfo memory lock1 = Checkpoints.LockInfo({
+        // Create two stakes in the same block
+        Checkpoints.StakeInfo memory emptyStake;
+        Checkpoints.StakeInfo memory stake1 = Checkpoints.StakeInfo({
             amount: AMOUNT,
-            lockEnd: vm.getBlockTimestamp() + Constants.MAX_STAKE_TIME_S / 2
+            withdrawalRequestedAt: 0
         });
-        Checkpoints.LockInfo memory lock2 = Checkpoints.LockInfo({
+        Checkpoints.StakeInfo memory stake2 = Checkpoints.StakeInfo({
             amount: AMOUNT * 2,
-            lockEnd: vm.getBlockTimestamp() + Constants.MAX_STAKE_TIME_S / 2
+            withdrawalRequestedAt: 0
         });
         
         // First checkpoint
-        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyLock, lock1);
+        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyStake, stake1);
         uint256 globalEpochAfterFirst = globalStorage.globalPointEpoch;
         
         // Second checkpoint in same block (different user)
-        Checkpoints.checkpoint(userStorage, globalStorage, bob, emptyLock, lock2);
+        Checkpoints.checkpoint(userStorage, globalStorage, bob, emptyStake, stake2);
         uint256 globalEpochAfterSecond = globalStorage.globalPointEpoch;
         
         // Global epoch should not increment for same-block checkpoints
@@ -350,40 +333,6 @@ contract CheckpointsTest is Test {
         
         // Global point should reflect both users
         Checkpoints.Point memory globalPoint = globalStorage.globalPointHistory[globalEpochAfterSecond];
-        assertEq(globalPoint.amount, AMOUNT * 3, "Global amount should be sum of both locks");
-    }
-    
-    function testCheckpointWeeklyBackfill() public {
-        // Create initial global point
-        uint256 weekStart = Checkpoints.timestampFloorToWeek(vm.getBlockTimestamp());
-        globalStorage.globalPointHistory[1] = Checkpoints.Point({
-            bias: 1000e18,
-            slope: 48116,
-            updatedAt: weekStart,
-            amount: 1000e18
-        });
-        globalStorage.globalPointEpoch = 1;
-        
-        // Jump ahead 3 weeks and create a new checkpoint
-        vm.warp(weekStart + 3 * WEEK);
-        
-        Checkpoints.LockInfo memory emptyLock;
-        Checkpoints.LockInfo memory newLock = Checkpoints.LockInfo({
-            amount: AMOUNT,
-            lockEnd: vm.getBlockTimestamp() + Constants.MAX_STAKE_TIME_S / 2
-        });
-        
-        Checkpoints.checkpoint(userStorage, globalStorage, alice, emptyLock, newLock);
-        
-        // Should have backfilled weekly points
-        uint256 finalEpoch = globalStorage.globalPointEpoch;
-        assertGe(finalEpoch, 4, "Should have backfilled at least 3 weeks + current");
-        
-        // Check that backfilled points exist
-        for (uint256 i = 2; i <= finalEpoch - 1; i++) {
-            Checkpoints.Point memory point = globalStorage.globalPointHistory[i];
-            assertGt(point.updatedAt, weekStart, "Backfilled point should have later timestamp");
-            assertLe(point.updatedAt, vm.getBlockTimestamp(), "Backfilled point should not exceed current time");
-        }
+        assertEq(globalPoint.amount, AMOUNT * 3, "Global amount should be sum of both stakes");
     }
 }

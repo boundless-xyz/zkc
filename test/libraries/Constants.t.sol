@@ -5,17 +5,25 @@ import {Test} from "forge-std/Test.sol";
 import {Constants} from "../../src/libraries/Constants.sol";
 
 contract ConstantsTest is Test {
-    function testRelationships() public pure {
-        // Max should be greater than min
-        assertGt(Constants.MAX_STAKE_TIME_S, Constants.MIN_STAKE_TIME_S);
+    function testWithdrawalPeriod() public pure {
+        // Withdrawal period should be 30 days
+        assertEq(Constants.WITHDRAWAL_PERIOD, 30 days);
+        assertGt(Constants.WITHDRAWAL_PERIOD, 0);
+    }
+    
+    function testPowerScalars() public pure {
+        // Power scalars should be positive
+        assertGt(Constants.VOTING_POWER_SCALAR, 0);
+        assertGt(Constants.REWARD_POWER_SCALAR, 0);
         
-        // Max should be divisible by week
-        assertEq(Constants.MAX_STAKE_TIME_S % Constants.WEEK, 0);
-        
-        // Min should be divisible by week
-        assertEq(Constants.MIN_STAKE_TIME_S % Constants.WEEK, 0);
-        
-        // iMAX should equal MAX
-        assertEq(uint128(Constants.iMAX_STAKE_TIME_S), Constants.MAX_STAKE_TIME_S);
+        // Default scalars should be 1 for 1:1 ratio in token units
+        assertEq(Constants.VOTING_POWER_SCALAR, 1);
+        assertEq(Constants.REWARD_POWER_SCALAR, 1);
+    }
+    
+    function testWeekConstant() public pure {
+        // Week constant should equal 1 week
+        assertEq(Constants.WEEK, 1 weeks);
+        assertEq(Constants.WEEK, 7 days);
     }
 }

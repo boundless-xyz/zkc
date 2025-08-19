@@ -18,105 +18,150 @@ contract StakeManagerTest is Test {
     MockERC20 internal mockToken;
     address internal user = address(0x1);
     uint256 internal constant AMOUNT = 1000 * 10**18;
-    uint256 internal constant WEEK = 7 days;
     
     function setUp() public {
         mockToken = new MockERC20();
         mockToken.mint(user, AMOUNT * 10);
     }
     
-    function testGetWeekExpiry() public view {
-        // Minimum
-        uint256 minExpiry = StakeManager.getWeekExpiry(0);
-        assertGe(minExpiry, vm.getBlockTimestamp() + Constants.MIN_STAKE_TIME_S);
-        assertEq(minExpiry % WEEK, 0);
-        
-        // Maximum
-        uint256 maxExpiry = StakeManager.getWeekExpiry(type(uint256).max);
-        assertLe(maxExpiry, vm.getBlockTimestamp() + Constants.MAX_STAKE_TIME_S);
-        assertEq(maxExpiry % WEEK, 0);
-        
-        // Specific time
-        uint256 target = vm.getBlockTimestamp() + 10 weeks;
-        uint256 expiry = StakeManager.getWeekExpiry(target);
-        assertEq(expiry, Checkpoints.timestampFloorToWeek(target));
+    function testCreateStake() public view {
+        // Create stake
+        Checkpoints.StakeInfo memory stake = StakeManager.createStake(AMOUNT);
+        assertEq(stake.amount, AMOUNT);
+        assertEq(stake.withdrawalRequestedAt, 0);
     }
     
-    function testTimestampFloorToWeek() public view {
-        // Unix epoch (Jan 1, 1970) was a Thursday at 00:00 UTC
-        // So week boundaries occur every Thursday at 00:00 UTC
-        uint256 weekStart = 1609372800; // Thursday Dec 31, 2020 00:00 UTC (week boundary)
-        uint256 midWeek = weekStart + 3 days;
+    function testAddToStake() public view {
+        // Create initial stake
+        Checkpoints.StakeInfo memory stake = StakeManager.createStake(AMOUNT);
         
-        assertEq(Checkpoints.timestampFloorToWeek(weekStart), weekStart);
-        assertEq(Checkpoints.timestampFloorToWeek(midWeek), weekStart);
+        // Add to stake
+        Checkpoints.StakeInfo memory newStake = StakeManager.addToStake(stake, AMOUNT);
+        assertEq(newStake.amount, AMOUNT * 2);
+        assertEq(newStake.withdrawalRequestedAt, 0);
     }
     
-    /// forge-config: default.allow_internal_expect_revert = true
-    function testValidateLockExtension() public {
-        Checkpoints.LockInfo memory lock = Checkpoints.LockInfo({
+    function testInitiateWithdrawal() public {
+        // Create stake
+        Checkpoints.StakeInfo memory stake = StakeManager.createStake(AMOUNT);
+        
+        // Initiate withdrawal
+        Checkpoints.StakeInfo memory withdrawingStake = StakeManager.initiateWithdrawal(stake);
+        assertEq(withdrawingStake.amount, AMOUNT);
+        assertEq(withdrawingStake.withdrawalRequestedAt, vm.getBlockTimestamp());
+    }
+    
+    function testCanCompleteWithdrawal() public {
+        // Create withdrawing stake
+        Checkpoints.StakeInfo memory stake = Checkpoints.StakeInfo({
             amount: AMOUNT,
-            lockEnd: vm.getBlockTimestamp() + 6 weeks
+            withdrawalRequestedAt: vm.getBlockTimestamp()
         });
         
-        // Valid extension
-        uint256 newEnd = vm.getBlockTimestamp() + 8 weeks;
-        uint256 validated = StakeManager.validateLockExtension(lock, newEnd);
-        assertGt(validated, lock.lockEnd);
+        // Cannot complete immediately
+        assertFalse(StakeManager.canCompleteWithdrawal(stake));
         
-        // Cannot decrease
-        uint256 newEnd2 = vm.getBlockTimestamp() + 5 weeks;
-        vm.expectRevert(StakeManager.CanOnlyIncreaseLockEndTime.selector);
-        StakeManager.validateLockExtension(lock, newEnd2);
-    }
-    
-    function testLockCreation() public view {
-        // Create lock
-        Checkpoints.LockInfo memory lock = StakeManager.createLock(AMOUNT, vm.getBlockTimestamp() + 8 weeks);
-        assertEq(lock.amount, AMOUNT);
-        
-        // Extend lock
-        Checkpoints.LockInfo memory extended = StakeManager.extendLock(lock, vm.getBlockTimestamp() + 12 weeks);
-        assertEq(extended.amount, AMOUNT);
-        assertEq(extended.lockEnd, vm.getBlockTimestamp() + 12 weeks);
-        
-        // Add to lock
-        Checkpoints.LockInfo memory added = StakeManager.addToLock(lock, AMOUNT);
-        assertEq(added.amount, AMOUNT * 2);
-        assertEq(added.lockEnd, lock.lockEnd);
-        
-        // Empty lock
-        Checkpoints.LockInfo memory empty = StakeManager.emptyLock();
-        assertEq(empty.amount, 0);
-        assertEq(empty.lockEnd, 0);
+        // Can complete after withdrawal period
+        vm.warp(vm.getBlockTimestamp() + Constants.WITHDRAWAL_PERIOD + 1);
+        assertTrue(StakeManager.canCompleteWithdrawal(stake));
     }
     
     /// forge-config: default.allow_internal_expect_revert = true
-    function testValidations() public {
-        // Stake validation
+    function testValidateStake() public {
+        // Zero amount validation
         vm.expectRevert(StakeManager.ZeroAmount.selector);
         StakeManager.validateStake(0, 0);
         
+        // User already has active position
         vm.expectRevert(StakeManager.UserAlreadyHasActivePosition.selector);
         StakeManager.validateStake(AMOUNT, 123);
         
-        // Add to stake validation
-        Checkpoints.LockInfo memory expiredLock = Checkpoints.LockInfo({
+        // Valid stake
+        StakeManager.validateStake(AMOUNT, 0); // Should not revert
+    }
+    
+    /// forge-config: default.allow_internal_expect_revert = true
+    function testValidateAddToStake() public {
+        // Zero amount validation
+        Checkpoints.StakeInfo memory activeStake = Checkpoints.StakeInfo({
             amount: AMOUNT,
-            lockEnd: vm.getBlockTimestamp() - 1
+            withdrawalRequestedAt: 0
         });
         
-        vm.expectRevert(StakeManager.CannotAddToExpiredPosition.selector);
-        StakeManager.validateAddToStake(AMOUNT, expiredLock);
+        vm.expectRevert(StakeManager.ZeroAmount.selector);
+        StakeManager.validateAddToStake(0, activeStake);
         
-        // Unstake validation
-        Checkpoints.LockInfo memory activeLock = Checkpoints.LockInfo({
+        // Cannot add to withdrawing position
+        Checkpoints.StakeInfo memory withdrawingStake = Checkpoints.StakeInfo({
             amount: AMOUNT,
-            lockEnd: vm.getBlockTimestamp() + 8 weeks
+            withdrawalRequestedAt: vm.getBlockTimestamp()
         });
         
-        vm.expectRevert(StakeManager.LockHasNotExpiredYet.selector);
-        StakeManager.validateUnstake(123, activeLock);
+        vm.expectRevert(StakeManager.CannotAddToWithdrawingPosition.selector);
+        StakeManager.validateAddToStake(AMOUNT, withdrawingStake);
+        
+        // Valid add to stake
+        StakeManager.validateAddToStake(AMOUNT, activeStake); // Should not revert
+    }
+    
+    /// forge-config: default.allow_internal_expect_revert = true
+    function testValidateWithdrawalInitiation() public {
+        // Already withdrawing
+        Checkpoints.StakeInfo memory withdrawingStake = Checkpoints.StakeInfo({
+            amount: AMOUNT,
+            withdrawalRequestedAt: vm.getBlockTimestamp()
+        });
+        
+        vm.expectRevert(StakeManager.WithdrawalAlreadyInitiated.selector);
+        StakeManager.validateWithdrawalInitiation(withdrawingStake);
+        
+        // Valid withdrawal initiation (zero amount is OK for this function)
+        Checkpoints.StakeInfo memory activeStake = Checkpoints.StakeInfo({
+            amount: AMOUNT,
+            withdrawalRequestedAt: 0
+        });
+        StakeManager.validateWithdrawalInitiation(activeStake); // Should not revert
+        
+        // Even zero amount is OK if not withdrawing
+        Checkpoints.StakeInfo memory emptyStake = Checkpoints.StakeInfo({
+            amount: 0,
+            withdrawalRequestedAt: 0
+        });
+        StakeManager.validateWithdrawalInitiation(emptyStake); // Should not revert
+    }
+    
+    /// forge-config: default.allow_internal_expect_revert = true
+    function testValidateUnstakeCompletion() public {
+        // Zero token ID validation
+        Checkpoints.StakeInfo memory stake = Checkpoints.StakeInfo({
+            amount: AMOUNT,
+            withdrawalRequestedAt: vm.getBlockTimestamp()
+        });
+        
+        vm.expectRevert(StakeManager.NoActivePosition.selector);
+        StakeManager.validateUnstakeCompletion(0, stake);
+        
+        // Not withdrawing validation
+        Checkpoints.StakeInfo memory activeStake = Checkpoints.StakeInfo({
+            amount: AMOUNT,
+            withdrawalRequestedAt: 0
+        });
+        
+        vm.expectRevert(StakeManager.WithdrawalNotInitiated.selector);
+        StakeManager.validateUnstakeCompletion(123, activeStake);
+        
+        // Withdrawal period not elapsed
+        Checkpoints.StakeInfo memory recentWithdrawal = Checkpoints.StakeInfo({
+            amount: AMOUNT,
+            withdrawalRequestedAt: vm.getBlockTimestamp()
+        });
+        
+        vm.expectRevert(StakeManager.WithdrawalPeriodNotComplete.selector);
+        StakeManager.validateUnstakeCompletion(123, recentWithdrawal);
+        
+        // Valid unstake completion
+        vm.warp(vm.getBlockTimestamp() + Constants.WITHDRAWAL_PERIOD + 1);
+        StakeManager.validateUnstakeCompletion(123, recentWithdrawal); // Should not revert
     }
     
     function testTokenTransfers() public {

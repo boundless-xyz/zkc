@@ -35,10 +35,9 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
     bytes32 public immutable STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
 
     uint256 public deploymentTime;
-    mapping(uint256 => uint256) public epochPoVWMinted;      // Track PoVW minting per epoch
-    mapping(uint256 => uint256) public epochStakingMinted;   // Track staking minting per epoch
-    uint256 public poVWMinted;                              // Track total PoVW minting
-    uint256 public stakingMinted;                          // Track total staking minting
+
+    uint256 public poVWMinted;
+    uint256 public stakingMinted;
 
     event PoVWRewardsClaimed(address indexed recipient, uint256 amount);
     event StakingRewardsClaimed(address indexed recipient, uint256 amount);
@@ -98,36 +97,56 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
     }
 
     function mintPoVWRewardsForRecipient(address recipient, uint256 amount) external onlyRole(POVW_MINTER_ROLE) {
-        _mintRewardsForRecipient(getTotalPoVWEmissions, poVWMinted, recipient, amount);
+        _mintPoVWRewardsForRecipient(recipient, amount);
         emit PoVWRewardsClaimed(recipient, amount);
     }
 
     function mintStakingRewardsForRecipient(address recipient, uint256 amount) external onlyRole(STAKING_MINTER_ROLE) {
-        _mintRewardsForRecipient(getTotalStakingEmissions, stakingMinted, recipient, amount);
+        _mintStakingRewardsForRecipient(recipient, amount);
         emit StakingRewardsClaimed(recipient, amount);
     }
 
-    function _mintRewardsForRecipient(
-        function(uint256) returns (uint256) getTotalEmissionsFn,
-        uint256 storage alreadyMinted,
-        address recipient, 
-        uint256 amount
-    ) internal {
-        uint256 totalEmissions = getTotalEmissionsFn(getCurrentEpoch() - 1);
-        uint256 mintedTotal = alreadyMinted + amount;
+    function _mintPoVWRewardsForRecipient(address recipient, uint256 amount) internal {
+        uint256 totalEmissions = getTotalPoVWEmissionsAtEpochStart(getCurrentEpoch());
+        uint256 mintedTotal = poVWMinted + amount;
         if (mintedTotal > totalEmissions) {
             revert TotalAllocationExceeded();
         }
 
-        alreadyMinted = mintedTotal;
+        poVWMinted = mintedTotal;
+        _mint(recipient, amount);
+    }
+
+    function _mintStakingRewardsForRecipient(address recipient, uint256 amount) internal {
+        uint256 totalEmissions = getTotalStakingEmissionsAtEpochStart(getCurrentEpoch());
+        uint256 mintedTotal = stakingMinted + amount;
+        if (mintedTotal > totalEmissions) {
+            revert TotalAllocationExceeded();
+        }
+
+        stakingMinted = mintedTotal;
         _mint(recipient, amount);
     }
 
     // Returns the supply at the start of the provided epoch.
     // ZKC is emitted at the end of each epoch, this excludes the rewards that will be
     // generated as part of the work within this epoch.
-    function getSupplyAtEpoch(uint256 epoch) public pure returns (uint256) {
+    function getSupplyAtEpochStart(uint256 epoch) public pure returns (uint256) {
         return Supply.getSupplyAtEpoch(epoch);
+    }
+
+    // Returns the amount of ZKC that will have been emitted for PoVW rewards since the start of ZKC
+    // to the _start_ of the provided epoch (so excludes emissions from the provided epoch).
+    function getTotalPoVWEmissionsAtEpochStart(uint256 epoch) public returns (uint256) {
+        uint256 totalEmissions = getSupplyAtEpochStart(epoch) - INITIAL_SUPPLY;
+        return (totalEmissions * POVW_ALLOCATION_BPS) / BASIS_POINTS;
+    }
+
+    // Returns the total amount of ZKC that will have been emitted for staking rewards 
+    // from the start of ZKC to the _start_ of the provided epoch (so excludes emissions from the provided epoch).
+    function getTotalStakingEmissionsAtEpochStart(uint256 epoch) public returns (uint256) {
+        uint256 totalEmissions = getSupplyAtEpochStart(epoch) - INITIAL_SUPPLY;
+        return (totalEmissions * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
     // Returns the amount of ZKC that will be emitted at the end of the provided epoch.
@@ -136,44 +155,16 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         return Supply.getEmissionsForEpoch(epoch);
     }
 
-    // Returns the amount of ZKC that will be emitted for PoVW rewards at the end of the provided epoch.
+    // Returns the amount of ZKC that will be emitted for PoVW rewards at the _end_ of the provided epoch.
     function getPoVWEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
         return (totalEmission * POVW_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
-    // Returns the amount of ZKC that will have been emitted for PoVW rewards since the start of ZKC
-    // to the end of the provided epoch (so includes emissions from the provided epoch).
-    function getTotalPoVWEmissions(uint256 epoch) public returns (uint256) {
-        uint256 totalEmissions = getSupplyAtEpoch(epoch + 1) - INITIAL_SUPPLY;
-        return (totalEmissions * POVW_ALLOCATION_BPS) / BASIS_POINTS;
-    }
-
-    // Returns the total amount of ZKC that will have been emitted for staking rewards 
-    // from the start of ZKC to the end of the provided epoch (so includes emissions from the provided epoch).
-    function getTotalStakingEmissions(uint256 epoch) public returns (uint256) {
-        uint256 totalEmissions = getSupplyAtEpoch(epoch + 1) - INITIAL_SUPPLY;
-        return (totalEmissions * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
-    }
-
-    // Returns the amount of ZKC that will be emitted for staking rewards at the end of the provided epoch.
+    // Returns the amount of ZKC that will be emitted for staking rewards at the _end_ of the provided epoch.
     function getStakingEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
         return (totalEmission * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
-    }
-
-    // Returns the amount of ZKC that can still be minted (i.e. is unclaimed) for PoVW rewards at the end of the provided epoch.
-    function getPoVWUnclaimedForEpoch(uint256 epoch) public returns (uint256) {
-        uint256 allocation = getPoVWEmissionsForEpoch(epoch);
-        uint256 minted = epochPoVWMinted[epoch];
-        return allocation - minted;
-    }
-
-    // Returns the amount of ZKC that can still be minted (i.e. is unclaimed) for staking rewards at the end of the provided epoch.
-    function getStakingUnclaimedForEpoch(uint256 epoch) public returns (uint256) {
-        uint256 allocation = getStakingEmissionsForEpoch(epoch);
-        uint256 minted = epochStakingMinted[epoch];
-        return allocation - minted;
     }
 
     function getCurrentEpoch() public view returns (uint256) {
@@ -186,7 +177,7 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
     }
 
     // Returns the end time of the provided epoch. Meaning the final timestamp
-    // at which the epoch is "active". After this timestamp is finalized, the 
+    // at which the epoch is "active". After this timestamp is finished, the 
     // state at this timestamp represents the final state of the epoch.
     function getEpochEndTime(uint256 epoch) public view returns (uint256) {
         return getEpochStartTime(epoch + 1) - 1;
@@ -199,7 +190,7 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
      * @return The total supply during the current epoch
      */
     function totalSupply() public view override returns (uint256) {
-        return getSupplyAtEpoch(getCurrentEpoch());
+        return getSupplyAtEpochStart(getCurrentEpoch());
     }
 
     /**
