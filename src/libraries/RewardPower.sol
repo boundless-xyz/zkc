@@ -63,4 +63,64 @@ library RewardPower {
         
         return globalStorage.globalPointHistory[epoch].amount;
     }
+
+    /**
+     * @dev Add reward amount to an account's checkpoint
+     * @dev Used for reward delegation
+     */
+    function addAmount(
+        Checkpoints.UserCheckpointStorage storage userStorage,
+        address account,
+        uint256 amount
+    ) internal {
+        uint256 epoch = userStorage.userPointEpoch[account];
+        Checkpoints.Point memory currentPoint;
+        
+        if (epoch == 0) {
+            // First checkpoint for this account
+            currentPoint = Checkpoints.Point({
+                bias: 0,
+                slope: 0,
+                updatedAt: block.timestamp,
+                amount: amount
+            });
+        } else {
+            // Add to existing amount
+            currentPoint = userStorage.userPointHistory[account][epoch];
+            currentPoint.amount += amount;
+            currentPoint.updatedAt = block.timestamp;
+        }
+        
+        // Create new checkpoint
+        userStorage.userPointEpoch[account] = epoch + 1;
+        userStorage.userPointHistory[account][epoch + 1] = currentPoint;
+    }
+
+    /**
+     * @dev Remove reward amount from an account's checkpoint
+     * @dev Used for reward delegation
+     */
+    function removeAmount(
+        Checkpoints.UserCheckpointStorage storage userStorage,
+        address account,
+        uint256 amount
+    ) internal {
+        uint256 epoch = userStorage.userPointEpoch[account];
+        if (epoch == 0) return; // No checkpoint to remove from
+        
+        Checkpoints.Point memory currentPoint = userStorage.userPointHistory[account][epoch];
+        
+        // Subtract amount (ensure no underflow)
+        if (currentPoint.amount >= amount) {
+            currentPoint.amount -= amount;
+        } else {
+            currentPoint.amount = 0;
+        }
+        
+        currentPoint.updatedAt = block.timestamp;
+        
+        // Create new checkpoint
+        userStorage.userPointEpoch[account] = epoch + 1;
+        userStorage.userPointHistory[account][epoch + 1] = currentPoint;
+    }
 }

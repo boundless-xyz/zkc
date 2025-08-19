@@ -148,8 +148,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         if (ownerOf(tokenId) != msg.sender) revert TokenDoesNotExist();
         
         // Cannot extend if delegated to someone else
-        // address delegatee = delegates(msg.sender);
-        // if (delegatee != msg.sender) revert CannotExtendLockWhileDelegated();
+        address delegatee = delegates(msg.sender);
+        if (delegatee != msg.sender) revert CannotExtendLockWhileDelegated();
 
         // Get current lock info
         Checkpoints.LockInfo memory lock = _locks[tokenId];
@@ -223,8 +223,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         
         address owner = ownerOf(tokenId);
         
-        // Create checkpoint for voting power change
-        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldLock, newLock);
+        // Handle delegation updates for stake increases
+        _updateDelegationOnStakeChange(owner, oldLock, newLock);
 
         emit LockIncreased(tokenId, newAmount, newLock.amount);
     }
@@ -280,6 +280,60 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         _addStakeAndCheckpoint(tokenId, amount);
 
         emit StakeAdded(from, tokenId, amount);
+    }
+
+    /**
+     * @dev Update delegation checkpoints when stake amount changes
+     * @dev Handles both voting and reward delegation updates
+     */
+    function _updateDelegationOnStakeChange(address owner, Checkpoints.LockInfo memory oldLock, Checkpoints.LockInfo memory newLock) private {
+        // Check if user has delegated voting power
+        address voteDelegatee = delegates(owner);
+        
+        if (voteDelegatee != owner) {
+            // User has delegated voting - update delegatee's power with new amounts
+            uint256 delegateeTokenId = _userActivePosition[voteDelegatee];
+            if (delegateeTokenId != 0) {
+                Checkpoints.LockInfo memory delegateeLock = _locks[delegateeTokenId];
+                
+                // Get delegatee's current total amount from checkpoint
+                uint256 delegateeEpoch = _userCheckpoints.userPointEpoch[voteDelegatee];
+                uint256 currentTotalAmount = delegateeLock.amount;
+                
+                if (delegateeEpoch > 0) {
+                    Checkpoints.Point memory latestPoint = _userCheckpoints.userPointHistory[voteDelegatee][delegateeEpoch];
+                    currentTotalAmount = latestPoint.amount;
+                }
+                
+                // Create synthetic locks for checkpoint update
+                Checkpoints.LockInfo memory oldCombinedLock = Checkpoints.LockInfo({
+                    amount: currentTotalAmount,
+                    lockEnd: delegateeLock.lockEnd
+                });
+                
+                Checkpoints.LockInfo memory newCombinedLock = Checkpoints.LockInfo({
+                    amount: currentTotalAmount + (newLock.amount - oldLock.amount),
+                    lockEnd: delegateeLock.lockEnd
+                });
+                
+                // Update delegatee's checkpoint with new combined amounts
+                Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, voteDelegatee, oldCombinedLock, newCombinedLock);
+            }
+        } else {
+            // User hasn't delegated voting - update their own checkpoint
+            Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldLock, newLock);
+        }
+        
+        // Check if user has delegated reward power
+        address rewardCollector = _rewardDelegatee[owner] == address(0) ? owner : _rewardDelegatee[owner];
+        
+        if (rewardCollector != owner) {
+            // User has delegated rewards - update collector's power
+            uint256 amountDelta = newLock.amount - oldLock.amount;
+            RewardPower.addAmount(_userCheckpoints, rewardCollector, amountDelta);
+        } else {
+            // User collects their own rewards - this is handled by the voting checkpoint above
+        }
     }
 
 }

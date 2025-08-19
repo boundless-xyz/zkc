@@ -18,8 +18,9 @@ abstract contract Storage {
     mapping(uint256 tokenId => Checkpoints.LockInfo) internal _locks;
     mapping(address user => uint256 activeTokenId) internal _userActivePosition;
     
-    // Delegation storage (used by voting)
-    mapping(address account => address) internal _delegatee;
+    // Delegation storage
+    mapping(address account => address) internal _delegatee;       // Voting delegation
+    mapping(address account => address) internal _rewardDelegatee; // Reward delegation
     
     // Token tracking for NFT management
     uint256 internal _currentTokenId;

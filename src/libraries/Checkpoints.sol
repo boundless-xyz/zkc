@@ -18,6 +18,7 @@ library Checkpoints {
      * @dev Formula: voting_power(t) = bias - slope * (t - ts)
      * @dev This follows the standard veToken model where voting_power = amount * time_remaining / max_time
      * @dev Also tracks reward power which equals staked amount and doesn't decay
+     * @dev For delegation: amount includes delegated balances via synthetic lock approach
      */
     struct Point {
         /// @dev Voting power at timestamp ts (y-intercept)
@@ -26,7 +27,7 @@ library Checkpoints {
         int128 slope;
         /// @dev Timestamp when recorded
         uint256 updatedAt;
-        /// @dev Staked amount for reward power (user) or total staked (global)
+        /// @dev Staked amount (includes delegated amounts for delegatees)
         uint256 amount;
     }
 

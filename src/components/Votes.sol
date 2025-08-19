@@ -7,6 +7,7 @@ import {Storage} from "./Storage.sol";
 import {Checkpoints} from "../libraries/Checkpoints.sol";
 import {VotingPower} from "../libraries/VotingPower.sol";
 import {StakeManager} from "../libraries/StakeManager.sol";
+import {console} from "forge-std/console.sol";
 
 /**
  * @title Votes Component
@@ -37,26 +38,25 @@ abstract contract Votes is Storage, Clock, IVotes {
         return delegatee == address(0) ? account : delegatee;
     }
 
-    function delegate(address /*delegatee*/) public pure override {
-        // TODO: Implement delegation logic
-        // address account = _msgSender();
+    function delegate(address delegatee) public override {
+        address account = _msgSender();
         
-        // // Get both user's active positions
-        // uint256 myTokenId = _userActivePosition[account];
-        // uint256 delegateeTokenId = _userActivePosition[delegatee];
+        // Get both user's active positions
+        uint256 myTokenId = _userActivePosition[account];
+        require(myTokenId != 0, "No active position");
         
-        // require(myTokenId != 0, "No active position");
-        // require(delegateeTokenId != 0, "Delegatee has no active position");
+        if (delegatee != address(0)) {
+            uint256 delegateeTokenId = _userActivePosition[delegatee];
+            require(delegateeTokenId != 0, "Delegatee has no active position");
+            
+            Checkpoints.LockInfo memory myLock = _locks[myTokenId];
+            Checkpoints.LockInfo memory delegateeLock = _locks[delegateeTokenId];
+            
+            // Require delegator's lock matches delegatee's lock end time exactly
+            require(myLock.lockEnd == delegateeLock.lockEnd, "Lock end times must match");
+        }
         
-        // Checkpoints.LockInfo memory myLock = _locks[myTokenId];
-        // Checkpoints.LockInfo memory delegateeLock = _locks[delegateeTokenId];
-        
-        // // Extend my lock to match delegatee's lock if needed
-        // if (delegateeLock.lockEnd > myLock.lockEnd) {
-        //     _extendLockAndCheckpoint(myTokenId, delegateeLock.lockEnd);
-        // }
-        
-        // _delegate(account, delegatee);
+        _delegate(account, delegatee);
     }
 
     function delegateBySig(address /*_delegatee*/, uint256 /*_nonce*/, uint256 /*_expiry*/, uint8 /*_v*/, bytes32 /*_r*/, bytes32 /*_s*/)
@@ -67,59 +67,138 @@ abstract contract Votes is Storage, Clock, IVotes {
         revert NotImplemented();
     }
 
-    function _delegate(address /*account*/, address /*delegatee*/) internal pure {
-        // TODO: Implement delegation logic
-        // address oldDelegate = delegates(account);
-        // _delegatee[account] = delegatee;
+    function _delegate(address account, address delegatee) internal {
+        address oldDelegate = delegates(account);
+        _delegatee[account] = delegatee;
 
-        // // Checkpoint delegation change
-        // _checkpointDelegation(account, oldDelegate, delegatee);
+        // Checkpoint delegation change
+        _checkpointDelegation(account, oldDelegate, delegatee);
 
-        // emit DelegateChanged(account, oldDelegate, delegatee);
-        // emit DelegateVotesChanged(
-        //     delegatee,
-        //     getVotes(oldDelegate),
-        //     getVotes(delegatee)
-        // );
+        emit DelegateChanged(account, oldDelegate, delegatee);
+        emit DelegateVotesChanged(
+            oldDelegate,
+            getVotes(oldDelegate),
+            getVotes(oldDelegate)
+        );
+        emit DelegateVotesChanged(
+            delegatee,
+            getVotes(delegatee),
+            getVotes(delegatee)
+        );
     }
 
     /**
      * @dev Handle delegation checkpointing for single NFT per user
      * @dev Direct extraction of existing _checkpointDelegation logic
      */
-    function _checkpointDelegation(address /*account*/, address /*oldDelegatee*/, address /*newDelegatee*/) internal pure {
-        // TODO: Implement delegation checkpointing
-        // // Get the user's single active position
-        // uint256 tokenId = _userActivePosition[account];
-        // if (tokenId == 0) return; // No active position to delegate
+    function _checkpointDelegation(address account, address oldDelegatee, address newDelegatee) internal {
+        // Get the user's single active position
+        uint256 tokenId = _userActivePosition[account];
+        if (tokenId == 0) return; // No active position to delegate
         
-        // Checkpoints.LockInfo memory lock = _locks[tokenId];
-        // if (lock.lockEnd <= block.timestamp) return; // Expired lock has no power
+        Checkpoints.LockInfo memory delegatorLock = _locks[tokenId];
+        if (delegatorLock.lockEnd <= block.timestamp) return; // Expired lock has no power
         
-        // // When called from _addStakeAndCheckpoint with same old and new delegatee,
-        // // this is a re-checkpoint to update the delegatee with new amount
-        // if (oldDelegatee == newDelegatee && oldDelegatee != address(0)) {
-        //     // This is a special case: updating delegation amount after top-up
-        //     // The main _checkpoint already handled updating the owner's checkpoint
-        //     // So we just need to update the delegatee's checkpoint with the difference
-           
-        //     // TODO: skip since _checkpoint already handles it correctly?
-        //     return;
-        // }
+        console.log("account", account);
+        console.log("oldDelegatee", oldDelegatee);
+        console.log("newDelegatee", newDelegatee);
+        console.log("delegatorLock.amount", delegatorLock.amount);
         
-        // // Normal delegation change: transfer power from old to new delegatee
-        // // Create lock states for checkpointing
-        // Checkpoints.LockInfo memory emptyLock = StakeManager.emptyLock();
+        // Remove from old delegatee's checkpoint using synthetic locks
+        if (oldDelegatee != address(0) && oldDelegatee != account && oldDelegatee != newDelegatee) {
+            console.log("remove from oldDelegatee");
+            _removeDelegatedAmount(oldDelegatee, delegatorLock.amount, delegatorLock.lockEnd);
+        }
         
-        // // Remove from old delegatee's checkpoint
-        // if (oldDelegatee != address(0) && oldDelegatee != newDelegatee) {
-        //     Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, oldDelegatee, lock, emptyLock);
-        // }
+        // Add to new delegatee's checkpoint using synthetic locks
+        if (newDelegatee != address(0) && oldDelegatee != newDelegatee) {
+            console.log("add to newDelegatee");
+            _addDelegatedAmount(newDelegatee, delegatorLock.amount, delegatorLock.lockEnd);
+        }
         
-        // // Add to new delegatee's checkpoint
-        // if (newDelegatee != address(0) && oldDelegatee != newDelegatee) {
-        //     Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, newDelegatee, emptyLock, lock);
-        // }
+        // Zero out delegator's checkpoint (they no longer have voting power)
+        if (newDelegatee != address(0)) {
+            console.log("zero out delegator's checkpoint");
+            Checkpoints.LockInfo memory emptyLock = StakeManager.emptyLock();
+            Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, account, delegatorLock, emptyLock);
+        } else {
+            // Undelegating - restore power to delegator
+            console.log("undelegate restore power to delegator");
+            Checkpoints.LockInfo memory emptyLock = StakeManager.emptyLock();
+            Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, account, emptyLock, delegatorLock);
+        }
+    }
+    
+    /**
+     * @dev Add delegated amount to delegatee's voting power using synthetic lock
+     */
+    function _addDelegatedAmount(address delegatee, uint256 amount, uint256 /*lockEnd*/) private {
+        uint256 delegateeTokenId = _userActivePosition[delegatee];
+        require(delegateeTokenId != 0, "Delegatee has no position");
+        
+        Checkpoints.LockInfo memory delegateeLock = _locks[delegateeTokenId];
+        
+        // Get delegatee's current total amount from their latest checkpoint
+        uint256 delegateeEpoch = _userCheckpoints.userPointEpoch[delegatee];
+        uint256 currentTotalAmount = delegateeLock.amount; // Default to intrinsic amount
+        
+        if (delegateeEpoch > 0) {
+            Checkpoints.Point memory latestPoint = _userCheckpoints.userPointHistory[delegatee][delegateeEpoch];
+            currentTotalAmount = latestPoint.amount; // Use current total (includes existing delegations)
+        }
+        
+        // Create synthetic locks for checkpoint calculation
+        Checkpoints.LockInfo memory oldCombinedLock = Checkpoints.LockInfo({
+            amount: currentTotalAmount, // Current total amount
+            lockEnd: delegateeLock.lockEnd
+        });
+        
+        Checkpoints.LockInfo memory newCombinedLock = Checkpoints.LockInfo({
+            amount: currentTotalAmount + amount, // Add new delegation
+            lockEnd: delegateeLock.lockEnd
+        });
+        
+        console.log("delegatee oldAmount:", oldCombinedLock.amount);
+        console.log("delegatee newAmount:", newCombinedLock.amount);
+        
+        // Update delegatee's checkpoint with combined amounts
+        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, delegatee, oldCombinedLock, newCombinedLock);
+    }
+    
+    /**
+     * @dev Remove delegated amount from delegatee's voting power using synthetic lock
+     */
+    function _removeDelegatedAmount(address delegatee, uint256 amount, uint256 /*lockEnd*/) private {
+        uint256 delegateeTokenId = _userActivePosition[delegatee];
+        if (delegateeTokenId == 0) return; // Delegatee no longer has position
+        
+        Checkpoints.LockInfo memory delegateeLock = _locks[delegateeTokenId];
+        
+        // Get delegatee's current total amount from their latest checkpoint
+        uint256 delegateeEpoch = _userCheckpoints.userPointEpoch[delegatee];
+        uint256 currentTotalAmount = delegateeLock.amount; // Default to intrinsic amount
+        
+        if (delegateeEpoch > 0) {
+            Checkpoints.Point memory latestPoint = _userCheckpoints.userPointHistory[delegatee][delegateeEpoch];
+            currentTotalAmount = latestPoint.amount; // Use current total (includes existing delegations)
+        }
+        
+        // Create synthetic locks for checkpoint calculation
+        Checkpoints.LockInfo memory oldCombinedLock = Checkpoints.LockInfo({
+            amount: currentTotalAmount, // Current total amount
+            lockEnd: delegateeLock.lockEnd
+        });
+        
+        Checkpoints.LockInfo memory newCombinedLock = Checkpoints.LockInfo({
+            amount: currentTotalAmount >= amount ? currentTotalAmount - amount : 0, // Remove delegated amount
+            lockEnd: delegateeLock.lockEnd
+        });
+        
+        console.log("delegatee remove oldAmount:", oldCombinedLock.amount);
+        console.log("delegatee remove newAmount:", newCombinedLock.amount);
+        
+        // Update delegatee's checkpoint with reduced amounts
+        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, delegatee, oldCombinedLock, newCombinedLock);
     }
 
     // Abstract functions that main contract must implement

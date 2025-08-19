@@ -163,6 +163,128 @@ Example: Stake on Monday with 30-day duration
 - Use getStakedAmountAndExpiry() to see exact expiry timestamp
 ```
 
+#### Delegation System
+
+veZKC supports **dual delegation** - you can independently delegate your voting power and reward collection rights to different addresses.
+
+##### Voting Delegation (Governance)
+
+Delegate your voting power to another veZKC holder for governance participation:
+
+```solidity
+// Delegate voting power to another staker
+veZkcToken.delegate(expertGovernanceUser);
+
+// Check delegation status
+address votingDelegate = veZkcToken.delegates(msg.sender);
+
+// Undelegate (regain voting control)
+veZkcToken.delegate(address(0));
+```
+
+**Key Requirements:**
+- **Lock Alignment**: Both delegator and delegatee must have **identical lock end times**
+- **Position Required**: Delegatee must have an active veZKC position
+- **Power Transfer**: Your voting power moves to the delegatee (you get 0 voting power)
+- **Decay Together**: Delegated power decays at the same rate since locks are aligned
+
+**Lock Extension Behavior:**
+- **While Delegated**: You cannot extend your own lock - it follows the delegatee's lock
+- **Delegatee Extensions**: When the delegatee extends their lock, your lock is also extended
+- **After Undelegation**: You regain control and can extend your lock independently
+- **Inherited Duration**: Upon undelegation, you keep the delegatee's last lock end time
+
+```solidity
+// Example delegation flow
+// 1. Both users align their locks to the same end time
+aliceToken.extendStakeLockup(commonLockEnd);
+bobToken.extendStakeLockup(commonLockEnd);
+
+// 2. Alice delegates to Bob
+aliceToken.delegate(bob);
+
+// 3. Bob extends his lock (Alice's lock extends too automatically)
+bobToken.extendStakeLockup(longerLockEnd);
+
+// 4. Alice undelegates and inherits Bob's extended lock end
+aliceToken.delegate(address(0));
+// Alice's lock end is now `longerLockEnd`
+```
+
+##### Reward Delegation (Collection)
+
+Delegate your reward collection rights to any address for flexible reward management:
+
+```solidity
+// Delegate reward collection to treasury (no position required)
+veZkcToken.delegateRewards(treasuryAddress);
+
+// Check reward delegation status
+address rewardCollector = veZkcToken.rewardDelegates(msg.sender);
+
+// Undelegate rewards (regain collection rights)
+veZkcToken.delegateRewards(address(0));
+```
+
+**Key Features:**
+- **No Position Required**: Delegate to any address (treasury, multisig, etc.)
+- **No Time Constraints**: Works regardless of lock durations
+- **Power Transfer**: Your reward power moves to the collector (you get 0 reward power)
+- **No Decay**: Reward power never decays, even after lock expiry
+
+##### Independent Delegation
+
+Voting and reward delegation are completely independent:
+
+```solidity
+// Delegate voting to governance expert
+veZkcToken.delegate(governanceExpert);
+
+// Delegate rewards to treasury
+veZkcToken.delegateRewards(treasury);
+
+// Check status
+assert(veZkcToken.delegates(msg.sender) == governanceExpert);
+assert(veZkcToken.rewardDelegates(msg.sender) == treasury);
+
+// Power distribution
+assert(veZkcToken.getVotes(msg.sender) == 0);           // No voting power
+assert(veZkcToken.getRewards(msg.sender) == 0);         // No reward power
+assert(veZkcToken.getVotes(governanceExpert) > 0);      // Has your voting power
+assert(veZkcToken.getRewards(treasury) > 0);            // Has your reward power
+```
+
+##### Common Delegation Patterns
+
+**DAO Treasury Management:**
+```solidity
+// Route rewards to DAO treasury for collective management
+veZkcToken.delegateRewards(daoTreasury);
+// Keep voting power for personal governance participation
+```
+
+**Full DAO Participation:**
+```solidity
+// Delegate both voting and rewards to DAO
+veZkcToken.delegate(daoGovernanceMultisig);      // Requires matching lock
+veZkcToken.delegateRewards(daoTreasuryMultisig); // No lock requirement
+```
+
+**Expert Governance + Personal Rewards:**
+```solidity
+// Let governance expert vote, keep rewards personally
+veZkcToken.delegate(governanceExpert);    // Expert handles governance
+veZkcToken.delegateRewards(address(0));   // Keep rewards yourself
+```
+
+##### Important Notes
+
+- **Delegation is Per-Account**: Each user can only delegate to one address for each type
+- **Undelegation Restores Control**: You can always undelegate to regain control
+- **Position Modifications**: Adding stake or extending locks works normally while delegated
+- **Lock Inheritance**: Voting delegation may extend your lock beyond your original commitment
+- **Signature Support**: Both delegation types support off-chain signatures via `delegateBySig()`
+
 #### IVotes Compatibility
 
 veZKC is IVotes compatible, supporting historical queries of voting power and voting delegation.
@@ -223,14 +345,76 @@ veZkcToken.addToStake(tokenId, 500 ether);
 uint256 finalVotingPower = veZkcToken.getVotes(msg.sender); // 375
 ```
 
+### Delegation Examples
+
+#### Basic Voting Delegation
+```solidity
+// Both users need matching lock end times
+uint256 commonLockEnd = block.timestamp + 104 weeks;
+
+// Alice and Bob align their locks
+alice.extendStakeLockup(commonLockEnd);
+bob.extendStakeLockup(commonLockEnd);
+
+// Alice delegates voting power to Bob
+alice.delegate(bob);
+
+// Check delegation
+assert(alice.delegates(alice) == bob);
+assert(alice.getVotes(alice) == 0);                // Alice has no voting power
+assert(bob.getVotes(bob) == aliceVotes + bobVotes); // Bob has combined power
+```
+
+#### Reward Collection Delegation
+```solidity
+// Alice delegates reward collection to treasury (no lock matching needed)
+alice.delegateRewards(treasury);
+
+// Check reward delegation
+assert(alice.rewardDelegates(alice) == treasury);
+assert(alice.getRewards(alice) == 0);              // Alice has no reward power
+assert(alice.getRewards(treasury) == aliceAmount); // Treasury collects Alice's rewards
+```
+
+#### Mixed Delegation Strategy
+```solidity
+// Alice wants expert governance but personal reward control
+alice.delegate(governanceExpert);        // Requires lock alignment
+alice.delegateRewards(address(0));       // Keep rewards (undelegate if needed)
+
+// Bob wants DAO treasury rewards but personal voting
+bob.delegateRewards(daoTreasury);        // No lock requirement
+bob.delegate(address(0));                // Keep voting power (undelegate if needed)
+```
+
+#### Lock Extension Impact on Delegation
+```solidity
+// After Alice delegates to Bob, Bob extends his lock
+bob.extendStakeLockup(block.timestamp + 156 weeks);
+
+// Alice's lock is automatically extended too (while delegated)
+(, uint256 aliceLockEnd) = alice.getStakedAmountAndExpiry(alice);
+assert(aliceLockEnd == block.timestamp + 156 weeks);
+
+// Alice undelegates and inherits the extended lock end
+alice.delegate(address(0));
+assert(alice.getVotes(alice) > 0);       // Alice has voting power with extended lock
+(, uint256 inheritedEnd) = alice.getStakedAmountAndExpiry(alice);
+assert(inheritedEnd == block.timestamp + 156 weeks); // Inherited Bob's lock end
+```
+
 ### Governance Integration
 ```solidity
-// Delegate voting power
+// Basic delegation for governance
 veZkcToken.delegate(governorAddress);
 
 // Check voting power for governance
 uint256 votes = veZkcToken.getVotes(user);
 uint256 historicalVotes = veZkcToken.getPastVotes(user, blockNumber);
+
+// Advanced delegation management
+address currentDelegate = veZkcToken.delegates(user);
+address rewardCollector = veZkcToken.rewardDelegates(user);
 ```
 
 
