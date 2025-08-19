@@ -8,19 +8,17 @@ The core contracts for ZKC. Includes the token itself, as well as its associated
 
 ## Repository Structure
 
-- **ZKC Token** (`src/ZKC.sol`) - ZKC ERC20 with epoch-based inflation and emissions
-- **veZKC NFT** (`src/veZKC.sol`) - ERC721 positions issued when staking ZKC that grant governance and reward power
-- **Rewards** (`rewards/`) - Contracts that allow users to claim their portion of emitted ZKC rewards each epoch.
+ZKC Token (`src/ZKC.sol`) is the main ERC20 token with epoch-based inflation and emissions.
+
+veZKC NFT (`src/veZKC.sol`) represents ERC721 positions issued when staking ZKC that grant governance and reward power.
+
+Rewards (`rewards/`) contains contracts that allow users to claim their portion of emitted ZKC rewards each epoch.
 
 ## ZKC
 
 ### Epochs
 
-ZKC distributes emissions every epoch:
-
-- **Initial Supply**: 1 billion ZKC
-- **Epoch Duration**: 2 days
-- **Epochs Per Year**: 182 epochs
+ZKC distributes emissions every epoch. The initial supply is 1 billion ZKC. Each epoch lasts 2 days, resulting in 182 epochs per year.
 
 #### Emission Rate
 
@@ -37,11 +35,11 @@ The annual emission rate decreases over time. Emissions are divided equally acro
 
 #### Emissions Distribution
 
-Each epoch's new emissions are allocated to two external contracts for distribution to users:
-- **75% to PoVW Provers (Proof of Verifiable Work)**: Rewards for provers participating in the network
-  - see `<TODO>`
-- **25% to ZKC Stakers**: Distributed to ZKC stakers (veZKC holders)
-  - see `rewards/StakingRewards.sol`
+Each epoch's new emissions are allocated to two external contracts for distribution to users.
+
+75% goes to PoVW Provers (Proof of Verifiable Work) as rewards for provers participating in the network.
+
+25% goes to ZKC Stakers, distributed to veZKC holders through `rewards/StakingRewards.sol`.
 
 Emissions occur at the end of each epoch.
 
@@ -49,121 +47,108 @@ Emissions occur at the end of each epoch.
 
 ### Overview
 
-Users stake ZKC tokens for a fixed period between (4-208 weeks) and receive a veZKC NFT positions that provides:
-- **Ability to participate in governance** eligibility for participating in governance votes
-- **Ability to claim ZKC emissions** eligibility for claiming ZKC emissions
+Users stake ZKC tokens and receive a veZKC NFT position that provides eligibility for participating in governance votes and claiming ZKC emissions.
 
-Once staked, ZKC can not be unstaked the end of the commited period. Each address can only be issued a single position at a time. Positions are not transferrable.
+The veZKC system uses a withdrawal-based model with a 30-day withdrawal period. Users can stake ZKC at any time without committing to a specific duration and receive full voting and reward power immediately upon staking.
 
-#### Staking Periods
-- **Minimum**: 4 weeks
-- **Maximum**: 208 weeks (4 years)
-- **Rounding**: All lock end times are rounded down to the nearest week boundary for consistency
+To unstake, users must initiate withdrawal and wait 30 days before completing the process. Voting and reward powers immediately drop to 0 when withdrawal is initiated.
 
-#### Staking Management
-- **Stake**: Lock ZKC tokens for chosen duration → receive veZKC NFT
-- **Add Stake (Top-up)**: Increase ZKC amount in existing position (preserves decay rate)
-  - **Note**: Cannot top-up expired locks - must extend first
-- **Extend Lock**: Incremental extensions to lock periods (increases voting power)
-  - Extend by additional weeks: `extendLockByWeeks(tokenId, 1)`
-  - Extend to specific end time: `extendLockToTime(tokenId, targetTime)`
-  - **Expired Lock Extensions**: Can extend expired locks (refreshes commitment)
-- **Unstake**: Direct withdrawal after lock expiry (no delay)
-- **Check Position**: Use `getStakedAmountAndExpiry(address)` to get exact lock amount and expiry timestamp
+Each address can only have one active position at a time. Positions are soulbound and cannot be transferred to prevent governance attacks.
+
+### Contract Architecture
+
+The veZKC contract is built using a modular component-based architecture:
+
+**Staking Component** (`src/components/Staking.sol`) handles core staking operations including minting NFTs, managing stake amounts, and processing withdrawals.
+
+**Votes Component** (`src/components/Votes.sol`) implements the IVotes interface for governance compatibility, providing voting power queries and delegation functionality.
+
+**Rewards Component** (`src/components/Rewards.sol`) implements the IRewards interface for reward distribution systems, providing reward power calculations.
+
+**Shared Storage** (`src/components/Storage.sol`) defines the unified storage layout used across all components for checkpoint tracking and position management.
+
+**Supporting Libraries** handle the core logic for power calculations (`VotingPower.sol`, `RewardPower.sol`), checkpoint management (`Checkpoints.sol`), and staking validation (`StakeManager.sol`).
+
+## Staking
+
+### Operations
+
+Staking locks ZKC tokens and mints a veZKC NFT with full power. Adding stake increases the ZKC amount in an existing position. Cannot add stake to a position that has initiated withdrawal.
+
+Initiating withdrawal starts the 30-day withdrawal period and causes powers to drop to 0 immediately. Completing withdrawal allows claiming ZKC after 30 days and burns the NFT.
+
+Users can check their position using `getStakedAmountAndWithdrawalTime(address)` to get position details.
+
+### Power Calculations
+
+Both voting and reward powers are equal to the staked amount with no time-based degradation. Powers remain constant over time for active stakes. Users either have full power equal to their staked amount or zero power during withdrawal.
+
+Powers drop to zero instantly when withdrawal is initiated. All stakers have proportional power regardless of when they staked.
+
+## Rewards
 
 ### Claiming Emissions
 
-The portion of ZKC emissions that a user is eligible to claim is calculated based on their "Reward Power". 
+The portion of ZKC emissions that a user is eligible to claim is calculated based on their reward power.
 
-Rewards Power is accessible via the IRewards interface. The contracts that enable users to claim rewards use these values to calculate the portion of emissions that should be transferred to the user. 
+Reward power is accessible via the IRewards interface. The contracts that enable users to claim rewards use these values to calculate the portion of emissions that should be transferred to the user.
 
-Currently reward power is simply equal to the amount of ZKC a user has staked, with no decay or adjustments to the power over time. **Important**: Reward power persists even after locks expire, unlike voting power which decays to zero.
+Reward power drops to zero immediately when withdrawal is initiated, ensuring only committed stakers receive rewards.
+
+## Votes
 
 ### Governance
 
-A users weight in governance votes is calculated from their "Voting Power".
+A user's weight in governance votes is calculated from their voting power.
 
-Voting power is accessible via the IVotes interface. Governance contracts use these values to compute a users voting power during a vote.
+Voting power is accessible via the IVotes interface. Governance contracts use these values to compute a user's voting power during a vote.
 
-Voting power decays over time following the "voting escrow" model. Committing stake for longer provides more power for longer periods. 
-
-```
-voting_power = (staked_amount × remaining_time) / MAXTIME
-```
-
-- **MAXTIME**: 208 weeks (maximum stake period)
-- **Linear Decay**: Power decreases proportionally with remaining time
+Voting power drops to zero immediately when withdrawal is initiated, preventing governance manipulation through unstaking.
 
 #### Examples
 
-##### Voting Decay
+##### Basic Staking
 ```
-Example 1: Stake for maximum time (208 weeks)
-Initial: 1000 ZKC staked for 208 weeks = 1000 voting power (1000 × 208/208)
-After 52 weeks: 1000 ZKC with 156 weeks remaining = 750 voting power  
-After 104 weeks: 1000 ZKC with 104 weeks remaining = 500 voting power
-After 208 weeks: 1000 ZKC with 0 weeks remaining = 0 voting power
+Stake 1000 ZKC:
+- Voting Power: 1000
+- Reward Power: 1000
+- Status: Active
 
-Example 2: Stake for quarter maximum time (52 weeks)
-Initial: 1000 ZKC locked for 52 weeks = 250 voting power (1000 × 52/208)
-After 26 weeks: 1000 ZKC with 26 weeks remaining = 125 voting power
-After 52 weeks: 1000 ZKC with 0 weeks remaining = 0 voting power
-```
-
-##### Adding additional stake
-Adding additional stake to an existing position boosts your voting power while preserving the remaining lock time.
-
-```
-Initial: 1000 ZKC locked for 52 weeks = 250 voting power (1000 × 52/208)
-After 26 weeks: 1000 ZKC with 26 weeks remaining = 125 voting power
-Add 500 ZKC: 1500 ZKC with 26 weeks remaining = 187.5 voting power (1500 × 26/208)
-
-**Important**: Cannot add stake to expired positions. If your lock has expired (0 weeks remaining), you must extend the lock first before adding more ZKC.
+After 6 months:
+- Voting Power: 1000 (no decay)
+- Reward Power: 1000 (no decay)
+- Status: Still active
 ```
 
-##### Extending staking period
-Extending your staking period increases your voting power by giving you more time remaining on your lock.
-
+##### Withdrawal Process
 ```
-Initial: 1000 ZKC locked for 26 weeks = 125 voting power (1000 × 26/208)
-Extend to 52 weeks: 1000 ZKC with 52 weeks remaining = 250 voting power (1000 × 52/208)
-```
+Initial State: 1000 ZKC staked
+- Voting Power: 1000
+- Reward Power: 1000
 
+Initiate Withdrawal:
+- Voting Power: 0 (immediate drop)
+- Reward Power: 0 (immediate drop)
+- Withdrawal Period: 30 days remaining
 
-##### Expired Lock Management
-When locks expire, voting power becomes zero but reward power persists. You can refresh your commitment by extending the expired lock:
-
-```
-Expired Position: 1000 ZKC with 0 weeks remaining
-- Voting Power: 0 (expired)
-- Reward Power: 1000 ZKC (persists)
-
-Extend to 52 weeks: 1000 ZKC with 52 weeks remaining
-- Voting Power: 250 (1000 × 52/208) - refreshed!
-- Reward Power: 1000 ZKC (unchanged)
-
-Now you can top-up: Add 500 ZKC to the refreshed position
-- Voting Power: 375 (1500 × 52/208)
-- Reward Power: 1500 ZKC
+After 30 days:
+- Can complete withdrawal and receive 1000 ZKC
+- NFT is burned, no more position
 ```
 
-**Key Points:**
-- Expired locks retain reward power but lose voting power
-- Must extend expired locks before topping up
-- Extending refreshes voting power based on new lock duration
-- Top-ups are only allowed on active (non-expired) locks
-
-##### Week Rounding
-All lock end times are automatically rounded down to the nearest week boundary (Thursday 00:00 UTC) for consistency:
-
+##### Adding Additional Stake
 ```
-Example: Stake on Monday with 30-day duration
-- Requested end: Monday + 30 days
-- Actual end: Previous Thursday 00:00 UTC (rounded down)
-- Use getStakedAmountAndExpiry() to see exact expiry timestamp
-```
+Initial: 1000 ZKC staked
+- Voting Power: 1000
+- Reward Power: 1000
 
-#### IVotes Compatibility
+Add 500 ZKC:
+- Voting Power: 1500
+- Reward Power: 1500
+- Position grows in size
+
+Note: Cannot add stake once withdrawal is initiated
+```
 
 veZKC is IVotes compatible, supporting historical queries of voting power and voting delegation.
 
@@ -175,62 +160,70 @@ veZKC is IVotes compatible, supporting historical queries of voting power and vo
 // Approve ZKC tokens
 zkc.approve(address(veZkcToken), 1000 ether);
 
-// Stake for 52 weeks (1/4 maximum lock)
-uint256 tokenId = veZkcToken.stake(1000 ether, block.timestamp + 52 weeks);
+// Stake (no lock period required)
+uint256 tokenId = veZkcToken.stake(1000 ether);
 
-// Check voting power (will be: 1000 * 52/208 = 250)
-// Get exact lock expiry (rounded to week boundary)
-(uint256 amount, uint256 expiry) = veZkcToken.getStakedAmountAndExpiry(msg.sender);
-uint256 power = veZkcToken.getVotes(msg.sender);
-```
-
-### Incremental Extensions
-```solidity
-// Extend to specific end time (4 years from now - maximum)
-veZkcToken.extendLockToTime(tokenId, block.timestamp + 208 weeks);
-
-// Extend expired lock (refresh commitment)
-// This works even if the lock has already expired
-veZkcToken.extendLockToTime(tokenId, block.timestamp + 52 weeks);
+// Check powers (both will be 1000 with scalar = 1)
+uint256 votingPower = veZkcToken.getVotes(msg.sender);
+uint256 rewardPower = veZkcToken.getRewards(msg.sender);
 ```
 
 ### Position Management
 ```solidity
-// Check your exact position details
-(uint256 amount, uint256 expiry) = veZkcToken.getStakedAmountAndExpiry(msg.sender);
+// Check your position details
+(uint256 amount, uint256 withdrawableAt) = veZkcToken.getStakedAmountAndWithdrawalTime(msg.sender);
+// withdrawableAt = 0 if not withdrawing, timestamp if withdrawal initiated
 
-// Add more ZKC to existing position (only if lock is active)
-veZkcToken.addToStake(tokenId, 500 ether);
+// Add more ZKC to existing position (only if not withdrawing)
+veZkcToken.addToStake(500 ether);
 
-// Unstake after lock expires
-veZkcToken.unstake(tokenId); // Returns original ZKC
+// Add to any position by token ID (donation)
+veZkcToken.addToStakeByTokenId(tokenId, 100 ether);
 ```
 
-### Expired Lock Management
+### Withdrawal Process
 ```solidity
-// Check status of expired position
-uint256 votingPower = veZkcToken.getVotes(msg.sender); // 0 (expired)
-uint256 rewardPower = veZkcToken.getRewardPower(msg.sender); // 1000 (persists)
-(uint256 amount, uint256 expiry) = veZkcToken.getStakedAmountAndExpiry(msg.sender);
-// amount = 1000, expiry = 1234567890 (past timestamp)
+// Start withdrawal process (powers drop to 0 immediately)
+veZkcToken.initiateUnstake();
 
-// Extend expired lock to refresh voting power
-veZkcToken.extendLockToTime(tokenId, block.timestamp + 52 weeks);
-uint256 newVotingPower = veZkcToken.getVotes(msg.sender); // 250 (refreshed)
+// Check withdrawal status
+(uint256 amount, uint256 withdrawableAt) = veZkcToken.getStakedAmountAndWithdrawalTime(msg.sender);
+bool canWithdraw = block.timestamp >= withdrawableAt;
 
-// Now you can top-up the refreshed position
-veZkcToken.addToStake(tokenId, 500 ether);
-uint256 finalVotingPower = veZkcToken.getVotes(msg.sender); // 375
+// Complete withdrawal after 30 days
+if (canWithdraw) {
+    veZkcToken.completeUnstake(); // Returns ZKC, burns NFT
+}
 ```
 
 ### Governance Integration
 ```solidity
-// Delegate voting power
+// Delegate voting power (standard IVotes)
 veZkcToken.delegate(governorAddress);
 
 // Check voting power for governance
 uint256 votes = veZkcToken.getVotes(user);
-uint256 historicalVotes = veZkcToken.getPastVotes(user, blockNumber);
+uint256 historicalVotes = veZkcToken.getPastVotes(user, timestamp);
+
+// Check total voting supply
+uint256 totalVotes = veZkcToken.getPastTotalSupply(timestamp);
+```
+
+### Permit Support
+```solidity
+// Stake with permit (gasless approval)
+veZkcToken.stakeWithPermit(
+    1000 ether,
+    deadline,
+    v, r, s
+);
+
+// Add to stake with permit
+veZkcToken.addToStakeWithPermit(
+    500 ether,
+    deadline,
+    v, r, s
+);
 ```
 
 

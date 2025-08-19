@@ -16,6 +16,7 @@ contract veZKCVotesTest is veZKCTest {
         
         // Initial voting power should be 1:1 with staked amount (scalar = 1)
         uint256 initialPower = veToken.getVotes(alice);
+        vm.snapshotGasLastCall("getVotes: Getting current voting power");
         assertEq(initialPower, AMOUNT);
         
         // After some time passes, power should remain the same (no decay)
@@ -47,6 +48,7 @@ contract veZKCVotesTest is veZKCTest {
         
         // Past votes at t1 should equal staked amount
         uint256 pastVotesT1 = veToken.getPastVotes(alice, t1);
+        vm.snapshotGasLastCall("getPastVotes: Getting historical voting power");
         assertEq(pastVotesT1, AMOUNT);
         
         // Current votes should still be the same

@@ -50,6 +50,7 @@ contract veZKCStakeTest is veZKCTest {
         // Now approve and stake (should succeed)
         zkc.approve(address(veToken), STAKE_AMOUNT);
         uint256 tokenId = veToken.stake(STAKE_AMOUNT);
+        vm.snapshotGasLastCall("stake: Basic staking with approval");
         vm.stopPrank();
         
         // Verify stake
@@ -111,6 +112,7 @@ contract veZKCStakeTest is veZKCTest {
         // Approve and add to stake
         zkc.approve(address(veToken), ADD_AMOUNT);
         veToken.addToStake(ADD_AMOUNT);
+        vm.snapshotGasLastCall("addToStake: Adding to existing stake");
         vm.stopPrank();
         
         // Verify added stake
@@ -177,6 +179,7 @@ contract veZKCStakeTest is veZKCTest {
         vm.startPrank(bob);
         zkc.approve(address(veToken), ADD_AMOUNT);
         veToken.addToStakeByTokenId(aliceTokenId, ADD_AMOUNT);
+        vm.snapshotGasLastCall("addToStakeByTokenId: Adding to another user's stake");
         vm.stopPrank();
         
         // Verify Alice received the additional stake
@@ -204,6 +207,7 @@ contract veZKCStakeTest is veZKCTest {
         
         // Initiate withdrawal
         veToken.initiateUnstake();
+        vm.snapshotGasLastCall("initiateUnstake: Starting withdrawal process");
         
         // Check withdrawal was initiated
         (uint256 stakedAmount, uint256 withdrawableAt) = veToken.getStakedAmountAndWithdrawalTime(alice);
@@ -223,6 +227,7 @@ contract veZKCStakeTest is veZKCTest {
         // Now can complete withdrawal
         uint256 balanceBefore = zkc.balanceOf(alice);
         veToken.completeUnstake();
+        vm.snapshotGasLastCall("completeUnstake: Completing withdrawal and burning NFT");
         vm.stopPrank();
         
         // Verify withdrawal completed
@@ -379,6 +384,50 @@ contract veZKCStakeTest is veZKCTest {
         uint256 currentTime = vm.getBlockTimestamp();
         vm.warp(currentTime + 1);
         assertEq(veToken.getPastTotalSupply(currentTime), STAKE_AMOUNT + STAKE_AMOUNT * 2);
+    }
+
+    // Test unstaking then restaking creates new token ID
+    function testUnstakeAndRestake() public {
+        vm.startPrank(alice);
+        
+        // Initial stake
+        zkc.approve(address(veToken), STAKE_AMOUNT * 2);
+        uint256 firstTokenId = veToken.stake(STAKE_AMOUNT);
+        
+        // Verify initial state
+        assertEq(veToken.getActiveTokenId(alice), firstTokenId);
+        assertEq(veToken.getVotes(alice), STAKE_AMOUNT);
+        assertEq(firstTokenId, 1);
+        
+        // Complete withdrawal workflow
+        veToken.initiateUnstake();
+        vm.warp(vm.getBlockTimestamp() + Constants.WITHDRAWAL_PERIOD + 1);
+        veToken.completeUnstake();
+        
+        // Verify withdrawal completed
+        assertEq(veToken.getActiveTokenId(alice), 0);
+        assertEq(veToken.getVotes(alice), 0);
+        
+        // First token should be burned
+        vm.expectRevert(abi.encodeWithSignature("ERC721NonexistentToken(uint256)", firstTokenId));
+        veToken.ownerOf(firstTokenId);
+        
+        // Create new stake position
+        uint256 secondTokenId = veToken.stake(STAKE_AMOUNT);
+        vm.stopPrank();
+        
+        // Verify new token ID is different (incremented)
+        assertGt(secondTokenId, firstTokenId);
+        assertEq(secondTokenId, 2);
+        
+        // Verify new position is active
+        assertEq(veToken.getActiveTokenId(alice), secondTokenId);
+        assertEq(veToken.getVotes(alice), STAKE_AMOUNT);
+        assertEq(veToken.ownerOf(secondTokenId), alice);
+        
+        (uint256 stakedAmount, uint256 withdrawableAt) = veToken.getStakedAmountAndWithdrawalTime(alice);
+        assertEq(stakedAmount, STAKE_AMOUNT);
+        assertEq(withdrawableAt, 0); // Not withdrawing
     }
 
     // Note: _createPermitSignature is inherited from veZKCTest base contract
