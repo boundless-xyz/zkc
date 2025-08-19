@@ -14,24 +14,36 @@ import {RewardPower} from "../libraries/RewardPower.sol";
 abstract contract Rewards is Storage, Clock, IRewards {
 
     /**
-     * @dev IRewards implementation - Get current reward power for account
+     * @dev IRewards implementation - Get current staking rewards for account
      */
-    function getRewards(address account) external view override returns (uint256) {
-        return RewardPower.getRewards(_userCheckpoints, account);
+    function getStakingRewards(address account) external view override returns (uint256) {
+        return RewardPower.getStakingRewards(_userCheckpoints, account);
     }
 
-    function getPastRewards(address account, uint256 timepoint) external view override returns (uint256) {
+    function getPastStakingRewards(address account, uint256 timepoint) external view override returns (uint256) {
         _requirePastTimepoint(timepoint);
-        return RewardPower.getPastRewards(_userCheckpoints, account, timepoint);
+        return RewardPower.getPastStakingRewards(_userCheckpoints, account, timepoint);
     }
 
-    function getTotalRewards() external view override returns (uint256) {
-        return RewardPower.getTotalRewards(_globalCheckpoints);
+    function getTotalStakingRewards() external view override returns (uint256) {
+        return RewardPower.getTotalStakingRewards(_globalCheckpoints);
     }
 
-    function getPastTotalRewards(uint256 timepoint) external view override returns (uint256) {
+    function getPastTotalStakingRewards(uint256 timepoint) external view override returns (uint256) {
         _requirePastTimepoint(timepoint);
-        return RewardPower.getPastTotalRewards(_globalCheckpoints, timepoint);
+        return RewardPower.getPastTotalStakingRewards(_globalCheckpoints, timepoint);
+    }
+
+    /**
+     * @dev IRewards implementation - Get current PoVW reward cap for account
+     */
+    function getPoVWRewardCap(address account) external view override returns (uint256) {
+        return RewardPower.getPoVWRewardCap(_userCheckpoints, account);
+    }
+
+    function getPastPoVWRewardCap(address account, uint256 timepoint) external view override returns (uint256) {
+        _requirePastTimepoint(timepoint);
+        return RewardPower.getPastPoVWRewardCap(_userCheckpoints, account, timepoint);
     }
 
     function _msgSender() internal view virtual returns (address);

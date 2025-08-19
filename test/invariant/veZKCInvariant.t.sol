@@ -149,7 +149,7 @@ contract veZKCInvariantTest is StdInvariant, Test {
             
             if (handler.ghost_hasActivePosition(actor) && !handler.ghost_isWithdrawing(actor)) {
                 uint256 expectedAmount = handler.ghost_userStaked(actor);
-                uint256 actualRewardPower = veToken.getRewards(actor);
+                uint256 actualRewardPower = veToken.getStakingRewards(actor);
                 
                 assertEq(
                     actualRewardPower,
@@ -158,7 +158,7 @@ contract veZKCInvariantTest is StdInvariant, Test {
                 );
             } else if (handler.ghost_hasActivePosition(actor) && handler.ghost_isWithdrawing(actor)) {
                 // Withdrawing positions should have zero reward power
-                uint256 rewardPower = veToken.getRewards(actor);
+                uint256 rewardPower = veToken.getStakingRewards(actor);
                 assertEq(
                     rewardPower,
                     0,
@@ -166,7 +166,7 @@ contract veZKCInvariantTest is StdInvariant, Test {
                 );
             } else {
                 // No position means no reward power
-                uint256 rewardPower = veToken.getRewards(actor);
+                uint256 rewardPower = veToken.getStakingRewards(actor);
                 assertEq(
                     rewardPower,
                     0,
@@ -246,7 +246,7 @@ contract veZKCInvariantTest is StdInvariant, Test {
      * Invariant 8: Total reward power equals sum of non-withdrawing staked amounts
      */
     function invariant_TotalRewardPowerConsistent() public view {
-        uint256 totalRewardPower = veToken.getTotalRewards();
+        uint256 totalRewardPower = veToken.getTotalStakingRewards();
         uint256 expectedTotal = handler.getActiveNonWithdrawingStaked();
         
         assertEq(

@@ -103,9 +103,9 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
             uint256 epoch = epochs[i];
             if (epoch >= currentEpoch) continue; // cannot claim ongoing/future epoch
             uint256 snapshotTime = _epochEndTimestamp(epoch);
-            uint256 userPower = veZKC.getPastRewards(user, snapshotTime);
+            uint256 userPower = veZKC.getPastStakingRewards(user, snapshotTime);
             if (userPower == 0) continue;
-            uint256 totalPower = veZKC.getPastTotalRewards(snapshotTime);
+            uint256 totalPower = veZKC.getPastTotalStakingRewards(snapshotTime);
             if (totalPower == 0) continue;
             uint256 emission = zkc.getStakingEmissionsForEpoch(epoch);
             rewards[i] = (emission * userPower) / totalPower;

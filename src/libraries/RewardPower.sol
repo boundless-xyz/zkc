@@ -7,15 +7,15 @@ import {Constants} from "./Constants.sol";
 /**
  * @title RewardPower Library
  * @notice Reward power calculation logic for IRewards interface implementation
- * @dev Reward power = staked_amount / REWARD_POWER_SCALAR (0 if withdrawing)
+ * @dev Provides both staking rewards (REWARD_POWER_SCALAR) and PoVW reward cap (POVW_REWARD_CAP_SCALAR) calculations
  */
 library RewardPower {
 
     /**
-     * @dev Get current reward power for an account
+     * @dev Get current staking rewards for an account
      * @dev Returns amount / REWARD_POWER_SCALAR if not withdrawing, else 0
      */
-    function getRewards(
+    function getStakingRewards(
         Checkpoints.UserCheckpointStorage storage userStorage,
         address account
     ) internal view returns (uint256) {
@@ -28,9 +28,9 @@ library RewardPower {
     }
 
     /**
-     * @dev Get historical reward power for an account at a specific timestamp
+     * @dev Get historical staking rewards for an account at a specific timestamp
      */
-    function getPastRewards(
+    function getPastStakingRewards(
         Checkpoints.UserCheckpointStorage storage userStorage,
         address account,
         uint256 timepoint
@@ -44,9 +44,9 @@ library RewardPower {
     }
 
     /**
-     * @dev Get current total reward power across all users
+     * @dev Get current total staking rewards across all users
      */
-    function getTotalRewards(
+    function getTotalStakingRewards(
         Checkpoints.GlobalCheckpointStorage storage globalStorage
     ) internal view returns (uint256) {
         uint256 globalEpoch = globalStorage.globalPointEpoch;
@@ -57,9 +57,9 @@ library RewardPower {
     }
 
     /**
-     * @dev Get historical total reward power at a specific timestamp
+     * @dev Get historical total staking rewards at a specific timestamp
      */
-    function getPastTotalRewards(
+    function getPastTotalStakingRewards(
         Checkpoints.GlobalCheckpointStorage storage globalStorage,
         uint256 timepoint
     ) internal view returns (uint256) {
@@ -68,5 +68,37 @@ library RewardPower {
         
         Checkpoints.Point memory point = globalStorage.globalPointHistory[epoch];
         return point.amount / Constants.REWARD_POWER_SCALAR;
+    }
+
+    /**
+     * @dev Get current PoVW reward cap for an account
+     * @dev Returns amount / POVW_REWARD_CAP_SCALAR if not withdrawing, else 0
+     */
+    function getPoVWRewardCap(
+        Checkpoints.UserCheckpointStorage storage userStorage,
+        address account
+    ) internal view returns (uint256) {
+        uint256 epoch = userStorage.userPointEpoch[account];
+        if (epoch == 0) return 0;
+        
+        Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
+        if (point.withdrawing) return 0;
+        return point.amount / Constants.POVW_REWARD_CAP_SCALAR;
+    }
+
+    /**
+     * @dev Get historical PoVW reward cap for an account at a specific timestamp
+     */
+    function getPastPoVWRewardCap(
+        Checkpoints.UserCheckpointStorage storage userStorage,
+        address account,
+        uint256 timepoint
+    ) internal view returns (uint256) {
+        uint256 epoch = Checkpoints.findUserTimestampEpoch(userStorage, account, timepoint);
+        if (epoch == 0) return 0;
+        
+        Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
+        if (point.withdrawing) return 0;
+        return point.amount / Constants.POVW_REWARD_CAP_SCALAR;
     }
 }

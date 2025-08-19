@@ -40,12 +40,12 @@ contract RewardPowerTest is Test {
     }
     
     function testGetRewards() public {
-        uint256 rewards = RewardPower.getRewards(userStorage, alice);
+        uint256 rewards = RewardPower.getStakingRewards(userStorage, alice);
         assertEq(rewards, AMOUNT / Constants.REWARD_POWER_SCALAR);
         
         // Reward power doesn't change over time (no decay)
         vm.warp(vm.getBlockTimestamp() + 52 weeks);
-        uint256 rewardsLater = RewardPower.getRewards(userStorage, alice);
+        uint256 rewardsLater = RewardPower.getStakingRewards(userStorage, alice);
         assertEq(rewardsLater, AMOUNT / Constants.REWARD_POWER_SCALAR);
     }
     
@@ -53,17 +53,17 @@ contract RewardPowerTest is Test {
         uint256 t0 = vm.getBlockTimestamp();
         
         vm.warp(t0 + 10 weeks);
-        uint256 pastRewards = RewardPower.getPastRewards(userStorage, alice, t0);
+        uint256 pastRewards = RewardPower.getPastStakingRewards(userStorage, alice, t0);
         assertEq(pastRewards, AMOUNT / Constants.REWARD_POWER_SCALAR);
     }
     
     function testGetTotalRewards() public {
-        uint256 totalRewards = RewardPower.getTotalRewards(globalStorage);
+        uint256 totalRewards = RewardPower.getTotalStakingRewards(globalStorage);
         assertEq(totalRewards, AMOUNT / Constants.REWARD_POWER_SCALAR);
         
         // Total rewards don't change over time
         vm.warp(vm.getBlockTimestamp() + 52 weeks);
-        uint256 totalRewardsLater = RewardPower.getTotalRewards(globalStorage);
+        uint256 totalRewardsLater = RewardPower.getTotalStakingRewards(globalStorage);
         assertEq(totalRewardsLater, AMOUNT / Constants.REWARD_POWER_SCALAR);
     }
     
@@ -71,7 +71,7 @@ contract RewardPowerTest is Test {
         uint256 t0 = vm.getBlockTimestamp();
         
         vm.warp(t0 + 10 weeks);
-        uint256 pastTotalRewards = RewardPower.getPastTotalRewards(globalStorage, t0);
+        uint256 pastTotalRewards = RewardPower.getPastTotalStakingRewards(globalStorage, t0);
         assertEq(pastTotalRewards, AMOUNT / Constants.REWARD_POWER_SCALAR);
     }
     
@@ -85,20 +85,20 @@ contract RewardPowerTest is Test {
         userStorage.userPointEpoch[alice] = 2;
         
         // Reward power should be 0 for withdrawing users
-        uint256 rewards = RewardPower.getRewards(userStorage, alice);
+        uint256 rewards = RewardPower.getStakingRewards(userStorage, alice);
         assertEq(rewards, 0);
     }
     
     function testZeroAmountRewardPower() public view {
         // Test user with no stake
-        uint256 rewards = RewardPower.getRewards(userStorage, address(0xBEEF));
+        uint256 rewards = RewardPower.getStakingRewards(userStorage, address(0xBEEF));
         assertEq(rewards, 0);
     }
     
     function testScalarDivision() public {
         // Test that reward power is correctly divided by scalar
         uint256 expectedRewards = AMOUNT / Constants.REWARD_POWER_SCALAR;
-        uint256 actualRewards = RewardPower.getRewards(userStorage, alice);
+        uint256 actualRewards = RewardPower.getStakingRewards(userStorage, alice);
         assertEq(actualRewards, expectedRewards);
         
         // With scalar = 1, should equal the amount

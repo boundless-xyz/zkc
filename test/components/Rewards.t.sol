@@ -15,7 +15,7 @@ contract veZKCRewardsTest is veZKCTest {
         uint256 tokenId = veToken.stake(AMOUNT);
         
         // Reward power should equal staked amount divided by scalar
-        uint256 rewardPower = veToken.getRewards(alice);
+        uint256 rewardPower = veToken.getStakingRewards(alice);
         vm.snapshotGasLastCall("getRewards: Getting current reward power");
         uint256 expectedPower = AMOUNT / Constants.REWARD_POWER_SCALAR;
         assertEq(rewardPower, expectedPower, "Reward power should equal staked amount divided by scalar");
@@ -31,7 +31,7 @@ contract veZKCRewardsTest is veZKCTest {
         uint256 tokenId = veToken.stake(AMOUNT);
         
         // Initial reward power
-        uint256 initialRewardPower = veToken.getRewards(alice);
+        uint256 initialRewardPower = veToken.getStakingRewards(alice);
         uint256 expectedPower = AMOUNT / Constants.REWARD_POWER_SCALAR;
         assertEq(initialRewardPower, expectedPower, "Initial reward power should equal staked amount divided by scalar");
         
@@ -39,7 +39,7 @@ contract veZKCRewardsTest is veZKCTest {
         vm.warp(vm.getBlockTimestamp() + 52 weeks);
         
         // Reward power should remain the same (doesn't decay)
-        uint256 laterRewardPower = veToken.getRewards(alice);
+        uint256 laterRewardPower = veToken.getStakingRewards(alice);
         assertEq(laterRewardPower, expectedPower, "Reward power should not decay over time");
         assertEq(laterRewardPower, initialRewardPower, "Reward power should remain constant");
         
@@ -54,7 +54,7 @@ contract veZKCRewardsTest is veZKCTest {
         uint256 tokenId = veToken.stake(AMOUNT);
         
         // Reward power before withdrawal
-        uint256 rewardPowerBeforeWithdrawal = veToken.getRewards(alice);
+        uint256 rewardPowerBeforeWithdrawal = veToken.getStakingRewards(alice);
         uint256 expectedPower = AMOUNT / Constants.REWARD_POWER_SCALAR;
         assertEq(rewardPowerBeforeWithdrawal, expectedPower, "Reward power should equal staked amount before withdrawal");
         
@@ -63,12 +63,12 @@ contract veZKCRewardsTest is veZKCTest {
         veToken.initiateUnstake();
         
         // Reward power should immediately drop to 0 when withdrawing
-        uint256 rewardPowerDuringWithdrawal = veToken.getRewards(alice);
+        uint256 rewardPowerDuringWithdrawal = veToken.getStakingRewards(alice);
         assertEq(rewardPowerDuringWithdrawal, 0, "Reward power should be 0 during withdrawal period");
         
         // Even after time passes during withdrawal period, should remain 0
         vm.warp(vm.getBlockTimestamp() + Constants.WITHDRAWAL_PERIOD / 2);
-        uint256 rewardPowerMidWithdrawal = veToken.getRewards(alice);
+        uint256 rewardPowerMidWithdrawal = veToken.getStakingRewards(alice);
         assertEq(rewardPowerMidWithdrawal, 0, "Reward power should remain 0 throughout withdrawal period");
         
         // Voting power should also be 0 during withdrawal
@@ -83,7 +83,7 @@ contract veZKCRewardsTest is veZKCTest {
         uint256 tokenId = veToken.stake(AMOUNT);
         
         // Initial reward power
-        uint256 initialRewardPower = veToken.getRewards(alice);
+        uint256 initialRewardPower = veToken.getStakingRewards(alice);
         uint256 expectedInitial = AMOUNT / Constants.REWARD_POWER_SCALAR;
         assertEq(initialRewardPower, expectedInitial, "Initial reward power should equal initial stake divided by scalar");
         
@@ -92,7 +92,7 @@ contract veZKCRewardsTest is veZKCTest {
         vm.stopPrank();
         
         // Reward power should increase by the added amount
-        uint256 updatedRewardPower = veToken.getRewards(alice);
+        uint256 updatedRewardPower = veToken.getStakingRewards(alice);
         uint256 expectedUpdated = (AMOUNT + ADD_AMOUNT) / Constants.REWARD_POWER_SCALAR;
         assertEq(updatedRewardPower, expectedUpdated, "Reward power should increase with added stake");
     }
@@ -112,7 +112,7 @@ contract veZKCRewardsTest is veZKCTest {
         vm.stopPrank();
         
         // Verify no change in reward power (should remain 0)
-        uint256 rewardPowerAfterFailedAdd = veToken.getRewards(alice);
+        uint256 rewardPowerAfterFailedAdd = veToken.getStakingRewards(alice);
         assertEq(rewardPowerAfterFailedAdd, 0, "Reward power should remain 0 after failed add to withdrawing position");
     }
 
@@ -122,7 +122,7 @@ contract veZKCRewardsTest is veZKCTest {
         uint256 tokenId = veToken.stake(AMOUNT);
         
         // Reward power before unstaking
-        uint256 rewardPowerBeforeUnstake = veToken.getRewards(alice);
+        uint256 rewardPowerBeforeUnstake = veToken.getStakingRewards(alice);
         uint256 expectedPower = AMOUNT / Constants.REWARD_POWER_SCALAR;
         assertEq(rewardPowerBeforeUnstake, expectedPower, "Should have reward power before unstaking");
         
@@ -134,7 +134,7 @@ contract veZKCRewardsTest is veZKCTest {
         vm.stopPrank();
         
         // After unstaking, reward power should be 0 (no active position)
-        uint256 rewardPowerAfterUnstake = veToken.getRewards(alice);
+        uint256 rewardPowerAfterUnstake = veToken.getStakingRewards(alice);
         assertEq(rewardPowerAfterUnstake, 0, "Reward power should be 0 after completing unstaking");
     }
 
@@ -163,12 +163,12 @@ contract veZKCRewardsTest is veZKCTest {
         uint256 bobExpected = bobAmount / Constants.REWARD_POWER_SCALAR;
         uint256 charlieExpected = AMOUNT / Constants.REWARD_POWER_SCALAR;
         
-        assertEq(veToken.getRewards(alice), aliceExpected, "Alice reward power");
-        assertEq(veToken.getRewards(bob), bobExpected, "Bob reward power");
-        assertEq(veToken.getRewards(charlie), charlieExpected, "Charlie reward power");
+        assertEq(veToken.getStakingRewards(alice), aliceExpected, "Alice reward power");
+        assertEq(veToken.getStakingRewards(bob), bobExpected, "Bob reward power");
+        assertEq(veToken.getStakingRewards(charlie), charlieExpected, "Charlie reward power");
         
         // Total reward power should be sum of all stakes divided by scalar
-        uint256 totalRewardPower = veToken.getTotalRewards();
+        uint256 totalRewardPower = veToken.getTotalStakingRewards();
         vm.snapshotGasLastCall("getTotalRewards: Getting total reward power");
         uint256 expectedTotal = (AMOUNT + bobAmount + AMOUNT) / Constants.REWARD_POWER_SCALAR;
         assertEq(totalRewardPower, expectedTotal, "Total reward power should be sum of all stakes divided by scalar");
@@ -186,7 +186,7 @@ contract veZKCRewardsTest is veZKCTest {
         veToken.stake(AMOUNT);
         vm.stopPrank();
         
-        uint256 totalBeforeWithdrawal = veToken.getTotalRewards();
+        uint256 totalBeforeWithdrawal = veToken.getTotalStakingRewards();
         uint256 expectedBefore = (AMOUNT * 2) / Constants.REWARD_POWER_SCALAR;
         assertEq(totalBeforeWithdrawal, expectedBefore, "Total should include both stakes before withdrawal");
         
@@ -195,7 +195,7 @@ contract veZKCRewardsTest is veZKCTest {
         veToken.initiateUnstake();
         
         // Total should now only include Bob's stake
-        uint256 totalAfterAliceWithdrawal = veToken.getTotalRewards();
+        uint256 totalAfterAliceWithdrawal = veToken.getTotalStakingRewards();
         uint256 expectedAfter = AMOUNT / Constants.REWARD_POWER_SCALAR;
         assertEq(totalAfterAliceWithdrawal, expectedAfter, "Total should exclude withdrawing stakes");
         
@@ -205,7 +205,7 @@ contract veZKCRewardsTest is veZKCTest {
         veToken.completeUnstake();
         
         // Total should still only include Bob's stake
-        uint256 totalAfterAliceUnstake = veToken.getTotalRewards();
+        uint256 totalAfterAliceUnstake = veToken.getTotalStakingRewards();
         assertEq(totalAfterAliceUnstake, expectedAfter, "Total should remain same after completing unstake");
     }
 
@@ -229,14 +229,14 @@ contract veZKCRewardsTest is veZKCTest {
         uint256 t2 = vm.getBlockTimestamp();
         
         // Current reward power should be full amount
-        uint256 currentRewardPower = veToken.getRewards(alice);
+        uint256 currentRewardPower = veToken.getStakingRewards(alice);
         uint256 expectedCurrent = (AMOUNT + ADD_AMOUNT) / Constants.REWARD_POWER_SCALAR;
         assertEq(currentRewardPower, expectedCurrent, "Current reward power should be full amount divided by scalar");
         
         // Past reward power queries
-        uint256 pastRewardsAfterT0 = veToken.getPastRewards(alice, t0);
+        uint256 pastRewardsAfterT0 = veToken.getPastStakingRewards(alice, t0);
         vm.snapshotGasLastCall("getPastRewards: Getting historical reward power");
-        uint256 pastRewardsAtT1 = veToken.getPastRewards(alice, t1);
+        uint256 pastRewardsAtT1 = veToken.getPastStakingRewards(alice, t1);
         
         uint256 expectedInitial = AMOUNT / Constants.REWARD_POWER_SCALAR;
         uint256 expectedAfterAdd = (AMOUNT + ADD_AMOUNT) / Constants.REWARD_POWER_SCALAR;
@@ -266,13 +266,13 @@ contract veZKCRewardsTest is veZKCTest {
         uint256 t2 = vm.getBlockTimestamp();
         
         // Current total should be both stakes
-        uint256 currentTotalRewards = veToken.getTotalRewards();
+        uint256 currentTotalRewards = veToken.getTotalStakingRewards();
         uint256 expectedCurrent = (AMOUNT * 2) / Constants.REWARD_POWER_SCALAR;
         assertEq(currentTotalRewards, expectedCurrent, "Current total should be both stakes divided by scalar");
         
-        uint256 pastTotalAtT0 = veToken.getPastTotalRewards(t0);
+        uint256 pastTotalAtT0 = veToken.getPastTotalStakingRewards(t0);
         vm.snapshotGasLastCall("getPastTotalRewards: Getting historical total reward power");
-        uint256 pastTotalAtT1 = veToken.getPastTotalRewards(t1);
+        uint256 pastTotalAtT1 = veToken.getPastTotalStakingRewards(t1);
         
         uint256 expectedT0 = AMOUNT / Constants.REWARD_POWER_SCALAR;
         uint256 expectedT1 = (AMOUNT * 2) / Constants.REWARD_POWER_SCALAR;
@@ -287,19 +287,19 @@ contract veZKCRewardsTest is veZKCTest {
         uint256 preDeploymentTime = deploymentTime - 1000; // 1000 seconds before deployment
         
         // Test getPastRewards before any activity
-        uint256 pastRewardsPreDeployment = veToken.getPastRewards(alice, preDeploymentTime);
+        uint256 pastRewardsPreDeployment = veToken.getPastStakingRewards(alice, preDeploymentTime);
         assertEq(pastRewardsPreDeployment, 0, "Should return 0 for pre-deployment timestamps");
         
         // Test getPastTotalRewards before any activity
-        uint256 pastTotalRewardsPreDeployment = veToken.getPastTotalRewards(preDeploymentTime);
+        uint256 pastTotalRewardsPreDeployment = veToken.getPastTotalStakingRewards(preDeploymentTime);
         assertEq(pastTotalRewardsPreDeployment, 0, "Should return 0 for pre-deployment timestamps");
         
         // Test edge case: just before deployment time (before any stakes)
-        uint256 pastRewardsAtDeployment = veToken.getPastRewards(alice, deploymentTime - 1);
+        uint256 pastRewardsAtDeployment = veToken.getPastStakingRewards(alice, deploymentTime - 1);
         assertEq(pastRewardsAtDeployment, 0, "Should return 0 just before deployment time");
         
         // Test with timestamp = 0 (extreme edge case)
-        uint256 pastRewardsAtZero = veToken.getPastRewards(alice, 0);
+        uint256 pastRewardsAtZero = veToken.getPastStakingRewards(alice, 0);
         assertEq(pastRewardsAtZero, 0, "Should return 0 for timestamp 0");
         
         // Now do some activity and test again
@@ -310,10 +310,10 @@ contract veZKCRewardsTest is veZKCTest {
         vm.warp(vm.getBlockTimestamp() + 1000);
         
         // Pre-deployment timestamps should still return 0
-        pastRewardsPreDeployment = veToken.getPastRewards(alice, preDeploymentTime);
+        pastRewardsPreDeployment = veToken.getPastStakingRewards(alice, preDeploymentTime);
         assertEq(pastRewardsPreDeployment, 0, "Should still return 0 for pre-deployment timestamps after staking");
         
-        pastTotalRewardsPreDeployment = veToken.getPastTotalRewards(preDeploymentTime);
+        pastTotalRewardsPreDeployment = veToken.getPastTotalStakingRewards(preDeploymentTime);
         assertEq(pastTotalRewardsPreDeployment, 0, "Should still return 0 for pre-deployment total rewards");
     }
 
@@ -324,14 +324,14 @@ contract veZKCRewardsTest is veZKCTest {
         vm.stopPrank();
         
         uint256 expectedInitial = AMOUNT / Constants.REWARD_POWER_SCALAR;
-        assertEq(veToken.getRewards(alice), expectedInitial, "Initial reward power");
+        assertEq(veToken.getStakingRewards(alice), expectedInitial, "Initial reward power");
         
         // 2. Alice initiates withdrawal
         vm.prank(alice);
         veToken.initiateUnstake();
         
         // Reward power should immediately drop to 0
-        assertEq(veToken.getRewards(alice), 0, "Reward power should be 0 during withdrawal");
+        assertEq(veToken.getStakingRewards(alice), 0, "Reward power should be 0 during withdrawal");
         assertEq(veToken.getVotes(alice), 0, "Voting power should be 0 during withdrawal");
         
         // 3. Try to add to withdrawing stake (should fail)
@@ -345,7 +345,7 @@ contract veZKCRewardsTest is veZKCTest {
         veToken.completeUnstake();
         
         // Now both should be 0 (no active position)
-        assertEq(veToken.getRewards(alice), 0, "Reward power should be 0 after unstaking");
+        assertEq(veToken.getStakingRewards(alice), 0, "Reward power should be 0 after unstaking");
         assertEq(veToken.getVotes(alice), 0, "Voting power should be 0 after unstaking");
         
         // 5. Alice can stake again with a new position (she still has ADD_AMOUNT allowance remaining)
@@ -354,7 +354,7 @@ contract veZKCRewardsTest is veZKCTest {
         
         // Should get reward power based on new stake amount
         uint256 expectedNew = ADD_AMOUNT / Constants.REWARD_POWER_SCALAR;
-        assertEq(veToken.getRewards(alice), expectedNew, "Should have reward power based on new stake amount");
+        assertEq(veToken.getStakingRewards(alice), expectedNew, "Should have reward power based on new stake amount");
         assertEq(veToken.getVotes(alice), ADD_AMOUNT / Constants.VOTING_POWER_SCALAR, "Should have voting power based on new stake amount");
     }
     
@@ -368,24 +368,24 @@ contract veZKCRewardsTest is veZKCTest {
         
         // Test that calling getPastRewards with current timestamp reverts
         vm.expectRevert();
-        veToken.getPastRewards(alice, currentTime);
+        veToken.getPastStakingRewards(alice, currentTime);
         
         // Test that calling getPastTotalRewards with current timestamp reverts
         vm.expectRevert();
-        veToken.getPastTotalRewards(currentTime);
+        veToken.getPastTotalStakingRewards(currentTime);
         
         // Test that calling with future timestamp reverts
         vm.expectRevert();
-        veToken.getPastRewards(alice, currentTime + 1);
+        veToken.getPastStakingRewards(alice, currentTime + 1);
         
         vm.expectRevert();
-        veToken.getPastTotalRewards(currentTime + 1);
+        veToken.getPastTotalStakingRewards(currentTime + 1);
         
         // Test that calling with past timestamp works
         vm.warp(currentTime + 1000);
         
-        uint256 pastRewards = veToken.getPastRewards(alice, currentTime);
-        uint256 pastTotalRewards = veToken.getPastTotalRewards(currentTime);
+        uint256 pastRewards = veToken.getPastStakingRewards(alice, currentTime);
+        uint256 pastTotalRewards = veToken.getPastTotalStakingRewards(currentTime);
         
         uint256 expectedRewards = AMOUNT / Constants.REWARD_POWER_SCALAR;
         assertEq(pastRewards, expectedRewards, "Past rewards should equal staked amount divided by scalar");
@@ -403,7 +403,7 @@ contract veZKCRewardsTest is veZKCTest {
         uint256 actionTimestamp = vm.getBlockTimestamp();
         
         // Verify initial state
-        uint256 rewardsAfterStake = veToken.getRewards(alice);
+        uint256 rewardsAfterStake = veToken.getStakingRewards(alice);
         uint256 expectedInitial = AMOUNT / Constants.REWARD_POWER_SCALAR;
         assertEq(rewardsAfterStake, expectedInitial, "Rewards after initial stake should equal initial amount divided by scalar");
         
@@ -413,7 +413,7 @@ contract veZKCRewardsTest is veZKCTest {
         veToken.addToStake(ADD_AMOUNT);
         
         // Verify final state after both actions
-        uint256 rewardsAfterAdd = veToken.getRewards(alice);
+        uint256 rewardsAfterAdd = veToken.getStakingRewards(alice);
         uint256 expectedFinal = (AMOUNT + ADD_AMOUNT) / Constants.REWARD_POWER_SCALAR;
         assertEq(rewardsAfterAdd, expectedFinal, "Rewards after adding should equal total amount divided by scalar");
         
@@ -422,7 +422,7 @@ contract veZKCRewardsTest is veZKCTest {
         
         // When querying rewards for the block where both actions happened,
         // binary search should return the FINAL state (after both stake and addToStake)
-        uint256 historicalRewards = veToken.getPastRewards(alice, actionTimestamp);
+        uint256 historicalRewards = veToken.getPastStakingRewards(alice, actionTimestamp);
         assertEq(historicalRewards, expectedFinal, 
             "Historical rewards should reflect final state after all actions in the block");
         
@@ -431,7 +431,7 @@ contract veZKCRewardsTest is veZKCTest {
             "Historical rewards should not return intermediate state");
         
         // Verify total rewards also reflects final state
-        uint256 historicalTotalRewards = veToken.getPastTotalRewards(actionTimestamp);
+        uint256 historicalTotalRewards = veToken.getPastTotalStakingRewards(actionTimestamp);
         assertEq(historicalTotalRewards, expectedFinal,
             "Historical total rewards should reflect final state");
     }
@@ -446,7 +446,7 @@ contract veZKCRewardsTest is veZKCTest {
         vm.stopPrank();
         
         // Reward power should equal staked amount divided by scalar (which is 1)
-        uint256 rewardPower = veToken.getRewards(alice);
+        uint256 rewardPower = veToken.getStakingRewards(alice);
         uint256 expectedPower = AMOUNT / Constants.REWARD_POWER_SCALAR;
         assertEq(rewardPower, expectedPower, "Reward power should equal staked amount divided by scalar");
         
@@ -456,13 +456,13 @@ contract veZKCRewardsTest is veZKCTest {
 
     function testZeroRewardPowerWhenNoStake() public {
         // User with no stake should have 0 reward power
-        assertEq(veToken.getRewards(alice), 0, "Alice should have 0 reward power without stake");
-        assertEq(veToken.getRewards(bob), 0, "Bob should have 0 reward power without stake");
+        assertEq(veToken.getStakingRewards(alice), 0, "Alice should have 0 reward power without stake");
+        assertEq(veToken.getStakingRewards(bob), 0, "Bob should have 0 reward power without stake");
         
         // Historical rewards should also be 0 - warp forward first
         uint256 currentTime = vm.getBlockTimestamp();
         vm.warp(currentTime + 1);
-        assertEq(veToken.getPastRewards(alice, currentTime), 0, "Historical rewards should be 0 without stake");
-        assertEq(veToken.getPastRewards(bob, currentTime), 0, "Historical rewards should be 0 without stake");
+        assertEq(veToken.getPastStakingRewards(alice, currentTime), 0, "Historical rewards should be 0 without stake");
+        assertEq(veToken.getPastStakingRewards(bob, currentTime), 0, "Historical rewards should be 0 without stake");
     }
 }
