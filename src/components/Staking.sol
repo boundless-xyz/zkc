@@ -148,8 +148,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         if (ownerOf(tokenId) != msg.sender) revert TokenDoesNotExist();
         
         // Cannot extend if delegated to someone else
-        address delegatee = delegates(msg.sender);
-        if (delegatee != msg.sender) revert CannotExtendLockWhileDelegated();
+        // address delegatee = delegates(msg.sender);
+        // if (delegatee != msg.sender) revert CannotExtendLockWhileDelegated();
 
         // Get current lock info
         Checkpoints.LockInfo memory lock = _locks[tokenId];
@@ -282,6 +282,4 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         emit StakeAdded(from, tokenId, amount);
     }
 
-    // Abstract function for delegation (from Votes component)  
-    function delegates(address account) public view virtual returns (address);
 }

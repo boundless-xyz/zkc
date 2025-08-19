@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {console} from "forge-std/console.sol";
 import {Constants} from "./Constants.sol";
 
 /**
@@ -81,6 +80,7 @@ library Checkpoints {
 
     /**
      * @dev Binary search to find user's point at a specific timestamp
+     * @dev Finds the last voting checkpoint prior to a timepoint
      */
     function findUserTimestampEpoch(
         UserCheckpointStorage storage self,
@@ -89,6 +89,12 @@ library Checkpoints {
     ) internal view returns (uint256) {
         uint256 min = 0;
         uint256 max = self.userPointEpoch[user];
+
+        // Shortcut to find the most recent checkpoint, which if claims
+        // are frequent, should save gas.
+        if (self.userPointHistory[user][max].updatedAt <= timestamp) {
+            return max;
+        }
         
         while (min < max) {
             uint256 mid = (min + max + 1) / 2;
@@ -111,6 +117,12 @@ library Checkpoints {
     ) internal view returns (uint256) {
         uint256 min = 0;
         uint256 max = self.globalPointEpoch;
+
+        // Shortcut to find the most recent checkpoint, which if claims
+        // are frequent, should save gas.
+        if (self.globalPointHistory[max].updatedAt <= timestamp) {
+            return max;
+        }
         
         while (min < max) {
             uint256 mid = (min + max + 1) / 2;
@@ -162,64 +174,6 @@ library Checkpoints {
         GlobalCheckpointStorage storage self
     ) internal view returns (uint256) {
         return self.globalPointEpoch;
-    }
-
-    /**
-     * @dev Calculate voting power from a point at given timestamp
-     */
-    function getVotesFromEpoch(Point memory point, uint256 timestamp) internal pure returns (uint256) {
-        if (point.updatedAt == 0) return 0;
-        
-        int128 dt = int128(int256(timestamp - point.updatedAt));
-        int128 bias = point.bias - point.slope * dt;
-        
-        if (bias < 0) bias = 0;
-        
-        return uint256(uint128(bias));
-    }
-
-    /**
-     * @dev Get total supply at given timestamp by calculating from last checkpoint
-     * @dev This is a direct extraction of the existing getPastTotalSupply logic
-     */
-    function getPastTotalSupply(
-        GlobalCheckpointStorage storage self,
-        uint256 timepoint
-    ) internal view returns (uint256) {
-        uint256 epoch = findTimestampEpoch(self, timepoint);
-        if (epoch == 0) return 0;
-        
-        Point memory lastPoint = self.globalPointHistory[epoch];
-        
-        // Move forward from the found point to the target timestamp
-        // applying any scheduled global slope changes along the way.
-        uint256 currentTimestamp = timestampFloorToWeek(lastPoint.updatedAt);
-        for (uint256 i = 0; i < 255; i++) {
-            currentTimestamp += Constants.WEEK;
-            int128 d_slope = 0;
-            
-            if (currentTimestamp > timepoint) {
-                currentTimestamp = timepoint;
-            } else {
-                d_slope = self.slopeChanges[currentTimestamp];
-            }
-            
-            // Calculate bias decay to currentTimestamp
-            lastPoint.bias -= lastPoint.slope * int128(int256(currentTimestamp - lastPoint.updatedAt));
-            
-            if (currentTimestamp == timepoint) {
-                break;
-            }
-            
-            // Apply slope change at week boundary
-            lastPoint.slope += d_slope;
-            lastPoint.updatedAt = currentTimestamp;
-        }
-        
-        // Ensure non-negative
-        if (lastPoint.bias < 0) lastPoint.bias = 0;
-        
-        return uint256(uint128(lastPoint.bias));
     }
 
     /**
@@ -316,7 +270,14 @@ library Checkpoints {
         userStorage.userPointEpoch[account] = userEpoch;
         userStorage.userPointHistory[account][userEpoch] = userNewPoint;
         
-        // Update global point
+        // Load the most recent global point. Globals point can be created as part of 
+        // backfills (in which case they fall on week boundaries), or as part of user actions such as stake/unstake/extend.
+        // If the global point is created as part of a backfill, it will have a timestamp that is a multiple of the week.
+        // If the global point is created as part of a user action, it will have a timestamp that is not a multiple of the week.
+        // We need to backfill the global point history for all weeks before the current block timestamp.
+        // We do this by iterating over the weeks before the current block timestamp, and applying the slope changes for each week.
+        // We then apply the user's changes to the global point, and store the new latest global point.
+        // We then schedule the slope changes for the next week.
         Point memory lastGlobalPoint = Point({bias: 0, slope: 0, updatedAt: block.timestamp, amount: 0});
         uint256 globalEpoch = globalStorage.globalPointEpoch;
         if (globalEpoch > 0) {
@@ -330,6 +291,7 @@ library Checkpoints {
         // (since timestamps are always rounded down to the week on lock creation/extension)
         {
             uint256 curWeek = timestampFloorToWeek(lastCheckpoint); // Round down to week
+            
             for (uint256 i = 0; i < 255; i++) {
                 curWeek += Constants.WEEK;
                 int128 currentScheduledSlopeChange = 0;
@@ -363,12 +325,13 @@ library Checkpoints {
                 lastGlobalPoint.updatedAt = curWeek;
                 globalEpoch += 1;
                 
-                // Unlikely, but if the current timestamp (which is rounded down to the week)
-                // is the same as the block timestamp, we don't store it in history yet as
-                // we still need to apply the users changes to it.
+                // If the last global point timestamp is the same as the block timestamp, then
+                // we don't store it yet. We only store backfills in this loop. 
+                // The point for the current block timestamp will be our new latest point and we still need to 
+                // apply the new user request's changes to it.
                 if (lastGlobalPoint.updatedAt == block.timestamp) {
                     break;
-                } else {
+                } else { 
                     globalStorage.globalPointHistory[globalEpoch] = lastGlobalPoint;
                 }                
             }
@@ -398,13 +361,15 @@ library Checkpoints {
         // If we already created a global point at this block timestamp due to a previous
         // transaction within the same block, we don't need to increment the global point epoch. 
         // We instead just update the existing global point.
-        if (lastGlobalPoint.updatedAt != block.timestamp) {
-            globalEpoch += 1;
+
+        if (globalEpoch != 1 && globalStorage.globalPointHistory[globalEpoch - 1].updatedAt == block.timestamp) {
+            // We already incremented globalEpoch in loop above, subtract so that we overwrite the existing point.
+            globalStorage.globalPointHistory[globalEpoch - 1] = newGlobalPoint;
+        } else {
+            // more than one global point may have been written, so we update epoch
+            globalStorage.globalPointHistory[globalEpoch] = newGlobalPoint;
+            globalStorage.globalPointEpoch = globalEpoch;
         }
-        
-        // Update global point history with final point
-        globalStorage.globalPointHistory[globalEpoch] = newGlobalPoint;
-        globalStorage.globalPointEpoch = globalEpoch;
         
         // Schedule slope changes.
         if (oldLock.lockEnd > block.timestamp) {

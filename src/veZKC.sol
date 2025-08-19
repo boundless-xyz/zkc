@@ -68,14 +68,6 @@ contract veZKC is
     }
 
     /**
-     * @dev Implement delegates function (used by both Votes and Staking)
-     */
-    function delegates(address account) public view override(Votes, Staking) returns (address) {
-        address delegatee = _delegatee[account];
-        return delegatee == address(0) ? account : delegatee;
-    }
-
-    /**
      * @dev Authorization function for UUPS upgrades
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}

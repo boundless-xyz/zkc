@@ -45,17 +45,17 @@ library StakeManager {
     function getWeekExpiry(uint256 expires) internal view returns (uint256) {
         if (expires == 0) {
             // Stake for minimum duration
-            expires = timestampFloorToWeek(block.timestamp + Constants.MIN_STAKE_TIME_S);
+            expires = Checkpoints.timestampFloorToWeek(block.timestamp + Constants.MIN_STAKE_TIME_S);
             // Only add extra week if the result is too short
             if (expires <= block.timestamp + Constants.MIN_STAKE_TIME_S) {
-                expires = timestampFloorToWeek(block.timestamp + Constants.MIN_STAKE_TIME_S + Constants.WEEK);
+                expires = Checkpoints.timestampFloorToWeek(block.timestamp + Constants.MIN_STAKE_TIME_S + Constants.WEEK);
             }
         } else if (expires == type(uint256).max) {
             // Stake for maximum duration
-            expires = timestampFloorToWeek(block.timestamp + Constants.MAX_STAKE_TIME_S);
+            expires = Checkpoints.timestampFloorToWeek(block.timestamp + Constants.MAX_STAKE_TIME_S);
         } else {
             // Check that the provided stake duration is valid
-            expires = timestampFloorToWeek(expires);
+            expires = Checkpoints.timestampFloorToWeek(expires);
             if (expires <= block.timestamp + Constants.MIN_STAKE_TIME_S) revert StakeDurationTooShort();
             if (expires > block.timestamp + Constants.MAX_STAKE_TIME_S) revert StakeDurationTooLong();
         }
@@ -63,13 +63,6 @@ library StakeManager {
         return expires;
     }
 
-    /**
-     * @dev Round timestamp down to nearest week boundary
-     * @dev Direct extraction of existing _timestampFloorToWeek logic
-     */
-    function timestampFloorToWeek(uint256 timestamp) internal pure returns (uint256) {
-        return (timestamp / Constants.WEEK) * Constants.WEEK;
-    }
 
     /**
      * @dev Validate lock extension parameters

@@ -3,9 +3,9 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-import {StakingRewards, AlreadyClaimed} from "../src/rewards/StakingRewards.sol";
-import {veZKC} from "../src/veZKC.sol";
-import {ZKC} from "../src/ZKC.sol";
+import {StakingRewards, AlreadyClaimed} from "../../src/rewards/StakingRewards.sol";
+import {veZKC} from "../../src/veZKC.sol";
+import {ZKC} from "../../src/ZKC.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract StakingRewardsTest is Test {

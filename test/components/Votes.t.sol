@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./veZKC.t.sol";
-import "../src/interfaces/IStaking.sol";
+import "../veZKC.t.sol";
+import "../../src/interfaces/IStaking.sol";
 
 contract veZKCVotesTest is veZKCTest {
     uint256 constant WEEK = 1 weeks;
@@ -476,5 +476,54 @@ contract veZKCVotesTest is veZKCTest {
         // Voting power should be roughly half the staked amount (since we locked for half max time)
         assertApproxEqRel(pastVotes, AMOUNT / 2, 0.01e18, "Past votes should be roughly half of staked amount");
         assertApproxEqRel(pastTotalSupply, AMOUNT / 2, 0.01e18, "Past total supply should be roughly half of staked amount");
+    }
+
+    function testMultipleVotingActionsInSameBlock() public {
+        uint256 ADD_AMOUNT = 5_000 * 10**18;
+        
+        // Alice stakes initially
+        vm.startPrank(alice);
+        zkc.approve(address(veToken), AMOUNT + ADD_AMOUNT);
+        veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
+        vm.stopPrank();
+        
+        // Get lock end for calculations
+        (, uint256 lockEnd) = veToken.getStakedAmountAndExpiry(alice);
+        
+        // Store current timestamp - all actions will happen in this block
+        uint256 actionTimestamp = vm.getBlockTimestamp();
+        
+        // Verify initial state
+        uint256 votesAfterStake = veToken.getVotes(alice);
+        uint256 expectedAfterStake = _calculateExpectedVotePower(AMOUNT, actionTimestamp, lockEnd);
+        assertApproxEqRel(votesAfterStake, expectedAfterStake, 0.01e18, "Votes after initial stake");
+        
+        // Perform second action in same block: add to stake
+        // Note: We don't warp time, so this happens in the same block
+        vm.prank(alice);
+        veToken.addToStake(ADD_AMOUNT);
+        
+        // Verify final state after both actions
+        uint256 votesAfterAdd = veToken.getVotes(alice);
+        uint256 expectedAfterAdd = _calculateExpectedVotePower(AMOUNT + ADD_AMOUNT, actionTimestamp, lockEnd);
+        assertApproxEqRel(votesAfterAdd, expectedAfterAdd, 0.01e18, "Votes after adding to stake");
+        
+        // The key test: move to next block and query historical votes for the action block
+        vm.warp(actionTimestamp + 1);
+        
+        // When querying votes for the block where both actions happened,
+        // binary search should return the FINAL state (after both stake and addToStake)
+        uint256 historicalVotes = veToken.getPastVotes(alice, actionTimestamp);
+        assertApproxEqRel(historicalVotes, expectedAfterAdd, 0.01e18, 
+            "Historical votes should reflect final state after all actions in the block");
+        
+        // Should NOT equal the intermediate state after just the initial stake
+        assertTrue(historicalVotes != expectedAfterStake || expectedAfterStake == expectedAfterAdd, 
+            "Historical votes should not return intermediate state unless both are equal");
+        
+        // Verify total supply also reflects final state
+        uint256 historicalTotalSupply = veToken.getPastTotalSupply(actionTimestamp);
+        assertApproxEqRel(historicalTotalSupply, expectedAfterAdd, 0.01e18,
+            "Historical total supply should reflect final state");
     }
 }

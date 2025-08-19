@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./veZKC.t.sol";
-import "../src/interfaces/IStaking.sol";
+import "../veZKC.t.sol";
+import "../../src/interfaces/IStaking.sol";
 
 contract veZKCStakeTest is veZKCTest {
     uint256 constant STAKE_AMOUNT = 10_000 * 10**18;

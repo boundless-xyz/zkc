@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./veZKC.t.sol";
-import "../src/interfaces/IStaking.sol";
+import "../veZKC.t.sol";
+import "../../src/interfaces/IStaking.sol";
 
 contract veZKCRewardsTest is veZKCTest {
     uint256 constant ADD_AMOUNT = 5_000 * 10**18;
@@ -424,5 +424,48 @@ contract veZKCRewardsTest is veZKCTest {
         
         assertEq(pastRewards, AMOUNT, "Past rewards should equal staked amount");
         assertEq(pastTotalRewards, AMOUNT, "Past total rewards should equal total staked");
+    }
+
+    function testMultipleRewardActionsInSameBlock() public {
+        
+        // Alice stakes initially
+        vm.startPrank(alice);
+        zkc.approve(address(veToken), AMOUNT + ADD_AMOUNT);
+        veToken.stake(AMOUNT, vm.getBlockTimestamp() + MAX_STAKE_TIME_S / 2);
+        vm.stopPrank();
+        
+        // Store current timestamp - all actions will happen in this block
+        uint256 actionTimestamp = vm.getBlockTimestamp();
+        
+        // Verify initial state
+        uint256 rewardsAfterStake = veToken.getRewards(alice);
+        assertEq(rewardsAfterStake, AMOUNT, "Rewards after initial stake should equal initial amount");
+        
+        // Perform second action in same block: add to stake
+        // Note: We don't warp time, so this happens in the same block
+        vm.prank(alice);
+        veToken.addToStake(ADD_AMOUNT);
+        
+        // Verify final state after both actions
+        uint256 rewardsAfterAdd = veToken.getRewards(alice);
+        assertEq(rewardsAfterAdd, AMOUNT + ADD_AMOUNT, "Rewards after adding should equal total amount");
+        
+        // The key test: move to next block and query historical rewards for the action block
+        vm.warp(actionTimestamp + 1);
+        
+        // When querying rewards for the block where both actions happened,
+        // binary search should return the FINAL state (after both stake and addToStake)
+        uint256 historicalRewards = veToken.getPastRewards(alice, actionTimestamp);
+        assertEq(historicalRewards, AMOUNT + ADD_AMOUNT, 
+            "Historical rewards should reflect final state after all actions in the block");
+        
+        // Should NOT equal the intermediate state after just the initial stake
+        assertTrue(historicalRewards != AMOUNT, 
+            "Historical rewards should not return intermediate state");
+        
+        // Verify total rewards also reflects final state
+        uint256 historicalTotalRewards = veToken.getPastTotalRewards(actionTimestamp);
+        assertEq(historicalTotalRewards, AMOUNT + ADD_AMOUNT,
+            "Historical total rewards should reflect final state");
     }
 }
