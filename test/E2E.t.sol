@@ -533,7 +533,7 @@ pragma solidity ^0.8.20;
 //         (, uint256 currentLockEnd2) = veZkcToken.locks(tokenId);
 //         uint256 newLockEndTime2 = currentLockEnd2 + 1 weeks;
 //         veZkcToken.extendLockToTime(tokenId, newLockEndTime2); // Now 6 weeks
-        
+
 //         (, uint256 currentLockEnd3) = veZkcToken.locks(tokenId);
 //         uint256 newLockEndTime3 = currentLockEnd3 + 1 weeks;
 //         veZkcToken.extendLockToTime(tokenId, newLockEndTime3); // Now 7 weeks

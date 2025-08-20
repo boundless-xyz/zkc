@@ -17,7 +17,6 @@ import {ZKC} from "../ZKC.sol";
 /// @notice Staking functionality for veZKC including full NFT implementation
 /// @dev This component handles all staking operations and is the NFT contract
 abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradeable, IStaking {
-
     // Reference to ZKC token (will be set in main contract)
     ZKC internal _zkcToken;
 
@@ -36,7 +35,13 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         return super._update(to, tokenId, auth);
     }
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721Upgradeable, IERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC721Upgradeable, IERC165)
+        returns (bool)
+    {
         return interfaceId == type(IERC721).interfaceId || super.supportsInterface(interfaceId);
     }
 
@@ -57,13 +62,11 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
     }
 
     /// @inheritdoc IStaking
-    function stakeWithPermit(
-        uint256 amount,
-        uint256 permitDeadline,
-        uint8 v, 
-        bytes32 r, 
-        bytes32 s
-    ) external nonReentrant returns (uint256 tokenId) {
+    function stakeWithPermit(uint256 amount, uint256 permitDeadline, uint8 v, bytes32 r, bytes32 s)
+        external
+        nonReentrant
+        returns (uint256 tokenId)
+    {
         StakeManager.validateStake(amount, _userActivePosition[msg.sender]);
 
         // Use permit to approve tokens
@@ -85,24 +88,21 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
     function addToStake(uint256 amount) external nonReentrant {
         uint256 tokenId = _userActivePosition[msg.sender];
         if (tokenId == 0) revert NoActivePosition();
-        
+
         _addToStake(msg.sender, tokenId, amount);
     }
 
     /// @inheritdoc IStaking
-    function addToStakeWithPermit(
-        uint256 amount,
-        uint256 permitDeadline,
-        uint8 v, 
-        bytes32 r, 
-        bytes32 s
-    ) external nonReentrant {
+    function addToStakeWithPermit(uint256 amount, uint256 permitDeadline, uint8 v, bytes32 r, bytes32 s)
+        external
+        nonReentrant
+    {
         uint256 tokenId = _userActivePosition[msg.sender];
         if (tokenId == 0) revert NoActivePosition();
 
         // Use permit to approve tokens
         _zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
-        
+
         _addToStake(msg.sender, tokenId, amount);
     }
 
@@ -116,13 +116,13 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         uint256 tokenId,
         uint256 amount,
         uint256 permitDeadline,
-        uint8 v, 
-        bytes32 r, 
+        uint8 v,
+        bytes32 r,
         bytes32 s
     ) external nonReentrant {
         // Use permit to approve tokens
         _zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
-        
+
         _addToStake(msg.sender, tokenId, amount);
     }
 
@@ -132,7 +132,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         uint256 tokenId = _userActivePosition[msg.sender];
         if (tokenId == 0) revert NoActivePosition();
         if (ownerOf(tokenId) != msg.sender) revert TokenDoesNotExist();
-        
+
         // Check if user has active delegations (delegating to self is allowed)
         if (_voteDelegatee[msg.sender] != address(0) && _voteDelegatee[msg.sender] != msg.sender) {
             revert MustUndelegateVotesFirst();
@@ -140,10 +140,10 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         if (_rewardDelegatee[msg.sender] != address(0) && _rewardDelegatee[msg.sender] != msg.sender) {
             revert MustUndelegateRewardsFirst();
         }
-        
+
         // Get current stake info
         Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
-        
+
         // Validate withdrawal can be initiated
         StakeManager.validateWithdrawalInitiation(stakeInfo);
 
@@ -158,7 +158,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
     function completeUnstake() external nonReentrant {
         address user = msg.sender;
         uint256 tokenId = _userActivePosition[user];
-        
+
         Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
         StakeManager.validateUnstakeCompletion(tokenId, stakeInfo);
 
@@ -178,13 +178,13 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
     function getStakedAmountAndWithdrawalTime(address account) public view returns (uint256, uint256) {
         uint256 tokenId = _userActivePosition[account];
         if (tokenId == 0) return (0, 0);
-        
+
         Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
         uint256 withdrawableAt = 0;
         if (stakeInfo.withdrawalRequestedAt > 0) {
             withdrawableAt = stakeInfo.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
         }
-        
+
         return (stakeInfo.amount, withdrawableAt);
     }
 
@@ -201,9 +201,9 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
         Checkpoints.StakeInfo memory emptyStake; // Empty stake (new mint)
         Checkpoints.StakeInfo memory newStake = StakeManager.createStake(amount);
-        
+
         _stakes[tokenId] = newStake;
-        
+
         // Handle delegation-aware checkpointing
         _checkpointWithDelegation(to, emptyStake, newStake);
 
@@ -221,9 +221,9 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         Checkpoints.StakeInfo memory newStake = StakeManager.addToStake(oldStake, newAmount);
 
         _stakes[tokenId] = newStake;
-        
+
         address owner = ownerOf(tokenId);
-        
+
         // Handle delegation-aware checkpointing
         _checkpointWithDelegation(owner, oldStake, newStake);
 
@@ -240,9 +240,9 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         Checkpoints.StakeInfo memory newStake = StakeManager.initiateWithdrawal(oldStake);
 
         _stakes[tokenId] = newStake;
-        
+
         address owner = ownerOf(tokenId);
-        
+
         // When initiating unstake, user cannot have delegations
         // So we just update their own checkpoint (powers drop to 0)
         Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldStake, newStake);
@@ -253,7 +253,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
     function _burnStake(uint256 tokenId) internal {
         if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
-        
+
         delete _stakes[tokenId];
         _burn(tokenId);
 
@@ -262,7 +262,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
     function _addToStake(address from, uint256 tokenId, uint256 amount) private {
         if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
-        
+
         Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
         StakeManager.validateAddToStake(amount, stakeInfo);
 
@@ -288,18 +288,18 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
     ) internal {
         // Calculate the change in stake amount
         int256 stakeDelta = int256(newStake.amount) - int256(oldStake.amount);
-        
+
         // Get delegation states
         address voteDelegatee = _voteDelegatee[account];
         address rewardDelegatee = _rewardDelegatee[account];
-        
+
         // Track whether we need to update the user's own checkpoint
         bool needUserCheckpoint = false;
-        
+
         // Prepare the Point for user's own checkpoint
         Checkpoints.Point memory userOldPoint;
         Checkpoints.Point memory userNewPoint;
-        
+
         // Handle vote delegation
         if (voteDelegatee != address(0) && voteDelegatee != account) {
             // Votes are delegated - update delegatee's checkpoint
@@ -314,7 +314,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
                 userNewPoint.votingAmount = newStake.amount;
             }
         }
-        
+
         // Handle reward delegation
         if (rewardDelegatee != address(0) && rewardDelegatee != account) {
             // Rewards are delegated - update delegatee's checkpoint
@@ -329,7 +329,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
                 userNewPoint.rewardAmount = newStake.amount;
             }
         }
-        
+
         // If either votes or rewards are not delegated, update user's checkpoint
         if (needUserCheckpoint) {
             // Set common fields
@@ -337,33 +337,32 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
             userOldPoint.withdrawing = oldStake.withdrawalRequestedAt > 0;
             userNewPoint.updatedAt = block.timestamp;
             userNewPoint.withdrawing = newStake.withdrawalRequestedAt > 0;
-            
+
             // Update user checkpoint
             uint256 userEpoch = _userCheckpoints.userPointEpoch[account] + 1;
             _userCheckpoints.userPointEpoch[account] = userEpoch;
             _userCheckpoints.userPointHistory[account][userEpoch] = userNewPoint;
         }
-        
+
         // Always update global totals
         _updateGlobalCheckpoint(oldStake, newStake);
     }
-    
+
     /// @dev Update global checkpoint for stake changes
-    function _updateGlobalCheckpoint(
-        Checkpoints.StakeInfo memory oldStake,
-        Checkpoints.StakeInfo memory newStake
-    ) internal {
+    function _updateGlobalCheckpoint(Checkpoints.StakeInfo memory oldStake, Checkpoints.StakeInfo memory newStake)
+        internal
+    {
         // Calculate effective amounts (0 if withdrawing)
         uint256 oldEffectiveAmount = oldStake.withdrawalRequestedAt > 0 ? 0 : oldStake.amount;
         uint256 newEffectiveAmount = newStake.withdrawalRequestedAt > 0 ? 0 : newStake.amount;
-        
+
         // Load current global point
         uint256 globalEpoch = _globalCheckpoints.globalPointEpoch;
         Checkpoints.Point memory lastGlobalPoint;
         if (globalEpoch > 0) {
             lastGlobalPoint = _globalCheckpoints.globalPointHistory[globalEpoch];
         }
-        
+
         // Calculate new global point
         Checkpoints.Point memory newGlobalPoint = Checkpoints.Point({
             votingAmount: lastGlobalPoint.votingAmount + newEffectiveAmount - oldEffectiveAmount,
@@ -371,7 +370,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
             updatedAt: block.timestamp,
             withdrawing: false
         });
-        
+
         // Update global checkpoint
         if (globalEpoch > 0 && lastGlobalPoint.updatedAt == block.timestamp) {
             // Update existing point at this timestamp
@@ -383,5 +382,4 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
             _globalCheckpoints.globalPointEpoch = globalEpoch;
         }
     }
-
 }

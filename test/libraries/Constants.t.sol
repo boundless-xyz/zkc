@@ -10,17 +10,17 @@ contract ConstantsTest is Test {
         assertEq(Constants.WITHDRAWAL_PERIOD, 30 days);
         assertGt(Constants.WITHDRAWAL_PERIOD, 0);
     }
-    
+
     function testPowerScalars() public pure {
         // Power scalars should be positive
         assertGt(Constants.VOTING_POWER_SCALAR, 0);
         assertGt(Constants.REWARD_POWER_SCALAR, 0);
-        
+
         // Default scalars should be 1 for 1:1 ratio in token units
         assertEq(Constants.VOTING_POWER_SCALAR, 1);
         assertEq(Constants.REWARD_POWER_SCALAR, 1);
     }
-    
+
     function testWeekConstant() public pure {
         // Week constant should equal 1 week
         assertEq(Constants.WEEK, 1 weeks);

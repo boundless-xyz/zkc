@@ -260,18 +260,18 @@ contract StakingRewardsTest is Test {
     function testWithdrawingUserGetsNoRewards() public {
         _stake(user1, 100e18);
         _stake(user2, 100e18);
-        
+
         // User1 initiates withdrawal
         vm.prank(user1);
         vezkc.initiateUnstake();
-        
+
         _endEpochs(1); // epoch ends while user1 is withdrawing
-        
+
         // User1 should get no rewards due to withdrawal, user2 gets all
         uint256 c1 = _claimRewardsForEpoch(user1, 0);
         uint256 c2 = _claimRewardsForEpoch(user2, 0);
         uint256 total = zkc.getStakingEmissionsForEpoch(0);
-        
+
         assertEq(c1, 0, "Withdrawing user should get no rewards");
         assertEq(c2, total, "Non-withdrawing user should get all rewards");
     }
@@ -280,28 +280,28 @@ contract StakingRewardsTest is Test {
     function testRewardsWithMidEpochWithdrawal() public {
         _stake(user1, 100e18);
         _stake(user2, 100e18);
-        
+
         // Start epoch 0, users split rewards
         _endEpochs(1);
         uint256 c1_epoch0 = _claimRewardsForEpoch(user1, 0);
         uint256 c2_epoch0 = _claimRewardsForEpoch(user2, 0);
         uint256 total_epoch0 = zkc.getStakingEmissionsForEpoch(0);
-        
+
         // Both users should get equal rewards for epoch 0
         assertApproxEqRel(c1_epoch0, total_epoch0 / 2, 1e16);
         assertApproxEqRel(c2_epoch0, total_epoch0 / 2, 1e16);
-        
+
         // User1 initiates withdrawal during epoch 1
         vm.prank(user1);
         vezkc.initiateUnstake();
-        
+
         _endEpochs(1); // finish epoch 1
-        
+
         // For epoch 1, user1 gets no rewards (withdrawing), user2 gets all
         uint256 c1_epoch1 = _claimRewardsForEpoch(user1, 1);
         uint256 c2_epoch1 = _claimRewardsForEpoch(user2, 1);
         uint256 total_epoch1 = zkc.getStakingEmissionsForEpoch(1);
-        
+
         assertEq(c1_epoch1, 0, "Withdrawing user should get no rewards for epoch 1");
         assertEq(c2_epoch1, total_epoch1, "Non-withdrawing user should get all rewards for epoch 1");
     }

@@ -11,26 +11,15 @@ import {Votes} from "./components/Votes.sol";
 import {Rewards} from "./components/Rewards.sol";
 import {Staking} from "./components/Staking.sol";
 
-// Import libraries  
+// Import libraries
 import {Checkpoints} from "./libraries/Checkpoints.sol";
 import {Constants} from "./libraries/Constants.sol";
 
 import {ZKC} from "./ZKC.sol";
 
 /// @title veZKC - Vote Escrowed ZK Coin
-/// @notice Vote-escrowed ZKC token system with withdrawal-based unstaking
-/// @dev Architecture using modular components:
-///      - Votes: IVotes interface implementation  
-///      - Rewards: IRewards interface implementation
-///      - Staking: NFT functionality and staking operations
-contract veZKC is
-    Initializable,
-    AccessControlUpgradeable,
-    UUPSUpgradeable,
-    Votes,
-    Rewards, 
-    Staking
-{
+/// @notice Staking contracts for ZKC, granting voting and reward power.
+contract veZKC is Initializable, AccessControlUpgradeable, UUPSUpgradeable, Votes, Rewards, Staking {
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -46,17 +35,15 @@ contract veZKC is
 
         _zkcToken = ZKC(zkcTokenAddress);
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
-        
+
         // Initialize checkpoint system
         Checkpoints.initializeGlobalPoint(_globalCheckpoints);
     }
 
-    /// @dev Implement abstract function from Votes component
     function _msgSender() internal view override(ContextUpgradeable, Votes, Rewards) returns (address) {
         return msg.sender;
     }
 
-    /// @dev Authorization function for UUPS upgrades
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
 
     /// @dev Support required interfaces

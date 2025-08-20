@@ -10,6 +10,6 @@ interface IVotes is OZIVotes {
     // Custom errors
     error NotImplemented();
     error CannotDelegateWhileWithdrawing();
-    
+
     // This interface extends OpenZeppelin's IVotes interface
 }

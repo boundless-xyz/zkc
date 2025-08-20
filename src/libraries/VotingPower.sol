@@ -8,7 +8,6 @@ import {Constants} from "./Constants.sol";
 /// @notice Voting power calculation logic for IVotes interface implementation
 /// @dev Voting power = staked_amount / VOTING_POWER_SCALAR (0 if withdrawing)
 library VotingPower {
-
     /// @notice Calculate voting power from a point
     /// @dev Returns votingAmount / VOTING_POWER_SCALAR if not withdrawing, else 0
     /// @param point The checkpoint point to calculate voting power from
@@ -22,13 +21,14 @@ library VotingPower {
     /// @param userStorage User checkpoint storage
     /// @param account Address to query
     /// @return Current voting power
-    function getVotes(
-        Checkpoints.UserCheckpointStorage storage userStorage,
-        address account
-    ) internal view returns (uint256) {
+    function getVotes(Checkpoints.UserCheckpointStorage storage userStorage, address account)
+        internal
+        view
+        returns (uint256)
+    {
         uint256 epoch = userStorage.userPointEpoch[account];
         if (epoch == 0) return 0;
-        
+
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
         return getVotesFromPoint(point);
     }
@@ -38,28 +38,29 @@ library VotingPower {
     /// @param account Address to query
     /// @param timepoint Historical timestamp
     /// @return Voting power at the specified timestamp
-    function getPastVotes(
-        Checkpoints.UserCheckpointStorage storage userStorage,
-        address account,
-        uint256 timepoint
-    ) internal view returns (uint256) {
+    function getPastVotes(Checkpoints.UserCheckpointStorage storage userStorage, address account, uint256 timepoint)
+        internal
+        view
+        returns (uint256)
+    {
         uint256 epoch = Checkpoints.findUserTimestampEpoch(userStorage, account, timepoint);
         if (epoch == 0) return 0;
-        
+
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
         return getVotesFromPoint(point);
     }
 
-
     /// @notice Calculate total voting power at current timestamp
     /// @param globalStorage Global checkpoint storage
     /// @return Current total voting power
-    function getTotalSupply(
-        Checkpoints.GlobalCheckpointStorage storage globalStorage
-    ) internal view returns (uint256) {
+    function getTotalSupply(Checkpoints.GlobalCheckpointStorage storage globalStorage)
+        internal
+        view
+        returns (uint256)
+    {
         uint256 globalEpoch = globalStorage.globalPointEpoch;
         if (globalEpoch == 0) return 0;
-        
+
         Checkpoints.Point memory lastPoint = globalStorage.globalPointHistory[globalEpoch];
         return getVotesFromPoint(lastPoint);
     }
@@ -68,15 +69,15 @@ library VotingPower {
     /// @param globalStorage Global checkpoint storage
     /// @param timepoint Historical timestamp
     /// @return Total voting power at the specified timestamp
-    function getPastTotalSupply(
-        Checkpoints.GlobalCheckpointStorage storage globalStorage,
-        uint256 timepoint
-    ) internal view returns (uint256) {
+    function getPastTotalSupply(Checkpoints.GlobalCheckpointStorage storage globalStorage, uint256 timepoint)
+        internal
+        view
+        returns (uint256)
+    {
         uint256 epoch = Checkpoints.findTimestampEpoch(globalStorage, timepoint);
         if (epoch == 0) return 0;
-        
+
         Checkpoints.Point memory point = globalStorage.globalPointHistory[epoch];
         return getVotesFromPoint(point);
     }
-
 }

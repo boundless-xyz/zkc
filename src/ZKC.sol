@@ -12,58 +12,61 @@ import {IZKC} from "./interfaces/IZKC.sol";
 
 /// @title ZKC - ZK Coin
 /// @notice The main ZKC token contract with epoch-based emissions
-/// @dev Implements upgradeable ERC20 with permit functionality and role-based minting
-contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessControlUpgradeable, UUPSUpgradeable, IZKC {
+contract ZKC is
+    Initializable,
+    ERC20Upgradeable,
+    ERC20PermitUpgradeable,
+    AccessControlUpgradeable,
+    UUPSUpgradeable,
+    IZKC
+{
     /// @notice Address of the first initial minter
     address public initialMinter1;
-    
+
     /// @notice Address of the second initial minter
     address public initialMinter2;
-    
+
     /// @notice Remaining mintable amount for the first initial minter
     uint256 public initialMinter1Remaining;
-    
+
     /// @notice Remaining mintable amount for the second initial minter
     uint256 public initialMinter2Remaining;
 
     /// @notice Admin role identifier
     bytes32 public immutable ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
-    
-    /// @notice General minter role identifier
-    bytes32 public immutable MINTER_ROLE = keccak256("MINTER_ROLE");
 
     /// @notice Initial token supply (1 billion ZKC)
-    uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 10**18; 
+    uint256 public constant INITIAL_SUPPLY = Supply.INITIAL_SUPPLY;
+
+    /// @notice Duration of each epoch in seconds
+    uint256 public constant EPOCH_DURATION = 2 days;
+
+    /// @notice Number of epochs per year
+    uint256 public constant EPOCHS_PER_YEAR = Supply.EPOCHS_PER_YEAR;
 
     /// @notice Basis points constant for percentage calculations
     uint256 public constant BASIS_POINTS = 10000;
 
-    /// @notice Duration of each epoch in seconds (2 days)
-    uint256 public constant EPOCH_DURATION = 2 days;
-    
-    /// @notice Number of epochs per year
-    uint256 public constant EPOCHS_PER_YEAR = 182;
-    
     /// @notice Percentage of emissions allocated to PoVW rewards (75%)
     uint256 public constant POVW_ALLOCATION_BPS = 7500;
-    
-    /// @notice Percentage of emissions allocated to staking rewards (25%)
-    uint256 public constant STAKING_ALLOCATION_BPS = 2500;   
 
-    /// @notice Role identifier for PoVW reward minters
+    /// @notice Percentage of emissions allocated to staking rewards (25%)
+    uint256 public constant STAKING_ALLOCATION_BPS = 2500;
+
+    /// @notice Role identifier for PoVW reward minter
     bytes32 public immutable POVW_MINTER_ROLE = keccak256("POVW_MINTER_ROLE");
-    
-    /// @notice Role identifier for staking reward minters
+
+    /// @notice Role identifier for staking reward minter
     bytes32 public immutable STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
 
-    /// @notice Timestamp when the contract was deployed (epoch 0 start)
-    uint256 public deploymentTime;
+    /// @notice Timestamp when epoch 0 started
+    uint256 public epoch0StartTime;
 
-    /// @notice Total amount of PoVW rewards minted
-    uint256 public poVWMinted;
-    
-    /// @notice Total amount of staking rewards minted
-    uint256 public stakingMinted;
+    /// @notice Total amount of PoVW rewards claimed
+    uint256 public poVWClaimed;
+
+    /// @notice Total amount of staking rewards claimed
+    uint256 public stakingClaimed;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -91,9 +94,9 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
     }
 
-    // On upgrade, set the deployment time to initiate the start of the first epoch.
+    /// @dev On upgrade, set the epoch 0 start time to initiate the start of the first epoch.
     function initializeV2() public reinitializer(2) {
-        deploymentTime = block.timestamp;
+        epoch0StartTime = block.timestamp;
     }
 
     /// @inheritdoc IZKC
@@ -129,23 +132,23 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
 
     function _mintPoVWRewardsForRecipient(address recipient, uint256 amount) internal {
         uint256 totalEmissions = getTotalPoVWEmissionsAtEpochStart(getCurrentEpoch());
-        uint256 mintedTotal = poVWMinted + amount;
-        if (mintedTotal > totalEmissions) {
+        uint256 claimedTotal = poVWClaimed + amount;
+        if (claimedTotal > totalEmissions) {
             revert TotalAllocationExceeded();
         }
 
-        poVWMinted = mintedTotal;
+        poVWClaimed = claimedTotal;
         _mint(recipient, amount);
     }
 
     function _mintStakingRewardsForRecipient(address recipient, uint256 amount) internal {
         uint256 totalEmissions = getTotalStakingEmissionsAtEpochStart(getCurrentEpoch());
-        uint256 mintedTotal = stakingMinted + amount;
-        if (mintedTotal > totalEmissions) {
+        uint256 claimedTotal = stakingClaimed + amount;
+        if (claimedTotal > totalEmissions) {
             revert TotalAllocationExceeded();
         }
 
-        stakingMinted = mintedTotal;
+        stakingClaimed = claimedTotal;
         _mint(recipient, amount);
     }
 
@@ -155,13 +158,13 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
     }
 
     /// @inheritdoc IZKC
-    function getTotalPoVWEmissionsAtEpochStart(uint256 epoch) public returns (uint256) {
+    function getTotalPoVWEmissionsAtEpochStart(uint256 epoch) public pure returns (uint256) {
         uint256 totalEmissions = getSupplyAtEpochStart(epoch) - INITIAL_SUPPLY;
         return (totalEmissions * POVW_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
     /// @inheritdoc IZKC
-    function getTotalStakingEmissionsAtEpochStart(uint256 epoch) public returns (uint256) {
+    function getTotalStakingEmissionsAtEpochStart(uint256 epoch) public pure returns (uint256) {
         uint256 totalEmissions = getSupplyAtEpochStart(epoch) - INITIAL_SUPPLY;
         return (totalEmissions * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
     }
@@ -185,12 +188,12 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
 
     /// @inheritdoc IZKC
     function getCurrentEpoch() public view returns (uint256) {
-        return (block.timestamp - deploymentTime) / EPOCH_DURATION;
+        return (block.timestamp - epoch0StartTime) / EPOCH_DURATION;
     }
 
     /// @inheritdoc IZKC
     function getEpochStartTime(uint256 epoch) public view returns (uint256) {
-        return deploymentTime + (epoch * EPOCH_DURATION);
+        return epoch0StartTime + (epoch * EPOCH_DURATION);
     }
 
     /// @inheritdoc IZKC
@@ -198,8 +201,10 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         return getEpochStartTime(epoch + 1) - 1;
     }
 
-    /// @notice Get the total supply during the current epoch
-    /// @dev Overrides ERC20 totalSupply to return epoch-based theoretical supply
+    /// @notice Get the total supply at the current epoch.
+    /// @dev Does not include rewards that will be emitted at the end of the current epoch.
+    /// @dev Overrides ERC20 totalSupply to return epoch-based theoretical supply, however
+    ///      not all tokens may have been claimed (and thus minted) by recipients yet.
     function totalSupply() public view override returns (uint256) {
         return getSupplyAtEpochStart(getCurrentEpoch());
     }
@@ -211,4 +216,3 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
 
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
 }
-

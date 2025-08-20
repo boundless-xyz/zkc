@@ -5,16 +5,16 @@ pragma solidity ^0.8.20;
 /// @notice Interface for the ZKC token with epoch-based emissions
 /// @dev Defines ZKC-specific functionality for epoch-based reward distribution
 interface IZKC {
-    
-    // Events
+    /// @notice Emitted when a recipient claims PoVW rewards.
+    /// @dev The reward amount could include ZKC that was earned across multiple epochs.
     event PoVWRewardsClaimed(address indexed recipient, uint256 amount);
+
+    /// @notice Emitted when a recipient claims staking rewards.
+    /// @dev The reward amount could include ZKC that was earned across multiple epochs.
     event StakingRewardsClaimed(address indexed recipient, uint256 amount);
 
-    // Errors
     error EpochNotEnded(uint256 epoch);
-    error EpochAllocationExceeded(uint256 epoch);
     error TotalAllocationExceeded();
-    error InvalidInputLength();
 
     /// @notice Perform initial token distribution to specified recipients
     /// @dev Only callable by designated initial minters
@@ -35,35 +35,34 @@ interface IZKC {
     function mintStakingRewardsForRecipient(address recipient, uint256 amount) external;
 
     /// @notice Get the total supply at the start of a specific epoch
-    /// @dev ZKC is emitted at the end of each epoch, this excludes rewards for the current epoch
+    /// @dev ZKC is emitted at the end of each epoch, so this excludes rewards generated
+    ///      as part of staking/work during the current epoch.
     /// @param epoch The epoch number (0-indexed)
     /// @return The total supply at the start of the epoch
     function getSupplyAtEpochStart(uint256 epoch) external pure returns (uint256);
 
-    /// @notice Get the total PoVW emissions allocated up to the start of a specific epoch
-    /// @dev Returns cumulative PoVW emissions from genesis to the start of the provided epoch
+    /// @notice Get the cumulative total PoVW emissions since genesis up to the start of a specific epoch
     /// @param epoch The epoch number
     /// @return Total PoVW emissions up to the epoch start
     function getTotalPoVWEmissionsAtEpochStart(uint256 epoch) external returns (uint256);
 
-    /// @notice Get the total staking emissions allocated up to the start of a specific epoch
-    /// @dev Returns cumulative staking emissions from genesis to the start of the provided epoch
+    /// @notice Get the cumulative total staking emissions since genesis up to the start of a specific epoch
     /// @param epoch The epoch number
     /// @return Total staking emissions up to the epoch start
     function getTotalStakingEmissionsAtEpochStart(uint256 epoch) external returns (uint256);
 
-    /// @notice Get the total emissions for a specific epoch
+    /// @notice Get the total ZKC that will be emitted at the _end_ of the specified epoch
     /// @dev Includes both PoVW and staking rewards
     /// @param epoch The epoch number
     /// @return Total emissions for the epoch
     function getEmissionsForEpoch(uint256 epoch) external returns (uint256);
 
-    /// @notice Get the PoVW emissions allocated for a specific epoch
+    /// @notice Get the PoVW emissions that will be emitted at the _end_ of the specified epoch
     /// @param epoch The epoch number
     /// @return PoVW emissions for the epoch
     function getPoVWEmissionsForEpoch(uint256 epoch) external returns (uint256);
 
-    /// @notice Get the staking emissions allocated for a specific epoch
+    /// @notice Get the staking emissions that will be emitted at the _end_ of the specified epoch
     /// @param epoch The epoch number
     /// @return Staking emissions for the epoch
     function getStakingEmissionsForEpoch(uint256 epoch) external returns (uint256);
@@ -85,7 +84,8 @@ interface IZKC {
     function getEpochEndTime(uint256 epoch) external view returns (uint256);
 
     /// @notice Get the actual minted and claimed total supply
-    /// @dev This represents tokens that have been minted to accounts
+    /// @dev This represents the initial supply that was minted and allocated to initial minters,
+    ///      as well as tokens that have been claimed (and thus minted) via PoVW or Staking rewards.
     /// @return The total amount of tokens that have been claimed
     function claimedTotalSupply() external view returns (uint256);
 }
