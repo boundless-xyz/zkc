@@ -25,8 +25,7 @@ contract VotingPowerTest is Test {
         userStorage.userPointHistory[alice][1] = Checkpoints.Point({
             votingAmount: AMOUNT,
             rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp(),
-            withdrawing: false
+            updatedAt: vm.getBlockTimestamp()
         });
         userStorage.userPointEpoch[alice] = 1;
 
@@ -35,8 +34,7 @@ contract VotingPowerTest is Test {
         globalStorage.globalPointHistory[1] = Checkpoints.Point({
             votingAmount: AMOUNT,
             rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp(),
-            withdrawing: false // Global never withdraws
+            updatedAt: vm.getBlockTimestamp()
         });
         globalStorage.globalPointEpoch = 1;
     }
@@ -82,36 +80,33 @@ contract VotingPowerTest is Test {
         Checkpoints.Point memory activePoint = Checkpoints.Point({
             votingAmount: AMOUNT,
             rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp(),
-            withdrawing: false
+            updatedAt: vm.getBlockTimestamp()
         });
 
         uint256 votes = VotingPower.getVotesFromPoint(activePoint);
         assertEq(votes, AMOUNT / Constants.VOTING_POWER_SCALAR);
-
-        // Withdrawing point
-        Checkpoints.Point memory withdrawingPoint = Checkpoints.Point({
-            votingAmount: AMOUNT,
-            rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp(),
-            withdrawing: true
+        
+        // Zero point (user has withdrawn)
+        Checkpoints.Point memory zeroPoint = Checkpoints.Point({
+            votingAmount: 0,
+            rewardAmount: 0,
+            updatedAt: vm.getBlockTimestamp()
         });
 
-        uint256 withdrawingVotes = VotingPower.getVotesFromPoint(withdrawingPoint);
-        assertEq(withdrawingVotes, 0);
+        uint256 zeroVotes = VotingPower.getVotesFromPoint(zeroPoint);
+        assertEq(zeroVotes, 0);
     }
 
-    function testWithdrawingUserVotingPower() public {
-        // Create a withdrawing user point
+    function testZeroVotingPowerAfterWithdrawal() public {
+        // Create a point with zero amounts (user has withdrawn)
         userStorage.userPointHistory[alice][2] = Checkpoints.Point({
-            votingAmount: AMOUNT,
-            rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp(),
-            withdrawing: true // User is withdrawing
+            votingAmount: 0,
+            rewardAmount: 0,
+            updatedAt: vm.getBlockTimestamp()
         });
         userStorage.userPointEpoch[alice] = 2;
 
-        // Voting power should be 0 for withdrawing users
+        // Voting power should be 0 after withdrawal
         uint256 votes = VotingPower.getVotes(userStorage, alice);
         assertEq(votes, 0);
     }

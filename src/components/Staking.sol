@@ -230,9 +230,22 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
         address owner = ownerOf(tokenId);
 
-        // When initiating unstake, user cannot have delegations
-        // So we just update their own checkpoint (powers drop to 0)
-        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldStake, newStake);
+        // When initiating unstake, reduce the user's checkpoint by their OWN stake amount
+        // This preserves any delegated power they've received from others
+        // The user cannot have outgoing delegations at this point (checked in initiateUnstake)
+        // so oldStake.amount represents their own stake contribution
+        int256 votingDelta = -int256(oldStake.amount);
+        int256 rewardDelta = -int256(oldStake.amount);
+        
+        // Update user checkpoint by removing their own stake power
+        // The user may still have delegated power from others
+        Checkpoints.checkpointDelta(
+            _userCheckpoints,
+            _globalCheckpoints,
+            owner,
+            votingDelta,
+            rewardDelta
+        );
 
         uint256 withdrawableAt = newStake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
         emit UnstakeInitiated(tokenId, owner, withdrawableAt);
@@ -321,9 +334,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         if (needUserCheckpoint) {
             // Set common fields
             userOldPoint.updatedAt = block.timestamp;
-            userOldPoint.withdrawing = oldStake.withdrawalRequestedAt > 0;
             userNewPoint.updatedAt = block.timestamp;
-            userNewPoint.withdrawing = newStake.withdrawalRequestedAt > 0;
 
             // Update user checkpoint
             uint256 userEpoch = _userCheckpoints.userPointEpoch[account] + 1;
@@ -354,8 +365,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         Checkpoints.Point memory newGlobalPoint = Checkpoints.Point({
             votingAmount: lastGlobalPoint.votingAmount + newEffectiveAmount - oldEffectiveAmount,
             rewardAmount: lastGlobalPoint.rewardAmount + newEffectiveAmount - oldEffectiveAmount,
-            updatedAt: block.timestamp,
-            withdrawing: false
+            updatedAt: block.timestamp
         });
 
         // Update global checkpoint

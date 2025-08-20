@@ -9,7 +9,7 @@ import {Constants} from "./Constants.sol";
 /// @dev Provides both staking rewards (REWARD_POWER_SCALAR) and PoVW reward cap (POVW_REWARD_CAP_SCALAR) calculations
 library RewardPower {
     /// @notice Get current staking rewards for an account
-    /// @dev Returns rewardAmount / REWARD_POWER_SCALAR if not withdrawing, else 0
+    /// @dev Returns rewardAmount / REWARD_POWER_SCALAR
     /// @param userStorage User checkpoint storage
     /// @param account Address to query
     /// @return Current reward power
@@ -22,7 +22,6 @@ library RewardPower {
         if (epoch == 0) return 0;
 
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
-        if (point.withdrawing) return 0;
         return point.rewardAmount / Constants.REWARD_POWER_SCALAR;
     }
 
@@ -40,7 +39,6 @@ library RewardPower {
         if (epoch == 0) return 0;
 
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
-        if (point.withdrawing) return 0;
         return point.rewardAmount / Constants.REWARD_POWER_SCALAR;
     }
 
@@ -76,7 +74,7 @@ library RewardPower {
     }
 
     /// @notice Get current PoVW reward cap for an account
-    /// @dev Returns amount / POVW_REWARD_CAP_SCALAR if not withdrawing, else 0
+    /// @dev Returns amount / POVW_REWARD_CAP_SCALAR
     /// @param userStorage User checkpoint storage
     /// @param account Address to query
     /// @return Current PoVW reward cap
@@ -89,7 +87,6 @@ library RewardPower {
         if (epoch == 0) return 0;
 
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
-        if (point.withdrawing) return 0;
         return point.rewardAmount / Constants.POVW_REWARD_CAP_SCALAR;
     }
 
@@ -107,7 +104,6 @@ library RewardPower {
         if (epoch == 0) return 0;
 
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
-        if (point.withdrawing) return 0;
         return point.rewardAmount / Constants.POVW_REWARD_CAP_SCALAR;
     }
 }

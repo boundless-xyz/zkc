@@ -324,6 +324,98 @@ contract StakingDelegationTest is veZKCTest {
         assertEq(veToken.getStakingRewards(bob), 0, "Bob should have no rewards");
     }
 
+    function testWithdrawalWithIncomingVoteDelegations() public {
+        // Alice and Bob both stake
+        vm.prank(alice);
+        veToken.stake(AMOUNT);
+        vm.prank(bob);
+        veToken.stake(AMOUNT * 2);
+        
+        // Bob delegates votes to Alice
+        vm.prank(bob);
+        veToken.delegate(alice);
+        
+        // Check initial state: Alice has her own + Bob's voting power
+        assertEq(veToken.getVotes(alice), AMOUNT * 3, "Alice should have combined voting power");
+        assertEq(veToken.getVotes(bob), 0, "Bob should have no voting power");
+        
+        // Alice initiates unstake
+        vm.prank(alice);
+        veToken.initiateUnstake();
+        
+        // After initiating unstake:
+        // - Alice's own voting power should be 0 (she's withdrawing)
+        // - But she should still have Bob's delegated voting power
+        assertEq(veToken.getVotes(alice), AMOUNT * 2, "Alice should only have Bob's delegated power");
+        assertEq(veToken.getVotes(bob), 0, "Bob should still have no voting power");
+        
+        // Wait for withdrawal period
+        vm.warp(block.timestamp + Constants.WITHDRAWAL_PERIOD);
+        
+        // Alice completes unstake
+        vm.prank(alice);
+        veToken.completeUnstake();
+        
+        // After completion:
+        // - Alice should still have Bob's delegated power even without a position
+        assertEq(veToken.getVotes(alice), AMOUNT * 2, "Alice should still have Bob's delegated power");
+        assertEq(veToken.getVotes(bob), 0, "Bob should still have no voting power");
+        
+        // Bob changes delegation back to himself
+        vm.prank(bob);
+        veToken.delegate(bob);
+        
+        assertEq(veToken.getVotes(alice), 0, "Alice should have no voting power");
+        assertEq(veToken.getVotes(bob), AMOUNT * 2, "Bob should have his voting power back");
+    }
+    
+    function testWithdrawalWithIncomingRewardDelegations() public {
+        // Alice and Bob both stake
+        vm.prank(alice);
+        veToken.stake(AMOUNT);
+        vm.prank(bob);
+        veToken.stake(AMOUNT * 2);
+        
+        // Bob delegates rewards to Alice
+        vm.prank(bob);
+        veToken.delegateRewards(alice);
+        
+        // Check initial state: Alice has her own + Bob's reward power
+        uint256 expectedRewardPower = (AMOUNT * 3) / Constants.REWARD_POWER_SCALAR;
+        assertEq(veToken.getStakingRewards(alice), expectedRewardPower, "Alice should have combined reward power");
+        assertEq(veToken.getStakingRewards(bob), 0, "Bob should have no reward power");
+        
+        // Alice initiates unstake
+        vm.prank(alice);
+        veToken.initiateUnstake();
+        
+        // After initiating unstake:
+        // - Alice's own reward power should be 0 (she's withdrawing)
+        // - But she should still have Bob's delegated reward power
+        uint256 bobRewardPower = (AMOUNT * 2) / Constants.REWARD_POWER_SCALAR;
+        assertEq(veToken.getStakingRewards(alice), bobRewardPower, "Alice should only have Bob's delegated reward power");
+        assertEq(veToken.getStakingRewards(bob), 0, "Bob should still have no reward power");
+        
+        // Wait for withdrawal period
+        vm.warp(block.timestamp + Constants.WITHDRAWAL_PERIOD);
+        
+        // Alice completes unstake
+        vm.prank(alice);
+        veToken.completeUnstake();
+        
+        // After completion:
+        // - Alice should still have Bob's delegated reward power
+        assertEq(veToken.getStakingRewards(alice), bobRewardPower, "Alice should still have Bob's delegated reward power");
+        assertEq(veToken.getStakingRewards(bob), 0, "Bob should still have no reward power");
+        
+        // Bob changes delegation back to himself
+        vm.prank(bob);
+        veToken.delegateRewards(bob);
+        
+        assertEq(veToken.getStakingRewards(alice), 0, "Alice should have no reward power");
+        assertEq(veToken.getStakingRewards(bob), bobRewardPower, "Bob should have his reward power back");
+    }
+    
     function testComplexDelegationChains() public {
         // Setup 5 users with stakes
         address[5] memory users = [alice, bob, CHARLIE, DAVE, address(5)];

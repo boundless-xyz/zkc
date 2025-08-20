@@ -25,8 +25,7 @@ contract RewardPowerTest is Test {
         userStorage.userPointHistory[alice][1] = Checkpoints.Point({
             votingAmount: AMOUNT,
             rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp(),
-            withdrawing: false
+            updatedAt: vm.getBlockTimestamp()
         });
         userStorage.userPointEpoch[alice] = 1;
 
@@ -35,8 +34,7 @@ contract RewardPowerTest is Test {
         globalStorage.globalPointHistory[1] = Checkpoints.Point({
             votingAmount: AMOUNT,
             rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp(),
-            withdrawing: false // Global never withdraws
+            updatedAt: vm.getBlockTimestamp()
         });
         globalStorage.globalPointEpoch = 1;
     }
@@ -77,17 +75,16 @@ contract RewardPowerTest is Test {
         assertEq(pastTotalRewards, AMOUNT / Constants.REWARD_POWER_SCALAR);
     }
 
-    function testWithdrawingUserStakingRewards() public {
-        // Create a withdrawing user point
+    function testZeroStakingRewardsAfterWithdrawal() public {
+        // Create a point with zero amounts (user has withdrawn)
         userStorage.userPointHistory[alice][2] = Checkpoints.Point({
-            votingAmount: AMOUNT,
-            rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp(),
-            withdrawing: true // User is withdrawing
+            votingAmount: 0,
+            rewardAmount: 0,
+            updatedAt: vm.getBlockTimestamp()
         });
         userStorage.userPointEpoch[alice] = 2;
 
-        // Staking rewards should be 0 for withdrawing users
+        // Staking rewards should be 0 after withdrawal
         uint256 rewards = RewardPower.getStakingRewards(userStorage, alice);
         assertEq(rewards, 0);
     }
@@ -128,17 +125,16 @@ contract RewardPowerTest is Test {
         assertEq(pastCap, AMOUNT / Constants.POVW_REWARD_CAP_SCALAR);
     }
 
-    function testWithdrawingUserPoVWRewardCap() public {
-        // Create a withdrawing user point
+    function testZeroPoVWRewardCapAfterWithdrawal() public {
+        // Create a point with zero amounts (user has withdrawn)
         userStorage.userPointHistory[alice][2] = Checkpoints.Point({
-            votingAmount: AMOUNT,
-            rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp(),
-            withdrawing: true // User is withdrawing
+            votingAmount: 0,
+            rewardAmount: 0,
+            updatedAt: vm.getBlockTimestamp()
         });
         userStorage.userPointEpoch[alice] = 2;
 
-        // PoVW reward cap should be 0 for withdrawing users
+        // PoVW reward cap should be 0 after withdrawal
         uint256 cap = RewardPower.getPoVWRewardCap(userStorage, alice);
         assertEq(cap, 0);
     }

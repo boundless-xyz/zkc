@@ -6,14 +6,13 @@ import {Constants} from "./Constants.sol";
 
 /// @title VotingPower Library
 /// @notice Voting power calculation logic for IVotes interface implementation
-/// @dev Voting power = staked_amount / VOTING_POWER_SCALAR (0 if withdrawing)
+/// @dev Voting power = staked_amount / VOTING_POWER_SCALAR
 library VotingPower {
     /// @notice Calculate voting power from a point
-    /// @dev Returns votingAmount / VOTING_POWER_SCALAR if not withdrawing, else 0
+    /// @dev Returns votingAmount / VOTING_POWER_SCALAR
     /// @param point The checkpoint point to calculate voting power from
-    /// @return Voting power (0 if withdrawing)
+    /// @return Voting power
     function getVotesFromPoint(Checkpoints.Point memory point) internal pure returns (uint256) {
-        if (point.withdrawing) return 0;
         return point.votingAmount / Constants.VOTING_POWER_SCALAR;
     }
 

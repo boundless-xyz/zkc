@@ -16,8 +16,6 @@ library Checkpoints {
         uint256 rewardAmount;
         /// @notice Timestamp when recorded
         uint256 updatedAt;
-        /// @notice Whether user is in withdrawal period (powers drop to 0)
-        bool withdrawing;
     }
 
     /// @notice Information about a staked position
@@ -49,7 +47,7 @@ library Checkpoints {
     /// @param self Global checkpoint storage to initialize
     function initializeGlobalPoint(GlobalCheckpointStorage storage self) internal {
         self.globalPointHistory[0] =
-            Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp, withdrawing: false});
+            Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
     }
 
     /// @notice Binary search to find user's point at a specific timestamp
@@ -177,8 +175,7 @@ library Checkpoints {
             userOldPoint = Point({
                 votingAmount: oldStake.amount,
                 rewardAmount: oldStake.amount,
-                updatedAt: block.timestamp,
-                withdrawing: oldStake.withdrawalRequestedAt > 0
+                updatedAt: block.timestamp
             });
         }
 
@@ -188,8 +185,7 @@ library Checkpoints {
             userNewPoint = Point({
                 votingAmount: newStake.amount,
                 rewardAmount: newStake.amount,
-                updatedAt: block.timestamp,
-                withdrawing: newStake.withdrawalRequestedAt > 0
+                updatedAt: block.timestamp
             });
         }
 
@@ -200,24 +196,22 @@ library Checkpoints {
 
         // Load the most recent global point
         Point memory lastGlobalPoint =
-            Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp, withdrawing: false});
+            Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
         uint256 globalEpoch = globalStorage.globalPointEpoch;
         if (globalEpoch > 0) {
             lastGlobalPoint = globalStorage.globalPointHistory[globalEpoch];
         }
 
         // Calculate new global point by applying user's changes
-        // When withdrawing, effective amounts are 0 (powers are 0)
-        uint256 oldEffectiveVoting = userOldPoint.withdrawing ? 0 : userOldPoint.votingAmount;
-        uint256 newEffectiveVoting = userNewPoint.withdrawing ? 0 : userNewPoint.votingAmount;
-        uint256 oldEffectiveReward = userOldPoint.withdrawing ? 0 : userOldPoint.rewardAmount;
-        uint256 newEffectiveReward = userNewPoint.withdrawing ? 0 : userNewPoint.rewardAmount;
+        uint256 oldEffectiveVoting = userOldPoint.votingAmount;
+        uint256 newEffectiveVoting = userNewPoint.votingAmount;
+        uint256 oldEffectiveReward = userOldPoint.rewardAmount;
+        uint256 newEffectiveReward = userNewPoint.rewardAmount;
 
         Point memory newGlobalPoint = Point({
             votingAmount: lastGlobalPoint.votingAmount + newEffectiveVoting - oldEffectiveVoting,
             rewardAmount: lastGlobalPoint.rewardAmount + newEffectiveReward - oldEffectiveReward,
-            updatedAt: block.timestamp,
-            withdrawing: false // Global never withdraws
+            updatedAt: block.timestamp
         });
 
         // Update global point history
@@ -233,6 +227,60 @@ library Checkpoints {
         }
     }
 
+    /// @notice Checkpoint function for applying deltas to both voting and reward power
+    /// @dev Updates user and global checkpoints with the specified deltas
+    /// @param userStorage User checkpoint storage to update
+    /// @param globalStorage Global checkpoint storage to update
+    /// @param account Address whose power is changing
+    /// @param votingDelta Amount to add/remove from voting power
+    /// @param rewardDelta Amount to add/remove from reward power
+    function checkpointDelta(
+        UserCheckpointStorage storage userStorage,
+        GlobalCheckpointStorage storage globalStorage,
+        address account,
+        int256 votingDelta,
+        int256 rewardDelta
+    ) internal {
+        // Get current user point
+        uint256 userEpoch = userStorage.userPointEpoch[account];
+        Point memory lastUserPoint = userEpoch > 0
+            ? userStorage.userPointHistory[account][userEpoch]
+            : Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
+
+        // Create new user point with deltas applied
+        Point memory newUserPoint = Point({
+            votingAmount: uint256(int256(lastUserPoint.votingAmount) + votingDelta),
+            rewardAmount: uint256(int256(lastUserPoint.rewardAmount) + rewardDelta),
+            updatedAt: block.timestamp
+        });
+
+        // Update user checkpoint
+        userEpoch += 1;
+        userStorage.userPointEpoch[account] = userEpoch;
+        userStorage.userPointHistory[account][userEpoch] = newUserPoint;
+
+        // Update global checkpoint with the same deltas
+        uint256 globalEpoch = globalStorage.globalPointEpoch;
+        Point memory lastGlobalPoint = globalEpoch > 0
+            ? globalStorage.globalPointHistory[globalEpoch]
+            : Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
+
+        Point memory newGlobalPoint = Point({
+            votingAmount: uint256(int256(lastGlobalPoint.votingAmount) + votingDelta),
+            rewardAmount: uint256(int256(lastGlobalPoint.rewardAmount) + rewardDelta),
+            updatedAt: block.timestamp
+        });
+
+        // Update global point history
+        if (globalEpoch == 0 || lastGlobalPoint.updatedAt < block.timestamp) {
+            globalEpoch += 1;
+            globalStorage.globalPointHistory[globalEpoch] = newGlobalPoint;
+            globalStorage.globalPointEpoch = globalEpoch;
+        } else {
+            globalStorage.globalPointHistory[globalEpoch] = newGlobalPoint;
+        }
+    }
+
     /// @notice Checkpoint function for vote delegation
     /// @dev Updates only the votingAmount field of Points for the user
     /// @param userStorage User checkpoint storage to update
@@ -245,14 +293,13 @@ library Checkpoints {
         uint256 userEpoch = userStorage.userPointEpoch[account];
         Point memory lastPoint = userEpoch > 0
             ? userStorage.userPointHistory[account][userEpoch]
-            : Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp, withdrawing: false});
+            : Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
 
         // Create new point with updated voting amount
         Point memory newPoint = Point({
             votingAmount: uint256(int256(lastPoint.votingAmount) + votingDelta),
             rewardAmount: lastPoint.rewardAmount, // Keep reward amount unchanged
-            updatedAt: block.timestamp,
-            withdrawing: lastPoint.withdrawing
+            updatedAt: block.timestamp
         });
 
         // Update user checkpoint only (no global update needed for delegation)
@@ -273,14 +320,13 @@ library Checkpoints {
         uint256 userEpoch = userStorage.userPointEpoch[account];
         Point memory lastPoint = userEpoch > 0
             ? userStorage.userPointHistory[account][userEpoch]
-            : Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp, withdrawing: false});
+            : Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
 
         // Create new point with updated reward amount
         Point memory newPoint = Point({
             votingAmount: lastPoint.votingAmount, // Keep voting amount unchanged
             rewardAmount: uint256(int256(lastPoint.rewardAmount) + rewardDelta),
-            updatedAt: block.timestamp,
-            withdrawing: lastPoint.withdrawing
+            updatedAt: block.timestamp
         });
 
         // Update user checkpoint only (no global update needed for delegation)

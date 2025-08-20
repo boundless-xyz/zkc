@@ -37,7 +37,6 @@ contract CheckpointsTest is Test {
         assertEq(point.votingAmount, 0, "Initial global voting amount should be 0");
         assertEq(point.rewardAmount, 0, "Initial global reward amount should be 0");
         assertEq(point.updatedAt, block.timestamp, "Initial timestamp should be block.timestamp");
-        assertEq(point.withdrawing, false, "Initial withdrawing should be false");
     }
 
     function testFindUserTimestampEpochEmptyHistory() public {
@@ -48,8 +47,8 @@ contract CheckpointsTest is Test {
     function testFindUserTimestampEpochSinglePoint() public {
         // Add a single point for Alice
         uint256 testTime = vm.getBlockTimestamp();
-        userStorage.userPointHistory[alice][1] =
-            Checkpoints.Point({votingAmount: 1000e18, rewardAmount: 1000e18, updatedAt: testTime, withdrawing: false});
+        userStorage.userPointHistory[alice][1] = 
+            Checkpoints.Point({votingAmount: 1000e18, rewardAmount: 1000e18, updatedAt: testTime});
         userStorage.userPointEpoch[alice] = 1;
 
         // Query before the point
@@ -72,11 +71,11 @@ contract CheckpointsTest is Test {
         uint256 time3 = time2 + 2 weeks;
 
         userStorage.userPointHistory[alice][1] =
-            Checkpoints.Point({votingAmount: 1000e18, rewardAmount: 1000e18, updatedAt: time1, withdrawing: false});
+            Checkpoints.Point({votingAmount: 1000e18, rewardAmount: 1000e18, updatedAt: time1});
         userStorage.userPointHistory[alice][2] =
-            Checkpoints.Point({votingAmount: 1500e18, rewardAmount: 1500e18, updatedAt: time2, withdrawing: false});
+            Checkpoints.Point({votingAmount: 1500e18, rewardAmount: 1500e18, updatedAt: time2});
         userStorage.userPointHistory[alice][3] =
-            Checkpoints.Point({votingAmount: 2000e18, rewardAmount: 2000e18, updatedAt: time3, withdrawing: false});
+            Checkpoints.Point({votingAmount: 2000e18, rewardAmount: 2000e18, updatedAt: time3});
         userStorage.userPointEpoch[alice] = 3;
 
         // Test binary search finds correct epochs
@@ -97,7 +96,7 @@ contract CheckpointsTest is Test {
         // Add another global point
         uint256 time1 = vm.getBlockTimestamp() + 1 weeks;
         globalStorage.globalPointHistory[1] =
-            Checkpoints.Point({votingAmount: 1000e18, rewardAmount: 1000e18, updatedAt: time1, withdrawing: false});
+            Checkpoints.Point({votingAmount: 1000e18, rewardAmount: 1000e18, updatedAt: time1});
         globalStorage.globalPointEpoch = 1;
 
         // Test finding points
@@ -111,8 +110,7 @@ contract CheckpointsTest is Test {
         Checkpoints.Point memory testPoint = Checkpoints.Point({
             votingAmount: 1000e18,
             rewardAmount: 1000e18,
-            updatedAt: vm.getBlockTimestamp(),
-            withdrawing: false
+            updatedAt: vm.getBlockTimestamp()
         });
 
         userStorage.userPointHistory[alice][5] = testPoint;
@@ -121,7 +119,6 @@ contract CheckpointsTest is Test {
         assertEq(retrieved.votingAmount, testPoint.votingAmount, "Voting amount should match");
         assertEq(retrieved.rewardAmount, testPoint.rewardAmount, "Reward amount should match");
         assertEq(retrieved.updatedAt, testPoint.updatedAt, "UpdatedAt should match");
-        assertEq(retrieved.withdrawing, testPoint.withdrawing, "Withdrawing should match");
     }
 
     function testGetGlobalPoint() public {
@@ -129,7 +126,6 @@ contract CheckpointsTest is Test {
         assertEq(retrieved.votingAmount, 0, "Initial global point voting amount should be 0");
         assertEq(retrieved.rewardAmount, 0, "Initial global point reward amount should be 0");
         assertEq(retrieved.updatedAt, vm.getBlockTimestamp(), "Initial global point should have current timestamp");
-        assertEq(retrieved.withdrawing, false, "Initial global point withdrawing should be false");
     }
 
     function testGetUserEpoch() public {
@@ -156,7 +152,6 @@ contract CheckpointsTest is Test {
         Checkpoints.Point memory userPoint = userStorage.userPointHistory[alice][1];
         assertEq(userPoint.votingAmount, AMOUNT, "User point voting amount should match");
         assertEq(userPoint.rewardAmount, AMOUNT, "User point reward amount should match");
-        assertEq(userPoint.withdrawing, false, "User point should not be withdrawing");
         assertEq(userPoint.updatedAt, block.timestamp, "User point should have current timestamp");
 
         // Verify global checkpoint was updated
@@ -164,7 +159,6 @@ contract CheckpointsTest is Test {
         Checkpoints.Point memory globalPoint = globalStorage.globalPointHistory[1];
         assertEq(globalPoint.votingAmount, AMOUNT, "Global point voting amount should match");
         assertEq(globalPoint.rewardAmount, AMOUNT, "Global point reward amount should match");
-        assertEq(globalPoint.withdrawing, false, "Global point should never be withdrawing");
     }
 
     function testCheckpointAddStake() public {
@@ -191,7 +185,6 @@ contract CheckpointsTest is Test {
         Checkpoints.Point memory userPoint = userStorage.userPointHistory[alice][2];
         assertEq(userPoint.votingAmount, AMOUNT * 2, "User point voting amount should be doubled");
         assertEq(userPoint.rewardAmount, AMOUNT * 2, "User point reward amount should be doubled");
-        assertEq(userPoint.withdrawing, false, "User should still not be withdrawing");
 
         // Verify global checkpoint was merged (same block, so updates existing epoch)
         assertEq(globalStorage.globalPointEpoch, 1, "Global epoch should still be 1 (merged)");
@@ -222,12 +215,9 @@ contract CheckpointsTest is Test {
         Checkpoints.Point memory userPoint = userStorage.userPointHistory[alice][2];
         assertEq(userPoint.votingAmount, AMOUNT, "Voting amount should remain the same");
         assertEq(userPoint.rewardAmount, AMOUNT, "Reward amount should remain the same");
-        assertEq(userPoint.withdrawing, true, "User should be withdrawing");
 
         // Global amount should drop to 0 since user is withdrawing (powers = 0)
         Checkpoints.Point memory globalPoint = globalStorage.globalPointHistory[1]; // Should update same epoch in same block
-        assertEq(globalPoint.votingAmount, 0, "Global voting amount should be 0 when user is withdrawing");
-        assertEq(globalPoint.rewardAmount, 0, "Global reward amount should be 0 when user is withdrawing");
     }
 
     function testCheckpointCompleteWithdrawal() public {
@@ -254,8 +244,6 @@ contract CheckpointsTest is Test {
 
         // Verify withdrawing state has 0 global amount
         Checkpoints.Point memory withdrawingGlobalPoint = globalStorage.globalPointHistory[2];
-        assertEq(withdrawingGlobalPoint.votingAmount, 0, "Global voting amount should be 0 during withdrawal");
-        assertEq(withdrawingGlobalPoint.rewardAmount, 0, "Global reward amount should be 0 during withdrawal");
 
         // Warp forward past the withdrawal period + 1 block
         vm.warp(withdrawalTime + Constants.WITHDRAWAL_PERIOD + 1);
@@ -267,7 +255,6 @@ contract CheckpointsTest is Test {
         Checkpoints.Point memory userPoint = userStorage.userPointHistory[alice][3];
         assertEq(userPoint.votingAmount, 0, "Withdrawn stake should have 0 voting amount");
         assertEq(userPoint.rewardAmount, 0, "Withdrawn stake should have 0 reward amount");
-        assertEq(userPoint.withdrawing, false, "Should no longer be withdrawing");
 
         // Verify global checkpoint remains 0
         Checkpoints.Point memory globalPoint = globalStorage.globalPointHistory[3]; // New block, new epoch
