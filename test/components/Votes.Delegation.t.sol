@@ -238,7 +238,7 @@ contract VotesDelegationTest is veZKCTest {
 
         // Try to delegate while withdrawing
         vm.prank(alice);
-        vm.expectRevert(IVotes.CannotDelegateWhileWithdrawing.selector);
+        vm.expectRevert(IVotes.CannotDelegateVotesWhileWithdrawing.selector);
         veToken.delegate(bob);
     }
 

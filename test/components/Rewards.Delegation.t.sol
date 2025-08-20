@@ -356,7 +356,7 @@ contract RewardsDelegationTest is veZKCTest {
 
         // Try to delegate rewards while withdrawing
         vm.prank(alice);
-        vm.expectRevert(IVotes.CannotDelegateWhileWithdrawing.selector);
+        vm.expectRevert(IRewards.CannotDelegateRewardsWhileWithdrawing.selector);
         veToken.delegateRewards(bob);
     }
 
@@ -421,10 +421,76 @@ contract RewardsDelegationTest is veZKCTest {
         vm.prank(alice);
         veToken.stake(AMOUNT);
 
-        // Test reward delegation event
+        // Test reward delegation event - Alice delegates to Bob
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.RewardDelegateChanged(alice, alice, bob);
 
         vm.prank(alice);
         veToken.delegateRewards(bob);
+    }
+
+    function testNoRewardDelegationEventsWhenSameDelegate() public {
+        // Alice stakes (starts with self-delegation)
+        vm.prank(alice);
+        veToken.stake(AMOUNT);
+
+        // Try to delegate rewards to self again - should not emit any events
+        vm.recordLogs();
+        vm.prank(alice);
+        veToken.delegateRewards(alice);
+        
+        // Check no events were emitted
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 0, "No events should be emitted when delegating rewards to same address");
+
+        // Delegate rewards to Bob
+        vm.prank(alice);
+        veToken.delegateRewards(bob);
+
+        // Try to delegate rewards to Bob again - should not emit any events
+        vm.recordLogs();
+        vm.prank(alice);
+        veToken.delegateRewards(bob);
+        
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 0, "No events should be emitted when delegating rewards to same address");
+    }
+
+    function testRewardDelegationEventsMultipleChanges() public {
+        // Alice stakes
+        vm.prank(alice);
+        veToken.stake(AMOUNT);
+
+        // First delegation: Alice -> Bob
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.RewardDelegateChanged(alice, alice, bob);
+
+        vm.prank(alice);
+        veToken.delegateRewards(bob);
+
+        // Second delegation: Alice -> Charlie
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.RewardDelegateChanged(alice, bob, CHARLIE);
+
+        vm.prank(alice);
+        veToken.delegateRewards(CHARLIE);
+    }
+
+    function testRewardDelegationEventsBackToSelf() public {
+        // Alice stakes
+        vm.prank(alice);
+        veToken.stake(AMOUNT);
+
+        // Delegate rewards to Bob first
+        vm.prank(alice);
+        veToken.delegateRewards(bob);
+
+        // Delegate rewards back to self
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.RewardDelegateChanged(alice, bob, alice);
+
+        vm.prank(alice);
+        veToken.delegateRewards(alice);
     }
 
     // Gas optimization tests

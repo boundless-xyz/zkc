@@ -66,7 +66,7 @@ abstract contract Rewards is Storage, Clock, IRewards {
 
         // Check if user is withdrawing
         Checkpoints.StakeInfo memory stake = _stakes[tokenId];
-        if (stake.withdrawalRequestedAt != 0) revert IVotes.CannotDelegateWhileWithdrawing();
+        if (stake.withdrawalRequestedAt != 0) revert CannotDelegateRewardsWhileWithdrawing();
 
         // Treat address(0) as self-delegation
         if (delegatee == address(0)) {
@@ -74,34 +74,30 @@ abstract contract Rewards is Storage, Clock, IRewards {
         }
 
         address oldDelegate = rewardDelegates(account);
+        
+        // Skip if delegating to same address
+        if (oldDelegate == delegatee) return;
+        
         _rewardDelegatee[account] = delegatee;
 
         // Checkpoint delegation change for rewards
-        _checkpointRewardDelegation(account, oldDelegate, delegatee);
+        _checkpointRewardDelegation(stake, oldDelegate, delegatee);
 
         emit RewardDelegateChanged(account, oldDelegate, delegatee);
     }
 
     /// @dev Handle reward delegation checkpointing
-    function _checkpointRewardDelegation(address account, address oldDelegatee, address newDelegatee) internal {
-        // Get the user's single active position (already validated in _delegateRewards)
-        uint256 tokenId = _userActivePosition[account];
-        Checkpoints.StakeInfo memory stake = _stakes[tokenId];
-
-        // Skip if delegating to same address
+    function _checkpointRewardDelegation(Checkpoints.StakeInfo memory stake, address oldDelegatee, address newDelegatee) internal {
+        // Skip if delegating to same address (this should already be checked by caller)
         if (oldDelegatee == newDelegatee) return;
 
         int256 rewardDelta = int256(stake.amount);
 
-        // Remove reward power from old delegatee
-        if (oldDelegatee != address(0)) {
-            Checkpoints.checkpointRewardDelegation(_userCheckpoints, oldDelegatee, -rewardDelta);
-        }
+        // Remove reward power from old delegatee (never address(0) due to rewardDelegates() behavior)
+        Checkpoints.checkpointRewardDelegation(_userCheckpoints, oldDelegatee, -rewardDelta);
 
-        // Add reward power to new delegatee
-        if (newDelegatee != address(0)) {
-            Checkpoints.checkpointRewardDelegation(_userCheckpoints, newDelegatee, rewardDelta);
-        }
+        // Add reward power to new delegatee (never address(0) due to address(0) -> account conversion)
+        Checkpoints.checkpointRewardDelegation(_userCheckpoints, newDelegatee, rewardDelta);
     }
 
     function _msgSender() internal view virtual returns (address);

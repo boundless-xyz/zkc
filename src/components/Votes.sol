@@ -55,7 +55,7 @@ abstract contract Votes is Storage, Clock, IVotes {
 
         // Check if user is withdrawing
         Checkpoints.StakeInfo memory stake = _stakes[tokenId];
-        if (stake.withdrawalRequestedAt != 0) revert CannotDelegateWhileWithdrawing();
+        if (stake.withdrawalRequestedAt != 0) revert CannotDelegateVotesWhileWithdrawing();
 
         // Treat address(0) as self-delegation
         if (delegatee == address(0)) {

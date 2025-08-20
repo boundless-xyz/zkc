@@ -5,6 +5,9 @@ pragma solidity ^0.8.20;
 /// @notice Interface for reward distribution calculations
 /// @dev Used by external contracts to determine reward allocations based on stake amounts
 interface IRewards {
+    // Custom errors
+    error CannotDelegateRewardsWhileWithdrawing();
+    
     // Events
     event RewardDelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate);
 

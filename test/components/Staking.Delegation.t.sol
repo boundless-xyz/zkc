@@ -130,7 +130,7 @@ contract StakingDelegationTest is veZKCTest {
 
         // Cannot delegate votes while withdrawing
         vm.prank(alice);
-        vm.expectRevert(IVotes.CannotDelegateWhileWithdrawing.selector);
+        vm.expectRevert(IVotes.CannotDelegateVotesWhileWithdrawing.selector);
         veToken.delegate(bob);
     }
 
@@ -145,7 +145,7 @@ contract StakingDelegationTest is veZKCTest {
 
         // Cannot delegate rewards while withdrawing
         vm.prank(alice);
-        vm.expectRevert(IVotes.CannotDelegateWhileWithdrawing.selector);
+        vm.expectRevert(IRewards.CannotDelegateRewardsWhileWithdrawing.selector);
         veToken.delegateRewards(bob);
     }
 
