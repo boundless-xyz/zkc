@@ -122,6 +122,7 @@ contract SupplyTest is Test {
         assertEq(Supply.getEmissionsForEpoch(99), supplyAfter - supplyBefore);
     }
 
+    /// @dev TODO: Is the precision difference expected
     function testConsistencyAcrossYearBoundaries() public {
         // Verify supply calculation is as expected across year boundaries
 
@@ -137,7 +138,8 @@ contract SupplyTest is Test {
         UD60x18 expectedUD = supply181UD * multiplierUD / ud(SCALE);
         uint256 expectedSupply182 = unwrap(expectedUD);
 
-        // Allow small precision difference due to PRBMath's Taylor series approximation vs exact hardcoded values
+        // Allow small precision difference. Likely due to PRBMath's Taylor series approximation 
+        // vs exact hardcoded values (??)
         // supply182 = hardcoded constant (generated using PRBMath exponentiation in script)
         // expectedSupply182 = PRBMath calculation from supply181 
         uint256 diff = supply182 > expectedSupply182 ? supply182 - expectedSupply182 : expectedSupply182 - supply182;

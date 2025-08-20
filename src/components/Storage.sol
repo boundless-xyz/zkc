@@ -9,7 +9,7 @@ import {Checkpoints} from "../libraries/Checkpoints.sol";
 abstract contract Storage {
     // Custom error for nonce validation
     error InvalidAccountNonce(address account, uint256 currentNonce);
-    
+
     /// @notice User-specific checkpoint storage for tracking voting/reward power history
     Checkpoints.UserCheckpointStorage internal _userCheckpoints;
 
@@ -39,6 +39,10 @@ abstract contract Storage {
 
     /// @notice Nonces for EIP-712 signatures (shared between vote and reward delegation)
     mapping(address owner => uint256) internal _nonces;
+
+    /// @notice Gap for future extensions
+    /// @dev TODO: Is this needed?
+    uint256[50] private __gap;
     
     /// @notice Get the current nonce for an account (for EIP-712 signatures)
     function nonces(address owner) public view returns (uint256) {
