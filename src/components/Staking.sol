@@ -293,26 +293,17 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         address voteDelegatee = _voteDelegatee[account];
         address rewardDelegatee = _rewardDelegatee[account];
 
-        // Track whether we need to update the user's own checkpoint
-        bool needUserCheckpoint = false;
-
-        // Prepare the Point for user's own checkpoint
-        Checkpoints.Point memory userOldPoint;
-        Checkpoints.Point memory userNewPoint;
+        // Calculate deltas for user's own checkpoint
+        int256 userVotingDelta = 0;
+        int256 userRewardDelta = 0;
 
         // Handle vote delegation
         if (voteDelegatee != address(0) && voteDelegatee != account) {
             // Votes are delegated - update delegatee's checkpoint
             Checkpoints.checkpointVoteDelegation(_userCheckpoints, voteDelegatee, stakeDelta);
         } else {
-            // Votes are not delegated - will be included in user's own checkpoint
-            needUserCheckpoint = true;
-            if (oldStake.amount > 0) {
-                userOldPoint.votingAmount = oldStake.amount;
-            }
-            if (newStake.amount > 0) {
-                userNewPoint.votingAmount = newStake.amount;
-            }
+            // Votes are not delegated - add to user's voting delta
+            userVotingDelta = stakeDelta;
         }
 
         // Handle reward delegation
@@ -320,26 +311,29 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
             // Rewards are delegated - update delegatee's checkpoint
             Checkpoints.checkpointRewardDelegation(_userCheckpoints, rewardDelegatee, stakeDelta);
         } else {
-            // Rewards are not delegated - will be included in user's own checkpoint
-            needUserCheckpoint = true;
-            if (oldStake.amount > 0) {
-                userOldPoint.rewardAmount = oldStake.amount;
-            }
-            if (newStake.amount > 0) {
-                userNewPoint.rewardAmount = newStake.amount;
-            }
+            // Rewards are not delegated - add to user's reward delta
+            userRewardDelta = stakeDelta;
         }
 
-        // If either votes or rewards are not delegated, update user's checkpoint
-        if (needUserCheckpoint) {
-            // Set common fields
-            userOldPoint.updatedAt = block.timestamp;
-            userNewPoint.updatedAt = block.timestamp;
+        // If either votes or rewards are not delegated, update user's checkpoint with deltas
+        if (userVotingDelta != 0 || userRewardDelta != 0) {
+            // Update user checkpoint only (not global, as we handle that separately)
+            uint256 userEpoch = _userCheckpoints.userPointEpoch[account];
+            Checkpoints.Point memory lastUserPoint = userEpoch > 0
+                ? _userCheckpoints.userPointHistory[account][userEpoch]
+                : Checkpoints.Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
+
+            // Create new user point with deltas applied
+            Checkpoints.Point memory newUserPoint = Checkpoints.Point({
+                votingAmount: uint256(int256(lastUserPoint.votingAmount) + userVotingDelta),
+                rewardAmount: uint256(int256(lastUserPoint.rewardAmount) + userRewardDelta),
+                updatedAt: block.timestamp
+            });
 
             // Update user checkpoint
-            uint256 userEpoch = _userCheckpoints.userPointEpoch[account] + 1;
+            userEpoch += 1;
             _userCheckpoints.userPointEpoch[account] = userEpoch;
-            _userCheckpoints.userPointHistory[account][userEpoch] = userNewPoint;
+            _userCheckpoints.userPointHistory[account][userEpoch] = newUserPoint;
         }
 
         // Always update global totals
