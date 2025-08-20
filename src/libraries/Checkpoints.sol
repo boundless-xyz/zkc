@@ -9,6 +9,7 @@ import {Constants} from "./Constants.sol";
 ///      voting and reward systems. It follows the standard veToken checkpoint pattern.
 library Checkpoints {
     /// @notice Point represents voting/reward power state at a specific moment
+    /// @dev TODO: Pack struct for gas savings.
     struct Point {
         /// @notice Amount counting toward voting power (own stake + delegated votes)
         uint256 votingAmount;
@@ -19,6 +20,7 @@ library Checkpoints {
     }
 
     /// @notice Information about a staked position
+    /// @dev TODO: Pack struct for gas savings.
     struct StakeInfo {
         /// @notice Total ZKC amount staked
         uint256 amount;
