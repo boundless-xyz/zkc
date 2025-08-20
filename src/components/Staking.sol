@@ -13,11 +13,9 @@ import {StakeManager} from "../libraries/StakeManager.sol";
 import {Constants} from "../libraries/Constants.sol";
 import {ZKC} from "../ZKC.sol";
 
-/**
- * @title Staking Component
- * @notice Staking functionality for veZKC including full NFT implementation
- * @dev This component handles all staking operations and is the NFT contract
- */
+/// @title Staking Component
+/// @notice Staking functionality for veZKC including full NFT implementation
+/// @dev This component handles all staking operations and is the NFT contract
 abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradeable, IStaking {
 
     // Reference to ZKC token (will be set in main contract)
@@ -25,16 +23,12 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
     // Events are defined in IStaking interface
 
-    /**
-     * @dev Override transfers to make NFTs non-transferable (soulbound)
-     */
+    /// @dev Override transfers to make NFTs non-transferable (soulbound)
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
         address from = _ownerOf(tokenId);
 
-        /**
-         * @dev Allow minting (from == address(0)) and burning (to == address(0))
-         * @dev But prevent regular transfers
-         */
+        // Allow minting (from == address(0)) and burning (to == address(0))
+        // But prevent regular transfers
         if (from != address(0) && to != address(0)) {
             revert NonTransferable();
         }
@@ -46,9 +40,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         return interfaceId == type(IERC721).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    /**
-     * @dev Stake ZKC tokens to mint veZKC NFT
-     */
+    /// @inheritdoc IStaking
     function stake(uint256 amount) external nonReentrant returns (uint256 tokenId) {
         StakeManager.validateStake(amount, _userActivePosition[msg.sender]);
 
@@ -61,10 +53,10 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // Track user's active position
         _userActivePosition[msg.sender] = tokenId;
 
-        emit Staked(msg.sender, amount, tokenId);
         return tokenId;
     }
 
+    /// @inheritdoc IStaking
     function stakeWithPermit(
         uint256 amount,
         uint256 permitDeadline,
@@ -86,11 +78,10 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // Track user's active position
         _userActivePosition[msg.sender] = tokenId;
 
-        emit Staked(msg.sender, amount, tokenId);
         return tokenId;
     }
 
-    /// @notice Add stake to your own active position
+    /// @inheritdoc IStaking
     function addToStake(uint256 amount) external nonReentrant {
         uint256 tokenId = _userActivePosition[msg.sender];
         if (tokenId == 0) revert NoActivePosition();
@@ -98,7 +89,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         _addToStake(msg.sender, tokenId, amount);
     }
 
-    /// @notice Add stake to your own active position using permit
+    /// @inheritdoc IStaking
     function addToStakeWithPermit(
         uint256 amount,
         uint256 permitDeadline,
@@ -115,12 +106,12 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         _addToStake(msg.sender, tokenId, amount);
     }
 
-    /// @notice Add stake to any user's position by token ID (donation)
+    /// @inheritdoc IStaking
     function addToStakeByTokenId(uint256 tokenId, uint256 amount) external nonReentrant {
         _addToStake(msg.sender, tokenId, amount);
     }
 
-    /// @notice Add stake to any user's position by token ID using permit (donation)
+    /// @inheritdoc IStaking
     function addToStakeWithPermitByTokenId(
         uint256 tokenId,
         uint256 amount,
@@ -135,6 +126,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         _addToStake(msg.sender, tokenId, amount);
     }
 
+    /// @inheritdoc IStaking
     function initiateUnstake() external nonReentrant {
         // Get user's active position
         uint256 tokenId = _userActivePosition[msg.sender];
@@ -150,9 +142,11 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // Mark as withdrawing and checkpoint (powers drop to 0)
         _initiateUnstakeAndCheckpoint(tokenId);
 
-        emit UnstakeInitiated(msg.sender, tokenId, stakeInfo.amount);
+        uint256 withdrawableAt = block.timestamp + Constants.WITHDRAWAL_PERIOD;
+        emit UnstakeInitiated(tokenId, msg.sender, withdrawableAt);
     }
 
+    /// @inheritdoc IStaking
     function completeUnstake() external nonReentrant {
         address user = msg.sender;
         uint256 tokenId = _userActivePosition[user];
@@ -169,9 +163,10 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // Transfer ZKC back to user
         StakeManager.transferTokensOut(IERC20(address(_zkcToken)), user, stakeInfo.amount);
 
-        emit Unstaked(user, tokenId, stakeInfo.amount);
+        emit UnstakeCompleted(tokenId, user, stakeInfo.amount);
     }
 
+    /// @inheritdoc IStaking
     function getStakedAmountAndWithdrawalTime(address account) public view returns (uint256, uint256) {
         uint256 tokenId = _userActivePosition[account];
         if (tokenId == 0) return (0, 0);
@@ -185,11 +180,12 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         return (stakeInfo.amount, withdrawableAt);
     }
 
+    /// @inheritdoc IStaking
     function getActiveTokenId(address user) public view returns (uint256) {
         return _userActivePosition[user];
     }
 
-    // ====== INTERNAL STAKING IMPLEMENTATION ======
+    // Internal staking implementation
 
     function _stakeAndCheckpoint(address to, uint256 amount) internal returns (uint256) {
         uint256 tokenId = ++_currentTokenId;
@@ -223,7 +219,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // Create checkpoint for voting power change
         Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldStake, newStake);
 
-        emit StakeIncreased(tokenId, newAmount, newStake.amount);
+        emit StakeAdded(tokenId, owner, newAmount, newStake.amount);
     }
 
     function _initiateUnstakeAndCheckpoint(uint256 tokenId) internal {
@@ -242,7 +238,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // Create checkpoint for voting power change (powers drop to 0)
         Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldStake, newStake);
 
-        emit WithdrawalInitiated(owner, tokenId, newStake.withdrawalRequestedAt);
+        uint256 withdrawableAt = newStake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
+        emit UnstakeInitiated(tokenId, owner, withdrawableAt);
     }
 
     function _burnStake(uint256 tokenId) internal {
@@ -266,7 +263,9 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // Add to existing veZKC position
         _addStakeAndCheckpoint(tokenId, amount);
 
-        emit StakeAdded(from, tokenId, amount);
+        // Get the new total amount after adding
+        Checkpoints.StakeInfo memory updatedStake = _stakes[tokenId];
+        emit StakeAdded(tokenId, ownerOf(tokenId), amount, updatedStake.amount);
     }
 
 }

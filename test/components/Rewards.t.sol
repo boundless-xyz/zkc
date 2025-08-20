@@ -438,20 +438,17 @@ contract veZKCRewardsTest is veZKCTest {
 
     function testRewardPowerScaling() public {
         // Test that reward power scales correctly with the scalar
-        // With REWARD_POWER_SCALAR = 1, we should get 1:1 ratio
+        // Reward power = staked amount / REWARD_POWER_SCALAR
         
         vm.startPrank(alice);
         zkc.approve(address(veToken), AMOUNT);
         veToken.stake(AMOUNT);
         vm.stopPrank();
         
-        // Reward power should equal staked amount divided by scalar (which is 1)
+        // Reward power should equal staked amount divided by scalar
         uint256 rewardPower = veToken.getStakingRewards(alice);
         uint256 expectedPower = AMOUNT / Constants.REWARD_POWER_SCALAR;
-        assertEq(rewardPower, expectedPower, "Reward power should equal staked amount divided by scalar");
-        
-        // Since scalar is 1, this should equal the full amount
-        assertEq(rewardPower, AMOUNT, "Reward power should equal full amount when scalar is 1");
+        assertEq(rewardPower, expectedPower, "Reward power should equal staked amount divided by REWARD_POWER_SCALAR");
     }
 
     function testZeroRewardPowerWhenNoStake() public {
@@ -464,5 +461,218 @@ contract veZKCRewardsTest is veZKCTest {
         vm.warp(currentTime + 1);
         assertEq(veToken.getPastStakingRewards(alice, currentTime), 0, "Historical rewards should be 0 without stake");
         assertEq(veToken.getPastStakingRewards(bob, currentTime), 0, "Historical rewards should be 0 without stake");
+    }
+    
+    // ============ PoVW Reward Cap Tests ============
+    
+    function testBasicPoVWRewardCap() public {
+        // Alice stakes
+        vm.prank(alice);
+        uint256 tokenId = veToken.stake(AMOUNT);
+        
+        // PoVW cap should equal staked amount divided by POVW_REWARD_CAP_SCALAR
+        uint256 povwCap = veToken.getPoVWRewardCap(alice);
+        vm.snapshotGasLastCall("getPoVWRewardCap: Getting current PoVW cap");
+        uint256 expectedCap = AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
+        assertEq(povwCap, expectedCap, "PoVW cap should equal staked amount divided by POVW_REWARD_CAP_SCALAR");
+        
+        // Verify it's different from staking rewards
+        uint256 stakingRewards = veToken.getStakingRewards(alice);
+        assertEq(stakingRewards, AMOUNT / Constants.REWARD_POWER_SCALAR, "Staking rewards should use REWARD_POWER_SCALAR");
+        
+        // The relationship between staking rewards and PoVW cap is determined by the scalars
+        // Note: due to integer division, there may be a rounding error of 1
+        uint256 expectedMultiplier = Constants.POVW_REWARD_CAP_SCALAR / Constants.REWARD_POWER_SCALAR;
+        assertApproxEqAbs(stakingRewards, povwCap * expectedMultiplier, 1, 
+            "Staking rewards should be approximately POVW_REWARD_CAP_SCALAR/REWARD_POWER_SCALAR times the PoVW cap");
+    }
+    
+    function testPoVWRewardCapDoesNotDecay() public {
+        // Alice stakes
+        vm.prank(alice);
+        uint256 tokenId = veToken.stake(AMOUNT);
+        
+        // Initial PoVW cap
+        uint256 initialCap = veToken.getPoVWRewardCap(alice);
+        uint256 expectedCap = AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
+        assertEq(initialCap, expectedCap, "Initial PoVW cap should equal staked amount divided by POVW scalar");
+        
+        // Fast forward time
+        vm.warp(vm.getBlockTimestamp() + 52 weeks);
+        
+        // PoVW cap should remain the same (doesn't decay)
+        uint256 laterCap = veToken.getPoVWRewardCap(alice);
+        assertEq(laterCap, expectedCap, "PoVW cap should not decay over time");
+        assertEq(laterCap, initialCap, "PoVW cap should remain constant");
+    }
+    
+    function testPoVWRewardCapWithWithdrawal() public {
+        // Alice stakes
+        vm.prank(alice);
+        uint256 tokenId = veToken.stake(AMOUNT);
+        
+        // PoVW cap before withdrawal
+        uint256 capBeforeWithdrawal = veToken.getPoVWRewardCap(alice);
+        uint256 expectedCap = AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
+        assertEq(capBeforeWithdrawal, expectedCap, "PoVW cap should equal staked amount before withdrawal");
+        
+        // Initiate withdrawal
+        vm.prank(alice);
+        veToken.initiateUnstake();
+        
+        // PoVW cap should immediately drop to 0 when withdrawing
+        uint256 capDuringWithdrawal = veToken.getPoVWRewardCap(alice);
+        assertEq(capDuringWithdrawal, 0, "PoVW cap should be 0 during withdrawal period");
+        
+        // Even after time passes during withdrawal period, should remain 0
+        vm.warp(vm.getBlockTimestamp() + Constants.WITHDRAWAL_PERIOD / 2);
+        uint256 capMidWithdrawal = veToken.getPoVWRewardCap(alice);
+        assertEq(capMidWithdrawal, 0, "PoVW cap should remain 0 throughout withdrawal period");
+    }
+    
+    function testPoVWRewardCapWithAddToStake() public {
+        // Initial stake
+        vm.startPrank(alice);
+        zkc.approve(address(veToken), AMOUNT + ADD_AMOUNT);
+        uint256 tokenId = veToken.stake(AMOUNT);
+        
+        // Initial PoVW cap
+        uint256 initialCap = veToken.getPoVWRewardCap(alice);
+        uint256 expectedInitial = AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
+        assertEq(initialCap, expectedInitial, "Initial PoVW cap should equal initial stake divided by POVW scalar");
+        
+        // Add to stake
+        veToken.addToStake(ADD_AMOUNT);
+        vm.stopPrank();
+        
+        // PoVW cap should increase by the added amount
+        uint256 updatedCap = veToken.getPoVWRewardCap(alice);
+        uint256 expectedUpdated = (AMOUNT + ADD_AMOUNT) / Constants.POVW_REWARD_CAP_SCALAR;
+        assertEq(updatedCap, expectedUpdated, "PoVW cap should increase with added stake");
+    }
+    
+    function testGetPastPoVWRewardCap() public {
+        uint256 t0 = vm.getBlockTimestamp();
+        
+        // Alice stakes at t0
+        vm.prank(alice);
+        uint256 tokenId = veToken.stake(AMOUNT);
+        
+        // Move forward in time
+        vm.warp(t0 + 1000);
+        uint256 t1 = vm.getBlockTimestamp();
+        
+        // Alice adds to stake
+        vm.prank(alice);
+        veToken.addToStake(ADD_AMOUNT);
+        
+        // Move forward again
+        vm.warp(t1 + 1000);
+        
+        // Current PoVW cap should be full amount
+        uint256 currentCap = veToken.getPoVWRewardCap(alice);
+        uint256 expectedCurrent = (AMOUNT + ADD_AMOUNT) / Constants.POVW_REWARD_CAP_SCALAR;
+        assertEq(currentCap, expectedCurrent, "Current PoVW cap should be full amount divided by POVW scalar");
+        
+        // Past PoVW cap queries
+        uint256 pastCapAfterT0 = veToken.getPastPoVWRewardCap(alice, t0);
+        vm.snapshotGasLastCall("getPastPoVWRewardCap: Getting historical PoVW cap");
+        uint256 pastCapAtT1 = veToken.getPastPoVWRewardCap(alice, t1);
+        
+        uint256 expectedInitial = AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
+        uint256 expectedAfterAdd = (AMOUNT + ADD_AMOUNT) / Constants.POVW_REWARD_CAP_SCALAR;
+        
+        assertEq(pastCapAfterT0, expectedInitial, "Should have initial amount after staking");
+        assertEq(pastCapAtT1, expectedAfterAdd, "Should have full amount after adding");
+    }
+    
+    function testPoVWCapTimepointValidation() public {
+        // Alice stakes first
+        vm.startPrank(alice);
+        veToken.stake(AMOUNT);
+        vm.stopPrank();
+        
+        uint256 currentTime = vm.getBlockTimestamp();
+        
+        // Test that calling getPastPoVWRewardCap with current timestamp reverts
+        vm.expectRevert();
+        veToken.getPastPoVWRewardCap(alice, currentTime);
+        
+        // Test that calling with future timestamp reverts
+        vm.expectRevert();
+        veToken.getPastPoVWRewardCap(alice, currentTime + 1);
+        
+        // Test that calling with past timestamp works
+        vm.warp(currentTime + 1000);
+        
+        uint256 pastCap = veToken.getPastPoVWRewardCap(alice, currentTime);
+        uint256 expectedCap = AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
+        assertEq(pastCap, expectedCap, "Past PoVW cap should equal staked amount divided by POVW scalar");
+    }
+    
+    function testZeroPoVWCapWhenNoStake() public {
+        // User with no stake should have 0 PoVW cap
+        assertEq(veToken.getPoVWRewardCap(alice), 0, "Alice should have 0 PoVW cap without stake");
+        assertEq(veToken.getPoVWRewardCap(bob), 0, "Bob should have 0 PoVW cap without stake");
+        
+        // Historical PoVW cap should also be 0 - warp forward first
+        uint256 currentTime = vm.getBlockTimestamp();
+        vm.warp(currentTime + 1);
+        assertEq(veToken.getPastPoVWRewardCap(alice, currentTime), 0, "Historical PoVW cap should be 0 without stake");
+        assertEq(veToken.getPastPoVWRewardCap(bob, currentTime), 0, "Historical PoVW cap should be 0 without stake");
+    }
+    
+    function testCompareStakingRewardsVsPoVWCap() public {
+        // Alice stakes
+        vm.prank(alice);
+        veToken.stake(AMOUNT);
+        
+        // Get both values
+        uint256 stakingRewards = veToken.getStakingRewards(alice);
+        uint256 povwCap = veToken.getPoVWRewardCap(alice);
+        
+        // Verify scalars are applied correctly
+        assertEq(stakingRewards, AMOUNT / Constants.REWARD_POWER_SCALAR, "Staking rewards should equal amount divided by REWARD_POWER_SCALAR");
+        assertEq(povwCap, AMOUNT / Constants.POVW_REWARD_CAP_SCALAR, "PoVW cap should equal amount divided by POVW_REWARD_CAP_SCALAR");
+        
+        // Relationship check - the scalars maintain the expected relationship
+        // stakingRewards = AMOUNT / REWARD_POWER_SCALAR
+        // povwCap = AMOUNT / POVW_REWARD_CAP_SCALAR
+        // Therefore: stakingRewards * POVW_REWARD_CAP_SCALAR = povwCap * REWARD_POWER_SCALAR * (POVW_REWARD_CAP_SCALAR / REWARD_POWER_SCALAR)
+        assertEq(stakingRewards / povwCap, Constants.POVW_REWARD_CAP_SCALAR / Constants.REWARD_POWER_SCALAR,
+            "Ratio of rewards to cap should equal ratio of scalars");
+    }
+    
+    function testPoVWCapComplexWithdrawalFlow() public {
+        // 1. Alice stakes
+        vm.startPrank(alice);
+        uint256 tokenId = veToken.stake(AMOUNT);
+        vm.stopPrank();
+        
+        uint256 expectedInitial = AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
+        assertEq(veToken.getPoVWRewardCap(alice), expectedInitial, "Initial PoVW cap");
+        
+        // 2. Alice initiates withdrawal
+        vm.prank(alice);
+        veToken.initiateUnstake();
+        
+        // PoVW cap should immediately drop to 0
+        assertEq(veToken.getPoVWRewardCap(alice), 0, "PoVW cap should be 0 during withdrawal");
+        
+        // 3. Complete withdrawal after waiting period
+        vm.warp(vm.getBlockTimestamp() + Constants.WITHDRAWAL_PERIOD + 1);
+        vm.prank(alice);
+        veToken.completeUnstake();
+        
+        // Now both should be 0 (no active position)
+        assertEq(veToken.getPoVWRewardCap(alice), 0, "PoVW cap should be 0 after unstaking");
+        
+        // 4. Alice can stake again with a new position
+        vm.prank(alice);
+        uint256 newTokenId = veToken.stake(ADD_AMOUNT);
+        
+        // Should get PoVW cap based on new stake amount
+        uint256 expectedNew = ADD_AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
+        assertEq(veToken.getPoVWRewardCap(alice), expectedNew, "Should have PoVW cap based on new stake amount");
     }
 }

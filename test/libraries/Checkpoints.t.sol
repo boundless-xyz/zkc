@@ -32,9 +32,6 @@ contract CheckpointsTest is Test {
         Checkpoints.initializeGlobalPoint(globalStorage);
     }
     
-    // =============================================================
-    //                  BASIC CHECKPOINT TESTS
-    // =============================================================
     
     function testInitializeGlobalPoint() public {
         Checkpoints.Point memory point = Checkpoints.getGlobalPoint(globalStorage, 0);
@@ -44,9 +41,6 @@ contract CheckpointsTest is Test {
         
     }
     
-    // =============================================================
-    //                  BINARY SEARCH TESTS
-    // =============================================================
     
     function testFindUserTimestampEpochEmptyHistory() public {
         uint256 epoch = Checkpoints.findUserTimestampEpoch(userStorage, alice, vm.getBlockTimestamp());
@@ -121,9 +115,6 @@ contract CheckpointsTest is Test {
         assertEq(Checkpoints.findTimestampEpoch(globalStorage, time1 + 1), 1);
     }
     
-    // =============================================================
-    //                  STORAGE ACCESS TESTS
-    // =============================================================
     
     function testGetUserPoint() public {
         // Add a point for Alice
@@ -160,9 +151,6 @@ contract CheckpointsTest is Test {
         assertEq(epoch, 123, "Should return correct global epoch");
     }
     
-    // =============================================================
-    //                  CHECKPOINT INTEGRATION TESTS
-    // =============================================================
     
     function testCheckpointNewStake() public {
         // Create a new stake
@@ -298,10 +286,6 @@ contract CheckpointsTest is Test {
         Checkpoints.Point memory globalPoint = globalStorage.globalPointHistory[3]; // New block, new epoch
         assertEq(globalPoint.amount, 0, "Global amount should remain 0 after withdrawal");
     }
-    
-    // =============================================================
-    //                  EDGE CASE TESTS
-    // =============================================================
     
     function testCheckpointSameBlock() public {
         console.log("block timestamp", vm.getBlockTimestamp());

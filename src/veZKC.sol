@@ -17,21 +17,12 @@ import {Constants} from "./libraries/Constants.sol";
 
 import {ZKC} from "./ZKC.sol";
 
-/**
- * @title veZKC - Vote Escrowed ZK Coin
- * @notice Vote-escrowed ZKC token system with flexible week-based locking
- * @dev Refactored architecture using modular components:
- *      - Votes: IVotes interface implementation  
- *      - Rewards: IRewards interface implementation
- *      - Staking: NFT functionality and staking operations
- * 
- * Key Features:
- * - Flexible week-based locking (4-208 weeks)
- * - Natural time-based incentives (Curve/Velodrome formula)
- * - Full OpenZeppelin Governor compatibility
- * - Non-transferable governance positions
- * - Unified voting and reward power calculations
- */
+/// @title veZKC - Vote Escrowed ZK Coin
+/// @notice Vote-escrowed ZKC token system with withdrawal-based unstaking
+/// @dev Architecture using modular components:
+///      - Votes: IVotes interface implementation  
+///      - Rewards: IRewards interface implementation
+///      - Staking: NFT functionality and staking operations
 contract veZKC is
     Initializable,
     AccessControlUpgradeable,
@@ -60,21 +51,15 @@ contract veZKC is
         Checkpoints.initializeGlobalPoint(_globalCheckpoints);
     }
 
-    /**
-     * @dev Implement abstract function from Votes component
-     */
+    /// @dev Implement abstract function from Votes component
     function _msgSender() internal view override(ContextUpgradeable, Votes, Rewards) returns (address) {
         return msg.sender;
     }
 
-    /**
-     * @dev Authorization function for UUPS upgrades
-     */
+    /// @dev Authorization function for UUPS upgrades
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
 
-    /**
-     * @dev Support required interfaces
-     */
+    /// @dev Support required interfaces
     function supportsInterface(bytes4 interfaceId)
         public
         view

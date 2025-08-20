@@ -8,44 +8,62 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Supply} from "./libraries/Supply.sol";
+import {IZKC} from "./interfaces/IZKC.sol";
 
-contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+/// @title ZKC - ZK Coin
+/// @notice The main ZKC token contract with epoch-based emissions
+/// @dev Implements upgradeable ERC20 with permit functionality and role-based minting
+contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessControlUpgradeable, UUPSUpgradeable, IZKC {
+    /// @notice Address of the first initial minter
     address public initialMinter1;
+    
+    /// @notice Address of the second initial minter
     address public initialMinter2;
+    
+    /// @notice Remaining mintable amount for the first initial minter
     uint256 public initialMinter1Remaining;
+    
+    /// @notice Remaining mintable amount for the second initial minter
     uint256 public initialMinter2Remaining;
 
+    /// @notice Admin role identifier
     bytes32 public immutable ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
+    
+    /// @notice General minter role identifier
     bytes32 public immutable MINTER_ROLE = keccak256("MINTER_ROLE");
 
+    /// @notice Initial token supply (1 billion ZKC)
     uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 10**18; 
 
-    // Basis points used for inflation calculations and minting allocations.
+    /// @notice Basis points constant for percentage calculations
     uint256 public constant BASIS_POINTS = 10000;
 
-    // Every epoch lasts 2 days
+    /// @notice Duration of each epoch in seconds (2 days)
     uint256 public constant EPOCH_DURATION = 2 days;
-    uint256 public constant EPOCHS_PER_YEAR = 182;                   
-    // 75% of emissions per epoch are allocated to PoVW rewards
-    uint256 public constant POVW_ALLOCATION_BPS = 7500;                    
-    // 25% of emissions per epoch are allocated to staking rewards
+    
+    /// @notice Number of epochs per year
+    uint256 public constant EPOCHS_PER_YEAR = 182;
+    
+    /// @notice Percentage of emissions allocated to PoVW rewards (75%)
+    uint256 public constant POVW_ALLOCATION_BPS = 7500;
+    
+    /// @notice Percentage of emissions allocated to staking rewards (25%)
     uint256 public constant STAKING_ALLOCATION_BPS = 2500;   
 
+    /// @notice Role identifier for PoVW reward minters
     bytes32 public immutable POVW_MINTER_ROLE = keccak256("POVW_MINTER_ROLE");
+    
+    /// @notice Role identifier for staking reward minters
     bytes32 public immutable STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
 
+    /// @notice Timestamp when the contract was deployed (epoch 0 start)
     uint256 public deploymentTime;
 
+    /// @notice Total amount of PoVW rewards minted
     uint256 public poVWMinted;
+    
+    /// @notice Total amount of staking rewards minted
     uint256 public stakingMinted;
-
-    event PoVWRewardsClaimed(address indexed recipient, uint256 amount);
-    event StakingRewardsClaimed(address indexed recipient, uint256 amount);
-
-    error EpochNotEnded(uint256 epoch);
-    error EpochAllocationExceeded(uint256 epoch);
-    error TotalAllocationExceeded();
-    error InvalidInputLength();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -78,6 +96,7 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         deploymentTime = block.timestamp;
     }
 
+    /// @inheritdoc IZKC
     function initialMint(address[] calldata recipients, uint256[] calldata amounts) public {
         require(recipients.length == amounts.length);
         require(msg.sender == initialMinter1 || msg.sender == initialMinter2);
@@ -96,11 +115,13 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         }
     }
 
+    /// @inheritdoc IZKC
     function mintPoVWRewardsForRecipient(address recipient, uint256 amount) external onlyRole(POVW_MINTER_ROLE) {
         _mintPoVWRewardsForRecipient(recipient, amount);
         emit PoVWRewardsClaimed(recipient, amount);
     }
 
+    /// @inheritdoc IZKC
     function mintStakingRewardsForRecipient(address recipient, uint256 amount) external onlyRole(STAKING_MINTER_ROLE) {
         _mintStakingRewardsForRecipient(recipient, amount);
         emit StakingRewardsClaimed(recipient, amount);
@@ -128,76 +149,62 @@ contract ZKC is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, AccessC
         _mint(recipient, amount);
     }
 
-    // Returns the supply at the start of the provided epoch.
-    // ZKC is emitted at the end of each epoch, this excludes the rewards that will be
-    // generated as part of the work within this epoch.
+    /// @inheritdoc IZKC
     function getSupplyAtEpochStart(uint256 epoch) public pure returns (uint256) {
         return Supply.getSupplyAtEpoch(epoch);
     }
 
-    // Returns the amount of ZKC that will have been emitted for PoVW rewards since the start of ZKC
-    // to the _start_ of the provided epoch (so excludes emissions from the provided epoch).
+    /// @inheritdoc IZKC
     function getTotalPoVWEmissionsAtEpochStart(uint256 epoch) public returns (uint256) {
         uint256 totalEmissions = getSupplyAtEpochStart(epoch) - INITIAL_SUPPLY;
         return (totalEmissions * POVW_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
-    // Returns the total amount of ZKC that will have been emitted for staking rewards 
-    // from the start of ZKC to the _start_ of the provided epoch (so excludes emissions from the provided epoch).
+    /// @inheritdoc IZKC
     function getTotalStakingEmissionsAtEpochStart(uint256 epoch) public returns (uint256) {
         uint256 totalEmissions = getSupplyAtEpochStart(epoch) - INITIAL_SUPPLY;
         return (totalEmissions * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
-    // Returns the amount of ZKC that will be emitted at the end of the provided epoch.
-    // Includes both rewards for PoVW and for active staking.
+    /// @inheritdoc IZKC
     function getEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         return Supply.getEmissionsForEpoch(epoch);
     }
 
-    // Returns the amount of ZKC that will be emitted for PoVW rewards at the _end_ of the provided epoch.
+    /// @inheritdoc IZKC
     function getPoVWEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
         return (totalEmission * POVW_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
-    // Returns the amount of ZKC that will be emitted for staking rewards at the _end_ of the provided epoch.
+    /// @inheritdoc IZKC
     function getStakingEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
         return (totalEmission * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
+    /// @inheritdoc IZKC
     function getCurrentEpoch() public view returns (uint256) {
         return (block.timestamp - deploymentTime) / EPOCH_DURATION;
     }
 
-    // Returns the start time of the provided epoch.
+    /// @inheritdoc IZKC
     function getEpochStartTime(uint256 epoch) public view returns (uint256) {
         return deploymentTime + (epoch * EPOCH_DURATION);
     }
 
-    // Returns the end time of the provided epoch. Meaning the final timestamp
-    // at which the epoch is "active". After this timestamp is finished, the 
-    // state at this timestamp represents the final state of the epoch.
+    /// @inheritdoc IZKC
     function getEpochEndTime(uint256 epoch) public view returns (uint256) {
         return getEpochStartTime(epoch + 1) - 1;
     }
 
-    /**
-     * @notice This is the total supply during the current epoch.
-     * @dev This is the total supply during the current epoch. Emissions for the epoch
-     * occur at the end of the epoch.
-     * @return The total supply during the current epoch
-     */
+    /// @notice Get the total supply during the current epoch
+    /// @dev Overrides ERC20 totalSupply to return epoch-based theoretical supply
     function totalSupply() public view override returns (uint256) {
         return getSupplyAtEpochStart(getCurrentEpoch());
     }
 
-    /**
-     * @notice Returns the actual claimed total supply
-     * @dev This is what has actually been minted to an account and thus claimed.
-     * @return The total amount of tokens that have been claimed
-     */
+    /// @inheritdoc IZKC
     function claimedTotalSupply() public view returns (uint256) {
         return super.totalSupply();
     }

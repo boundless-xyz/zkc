@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "../ZKC.t.sol";
 import "../../src/libraries/Supply.sol";
+import {IZKC} from "../../src/interfaces/IZKC.sol";
 
 contract ZKCEmissionsTest is ZKCTest {
     function setUp() public {
@@ -86,7 +87,7 @@ contract ZKCEmissionsTest is ZKCTest {
         uint256 poVWMintedBefore = zkc.poVWMinted();
         
         vm.expectEmit(true, true, false, true);
-        emit ZKC.PoVWRewardsClaimed(user, amount);
+        emit IZKC.PoVWRewardsClaimed(user, amount);
         
         vm.prank(povwMinter);
         zkc.mintPoVWRewardsForRecipient(user, amount);
@@ -107,7 +108,7 @@ contract ZKCEmissionsTest is ZKCTest {
         uint256 stakingMintedBefore = zkc.stakingMinted();
         
         vm.expectEmit(true, true, false, true);
-        emit ZKC.StakingRewardsClaimed(user, amount);
+        emit IZKC.StakingRewardsClaimed(user, amount);
         
         vm.prank(stakingMinter);
         zkc.mintStakingRewardsForRecipient(user, amount);
@@ -129,7 +130,7 @@ contract ZKCEmissionsTest is ZKCTest {
         // Try to mint more than total allocation
         uint256 excessAmount = totalAllocation + 1;
         
-        vm.expectRevert(ZKC.TotalAllocationExceeded.selector);
+        vm.expectRevert(IZKC.TotalAllocationExceeded.selector);
         vm.prank(povwMinter);
         zkc.mintPoVWRewardsForRecipient(user, excessAmount);
     }
@@ -144,7 +145,7 @@ contract ZKCEmissionsTest is ZKCTest {
         // Try to mint more than total allocation
         uint256 excessAmount = totalAllocation + 1;
         
-        vm.expectRevert(ZKC.TotalAllocationExceeded.selector);
+        vm.expectRevert(IZKC.TotalAllocationExceeded.selector);
         vm.prank(stakingMinter);
         zkc.mintStakingRewardsForRecipient(user, excessAmount);
     }

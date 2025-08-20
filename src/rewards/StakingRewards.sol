@@ -6,16 +6,15 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {ZKC} from "../ZKC.sol";
+import {IZKC} from "../interfaces/IZKC.sol";
 import {IRewards} from "../interfaces/IRewards.sol";
 
 /// @notice Error thrown when a user tries to claim rewards for an epoch they have already claimed
 error AlreadyClaimed(uint256 epoch);
 
-/**
- * @title StakingRewards
- * @notice Contract for distributing staking rewards based on veZKC staking positions
- * @dev Users can claim rewards for specific epochs based on their staking value
- */
+/// @title StakingRewards
+/// @notice Contract for distributing staking rewards based on veZKC staking positions
+/// @dev Users can claim rewards for specific epochs based on their staking value
 contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
 
@@ -44,58 +43,46 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
-    /**
-     * @notice Claim rewards for the given epochs
-     * @param epochs The epochs to claim rewards for
-     * @return amount The amount of rewards claimed
-     */
+    /// @notice Claim rewards for the given epochs
+    /// @param epochs The epochs to claim rewards for
+    /// @return amount The amount of rewards claimed
     function claimRewards(uint256[] calldata epochs) external nonReentrant returns (uint256 amount) {
         return _claim(msg.sender, epochs);
     }
 
-    /**
-     * @notice Calculate the rewards a user is owed for the given epochs
-     * @param user The user address
-     * @param epochs The epochs to calculate rewards for
-     * @return rewards The rewards owed
-     */
+    /// @notice Calculate the rewards a user is owed for the given epochs
+    /// @param user The user address
+    /// @param epochs The epochs to calculate rewards for
+    /// @return rewards The rewards owed
     function calculateRewards(address user, uint256[] calldata epochs) external returns (uint256[] memory) {
         return _calculate(user, epochs);
     }
 
-    /**
-     * @notice Check if a user has claimed rewards for a specific epoch
-     * @param user The user address
-     * @param epoch The epoch to check
-     * @return claimed Whether rewards have been claimed
-     */
+    /// @notice Check if a user has claimed rewards for a specific epoch
+    /// @param user The user address
+    /// @param epoch The epoch to check
+    /// @return claimed Whether rewards have been claimed
     function hasUserClaimedRewards(address user, uint256 epoch) external view returns (bool claimed) {
         return _userClaimed[epoch][user];
     }
 
-    /**
-     * @notice Get the current epoch from the ZKC contract
-     * @return currentEpoch The current epoch number
-     */
+    /// @notice Get the current epoch from the ZKC contract
+    /// @return currentEpoch The current epoch number
     function getCurrentEpoch() external view returns (uint256 currentEpoch) {
         return zkc.getCurrentEpoch();
     }
 
-    /**
-     * @notice Get the end timestamp for a specific epoch
-     * @param epoch The epoch number
-     * @return endTimestamp The end timestamp of the epoch
-     */
+    /// @notice Get the end timestamp for a specific epoch
+    /// @param epoch The epoch number
+    /// @return endTimestamp The end timestamp of the epoch
     function _epochEndTimestamp(uint256 epoch) internal view returns (uint256) {
         return zkc.getEpochEndTime(epoch);
     }
 
-    /**
-     * @notice Internal function to calculate the rewards a user is owed for the given epochs
-     * @param user The user address
-     * @param epochs The epochs to calculate rewards for
-     * @return rewards The list of rewards owed
-     */
+    /// @notice Internal function to calculate the rewards a user is owed for the given epochs
+    /// @param user The user address
+    /// @param epochs The epochs to calculate rewards for
+    /// @return rewards The list of rewards owed
     function _calculate(address user, uint256[] calldata epochs) internal returns (uint256[] memory) {
         uint256 currentEpoch = zkc.getCurrentEpoch();
         uint256[] memory rewards = new uint256[](epochs.length);
@@ -113,12 +100,10 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         return rewards;
     }
 
-    /**
-     * @notice Internal function to claim rewards for a user in the given epochs
-     * @param user The user address
-     * @param epochs The epochs to claim rewards for
-     * @return amount The amount of rewards claimed
-     */
+    /// @notice Internal function to claim rewards for a user in the given epochs
+    /// @param user The user address
+    /// @param epochs The epochs to claim rewards for
+    /// @return amount The amount of rewards claimed
     function _claim(address user, uint256[] calldata epochs) internal returns (uint256 amount) {
         uint256[] memory amounts = _calculate(user, epochs);
         uint256 currentEpoch = zkc.getCurrentEpoch();
@@ -126,7 +111,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
             uint256 epoch = epochs[i];
             if (_userClaimed[epoch][user]) revert AlreadyClaimed(epoch);
             // Epoch must have ended
-            if (epoch >= currentEpoch) revert ZKC.EpochNotEnded(epoch);
+            if (epoch >= currentEpoch) revert IZKC.EpochNotEnded(epoch);
             _userClaimed[epoch][user] = true;
             amount += amounts[i];
         }
@@ -135,9 +120,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         return amount;
     }
 
-    /**
-     * @notice Authorize upgrades to this contract
-     * @param newImplementation The address of the new implementation
-     */
+    /// @notice Authorize upgrades to this contract
+    /// @param newImplementation The address of the new implementation
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
 }

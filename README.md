@@ -8,11 +8,11 @@ The core contracts for ZKC. Includes the token itself, as well as its associated
 
 ## Repository Structure
 
-ZKC Token (`src/ZKC.sol`) is the main ERC20 token with epoch-based inflation and emissions.
+* **ZKC Token (`src/ZKC.sol`)** is the main ERC20 token with epoch-based inflation and emissions.
 
-veZKC NFT (`src/veZKC.sol`) represents ERC721 positions issued when staking ZKC that grant governance and reward power.
+* **veZKC NFT (`src/veZKC.sol`)** represents ERC721 positions issued when staking ZKC that grant governance and reward power.
 
-Rewards (`rewards/`) contains contracts that allow users to claim their portion of emitted ZKC rewards each epoch.
+* **Rewards (`rewards/`)** contains contracts that allow users to claim their portion of emitted ZKC rewards each epoch.
 
 ## ZKC
 
@@ -35,11 +35,11 @@ The annual emission rate decreases over time. Emissions are divided equally acro
 
 #### Emissions Distribution
 
-Each epoch's new emissions are allocated to two external contracts for distribution to users.
+Each epoch's new emissions are allocated to two external contracts for distribution.
 
-75% goes to PoVW Provers (Proof of Verifiable Work) as rewards for provers participating in the network.
+**75% goes to Provers generating ZK proofs**. Submitting _Proofs of Verifiable Work_ (PoVW) entitles provers to a portion of emitted ZKC.
 
-25% goes to ZKC Stakers, distributed to veZKC holders through `rewards/StakingRewards.sol`.
+**25% goes to ZKC stakers**. Staking ZKC for veZKC entitles holders to a portion of emitted ZKC.
 
 Emissions occur at the end of each epoch.
 
@@ -49,45 +49,37 @@ Emissions occur at the end of each epoch.
 
 Users stake ZKC tokens and receive a veZKC NFT position that provides eligibility for participating in governance votes and claiming ZKC emissions.
 
-The veZKC system uses a withdrawal-based model with a 30-day withdrawal period. Users can stake ZKC at any time without committing to a specific duration and receive full voting and reward power immediately upon staking.
+Users stake ZKC without committing to a specific duration and receive full voting and reward power immediately upon staking. 
 
-To unstake, users must initiate withdrawal and wait 30 days before completing the process. Voting and reward powers immediately drop to 0 when withdrawal is initiated.
+To unstake, users must initiate withdrawal and wait 30 days before completing the process to receive their ZKC. Voting and reward powers immediately drop to 0 when withdrawal is initiated.
 
-Each address can only have one active position at a time. Positions are soulbound and cannot be transferred to prevent governance attacks.
+Each address can only have one active position at a time. Positions are non-transferrable.
 
 ### Contract Architecture
 
-The veZKC contract is built using a modular component-based architecture:
+The contract consists of three main components:
 
-**Staking Component** (`src/components/Staking.sol`) handles core staking operations including minting NFTs, managing stake amounts, and processing withdrawals.
+**Staking Component** (`src/components/Staking.sol`) handles core staking operations including minting veZKC, managing stake amounts, and processing withdrawals.
 
 **Votes Component** (`src/components/Votes.sol`) implements the IVotes interface for governance compatibility, providing voting power queries and delegation functionality.
 
-**Rewards Component** (`src/components/Rewards.sol`) implements the IRewards interface for reward distribution systems, providing reward power calculations.
-
-**Shared Storage** (`src/components/Storage.sol`) defines the unified storage layout used across all components for checkpoint tracking and position management.
-
-**Supporting Libraries** handle the core logic for power calculations (`VotingPower.sol`, `RewardPower.sol`), checkpoint management (`Checkpoints.sol`), and staking validation (`StakeManager.sol`).
+**Rewards Component** (`src/components/Rewards.sol`) implements the IRewards interface for reward distribution systems, providing reward power calculations for PoVW rewards and Staking rewards.
 
 ## Staking
 
 ### Operations
 
-Staking locks ZKC tokens and mints a veZKC NFT with full power. Adding stake increases the ZKC amount in an existing position. Cannot add stake to a position that has initiated withdrawal.
+Staking locks ZKC tokens and mints a veZKC NFT. Adding stake increases the ZKC amount in an existing position.
 
-Initiating withdrawal starts the 30-day withdrawal period and causes powers to drop to 0 immediately. Completing withdrawal allows claiming ZKC after 30 days and burns the NFT.
+Initiating withdrawal starts the 30-day withdrawal period and causes powers to drop to 0 immediately. Completing withdrawal allows claiming ZKC after 30 days and burns the NFT. You cannot add stake to a position that has initiated withdrawal.
 
 Users can check their position using `getStakedAmountAndWithdrawalTime(address)` to get position details.
 
-### Power Calculations
+## Power Calculations
 
-Both voting and reward powers are equal to the staked amount with no time-based degradation. Powers remain constant over time for active stakes. Users either have full power equal to their staked amount or zero power during withdrawal.
+Both voting and reward powers are calculated via the `IVotes` and `IRewards` interfaces.
 
-Powers drop to zero instantly when withdrawal is initiated. All stakers have proportional power regardless of when they staked.
-
-## Rewards
-
-### Claiming Emissions
+### Rewards
 
 The portion of ZKC emissions that a user is eligible to claim is calculated based on their reward power.
 
@@ -95,15 +87,13 @@ Reward power is accessible via the IRewards interface. The contracts that enable
 
 Reward power drops to zero immediately when withdrawal is initiated, ensuring only committed stakers receive rewards.
 
-## Votes
-
-### Governance
+### Votes
 
 A user's weight in governance votes is calculated from their voting power.
 
 Voting power is accessible via the IVotes interface. Governance contracts use these values to compute a user's voting power during a vote.
 
-Voting power drops to zero immediately when withdrawal is initiated, preventing governance manipulation through unstaking.
+Voting power drops to zero immediately when withdrawal is initiated, ensuring only committed stakers can participate in governance votes.
 
 #### Examples
 

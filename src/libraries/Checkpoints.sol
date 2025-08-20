@@ -3,61 +3,51 @@ pragma solidity ^0.8.20;
 
 import {Constants} from "./Constants.sol";
 
-/**
- * @title Checkpoints Library
- * @notice Shared checkpoint logic for both voting power and reward power tracking
- * @dev This library contains the core Point-based state management used by both 
- *      voting and reward systems. It follows the standard veToken checkpoint pattern.
- *      
- *      This is a pure extraction of existing logic from veZKC.sol without modification.
- */
+/// @title Checkpoints Library
+/// @notice Shared checkpoint logic for both voting power and reward power tracking
+/// @dev This library contains the core Point-based state management used by both 
+///      voting and reward systems. It follows the standard veToken checkpoint pattern.
 library Checkpoints {
     
-    /**
-     * @dev Point represents staking state at a specific moment
-     * @dev No decay - powers are simply amount / scalar
-     * @dev Withdrawing flag indicates if user is in withdrawal period (powers = 0)
-     */
+    /// @notice Point represents staking state at a specific moment
+    /// @dev No decay - powers are simply amount / scalar
+    /// @dev Withdrawing flag indicates if user is in withdrawal period (powers = 0)
     struct Point {
-        /// @dev Staked ZKC amount
+        /// @notice Staked ZKC amount
         uint256 amount;
-        /// @dev Timestamp when recorded
+        /// @notice Timestamp when recorded
         uint256 updatedAt;
-        /// @dev Whether user is in withdrawal period (powers drop to 0)
+        /// @notice Whether user is in withdrawal period (powers drop to 0)
         bool withdrawing;
     }
 
+    /// @notice Information about a staked position
     struct StakeInfo {
-        /// @dev Total ZKC amount staked
+        /// @notice Total ZKC amount staked
         uint256 amount;
-        /// @dev Withdrawal request timestamp (0 if not withdrawing)
+        /// @notice Withdrawal request timestamp (0 if not withdrawing)
         uint256 withdrawalRequestedAt;
     }
 
-    /**
-     * @dev Storage structure for user checkpoint data
-     */
+    /// @notice Storage structure for user checkpoint data
     struct UserCheckpointStorage {
-        /// @dev Pre-allocated array tracking power evolution per account (gas optimization)
+        /// @notice Tracks a user's stake evolution + power 
+        /// @dev Pre-allocated array for gas optimization
         mapping(address account => Point[1000000000]) userPointHistory;
-        /// @dev Current index in the user's point history array
+        /// @notice Current index in the user's point history array
         mapping(address account => uint256) userPointEpoch;
     }
 
-    /**
-     * @dev Storage structure for global checkpoint data
-     */
+    /// @notice Storage structure for global checkpoint data
     struct GlobalCheckpointStorage {
-        /// @dev Protocol-wide voting power tracking
+        /// @notice Protocol-wide voting power tracking
         mapping(uint256 => Point) globalPointHistory;
-        /// @dev Current index for global point history
+        /// @notice Current index for global point history
         uint256 globalPointEpoch;
-        // Removed slopeChanges - no longer needed without decay
     }
 
-    /**
-     * @dev Initialize the first global point at index 0
-     */
+    /// @notice Initialize the first global point at index 0
+    /// @param self Global checkpoint storage to initialize
     function initializeGlobalPoint(GlobalCheckpointStorage storage self) internal {
         self.globalPointHistory[0] = Point({
             amount: 0,
@@ -66,12 +56,12 @@ library Checkpoints {
         });
     }
 
-    // Removed timestampFloorToWeek - no longer needed without week-based locks
-
-    /**
-     * @dev Binary search to find user's point at a specific timestamp
-     * @dev Finds the last voting checkpoint prior to a timepoint
-     */
+    /// @notice Binary search to find user's point at a specific timestamp
+    /// @dev Finds the last voting checkpoint prior to a timepoint
+    /// @param self User checkpoint storage to search
+    /// @param user Address of the user
+    /// @param timestamp Timestamp to search for
+    /// @return Epoch index of the checkpoint at or before timestamp
     function findUserTimestampEpoch(
         UserCheckpointStorage storage self,
         address user, 
@@ -98,9 +88,10 @@ library Checkpoints {
         return min;
     }
     
-    /**
-     * @dev Binary search to find global point at a specific timestamp
-     */
+    /// @notice Binary search to find global point at a specific timestamp
+    /// @param self Global checkpoint storage to search
+    /// @param timestamp Timestamp to search for
+    /// @return Epoch index of the checkpoint at or before timestamp
     function findTimestampEpoch(
         GlobalCheckpointStorage storage self,
         uint256 timestamp
@@ -126,9 +117,11 @@ library Checkpoints {
         return min;
     }
 
-    /**
-     * @dev Get user point at specific epoch
-     */
+    /// @notice Get user point at specific epoch
+    /// @param self User checkpoint storage
+    /// @param user Address of the user
+    /// @param epoch Epoch index to query
+    /// @return Point at the specified epoch
     function getUserPoint(
         UserCheckpointStorage storage self,
         address user,
@@ -137,9 +130,10 @@ library Checkpoints {
         return self.userPointHistory[user][epoch];
     }
 
-    /**
-     * @dev Get global point at specific epoch
-     */
+    /// @notice Get global point at specific epoch
+    /// @param self Global checkpoint storage
+    /// @param epoch Epoch index to query
+    /// @return Point at the specified epoch
     function getGlobalPoint(
         GlobalCheckpointStorage storage self,
         uint256 epoch
@@ -147,9 +141,10 @@ library Checkpoints {
         return self.globalPointHistory[epoch];
     }
 
-    /**
-     * @dev Get current user epoch
-     */
+    /// @notice Get current user epoch
+    /// @param self User checkpoint storage
+    /// @param user Address of the user
+    /// @return Current epoch index for the user
     function getUserEpoch(
         UserCheckpointStorage storage self,
         address user
@@ -157,19 +152,28 @@ library Checkpoints {
         return self.userPointEpoch[user];
     }
 
-    /**
-     * @dev Get current global epoch
-     */
+    /// @notice Get current global epoch
+    /// @param self Global checkpoint storage
+    /// @return Current global epoch index
     function getGlobalEpoch(
         GlobalCheckpointStorage storage self
     ) internal view returns (uint256) {
         return self.globalPointEpoch;
     }
 
-    /**
-     * @dev Main checkpoint function that updates user and global points
-     * @dev Tracks stake amount changes and withdrawal status
-     */
+    /// @notice Main checkpoint function that updates user and global points
+    /// @dev This function is critical for maintaining accurate historical records of voting and reward power.
+    ///      It handles several scenarios:
+    ///      - Creating new stakes (oldStake is empty, newStake has values)
+    ///      - Adding to stakes (both have values, amounts differ)
+    ///      - Initiating withdrawal (oldStake.withdrawalRequestedAt = 0, newStake.withdrawalRequestedAt > 0)
+    ///      - Completing withdrawal (removing the stake entirely)
+    ///      The function maintains both user-specific and global checkpoint histories for historical queries.
+    /// @param userStorage User checkpoint storage to update
+    /// @param globalStorage Global checkpoint storage to update
+    /// @param account Address of the account being checkpointed
+    /// @param oldStake Previous stake state
+    /// @param newStake New stake state
     function checkpoint(
         UserCheckpointStorage storage userStorage,
         GlobalCheckpointStorage storage globalStorage,

@@ -6,6 +6,7 @@ import "forge-std/console.sol";
 import {StakingRewards, AlreadyClaimed} from "../src/rewards/StakingRewards.sol";
 import {veZKC} from "../src/veZKC.sol";
 import {ZKC} from "../src/ZKC.sol";
+import {IZKC} from "../src/interfaces/IZKC.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract StakingRewardsTest is Test {
@@ -71,7 +72,7 @@ contract StakingRewardsTest is Test {
         }
         if (totalAmount > 0) {
             vm.expectEmit(true, true, true, true);
-            emit ZKC.StakingRewardsClaimed(user, totalAmount);
+            emit IZKC.StakingRewardsClaimed(user, totalAmount);
         }
         vm.prank(user);
         uint256 amount = rewards.claimRewards(epochs);
@@ -111,7 +112,7 @@ contract StakingRewardsTest is Test {
         _stake(user1, 50e18);
         uint256[] memory epochs = new uint256[](1);
         epochs[0] = 0;
-        vm.expectRevert(abi.encodeWithSelector(ZKC.EpochNotEnded.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(IZKC.EpochNotEnded.selector, 0));
         vm.prank(user1);
         rewards.claimRewards(epochs);
     }
@@ -192,7 +193,7 @@ contract StakingRewardsTest is Test {
         epochs[0] = 0;
         epochs[1] = 2; // future
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ZKC.EpochNotEnded.selector, 2));
+        vm.expectRevert(abi.encodeWithSelector(IZKC.EpochNotEnded.selector, 2));
         rewards.claimRewards(epochs);
     }
 

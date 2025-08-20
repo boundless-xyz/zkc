@@ -192,20 +192,17 @@ contract veZKCVotesTest is veZKCTest {
     
     function testVotingPowerScaling() public {
         // Test that voting power scales correctly with the scalar
-        // With VOTING_POWER_SCALAR = 1, we should get 1:1 ratio
+        // Voting power = staked amount / VOTING_POWER_SCALAR
         
         vm.startPrank(alice);
         zkc.approve(address(veToken), AMOUNT);
         veToken.stake(AMOUNT);
         vm.stopPrank();
         
-        // Voting power should equal staked amount divided by scalar (which is 1)
+        // Voting power should equal staked amount divided by scalar
         uint256 votingPower = veToken.getVotes(alice);
         uint256 expectedPower = AMOUNT / Constants.VOTING_POWER_SCALAR;
-        assertEq(votingPower, expectedPower);
-        
-        // Since scalar is 1, this should equal the full amount
-        assertEq(votingPower, AMOUNT);
+        assertEq(votingPower, expectedPower, "Voting power should equal amount divided by VOTING_POWER_SCALAR");
     }
     
     function testMultipleUsersVotingPowers() public {

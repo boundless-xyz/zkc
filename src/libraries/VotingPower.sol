@@ -4,25 +4,24 @@ pragma solidity ^0.8.20;
 import {Checkpoints} from "./Checkpoints.sol";
 import {Constants} from "./Constants.sol";
 
-/**
- * @title VotingPower Library
- * @notice Voting power calculation logic for IVotes interface implementation
- * @dev Voting power = staked_amount / VOTING_POWER_SCALAR (0 if withdrawing)
- */
+/// @title VotingPower Library
+/// @notice Voting power calculation logic for IVotes interface implementation
+/// @dev Voting power = staked_amount / VOTING_POWER_SCALAR (0 if withdrawing)
 library VotingPower {
 
-    /**
-     * @dev Calculate voting power from a point
-     * @dev Returns amount / VOTING_POWER_SCALAR if not withdrawing, else 0
-     */
+    /// @notice Calculate voting power from a point
+    /// @dev Returns amount / VOTING_POWER_SCALAR if not withdrawing, else 0
+    /// @param point The checkpoint point to calculate voting power from
+    /// @return Voting power (0 if withdrawing)
     function getVotesFromPoint(Checkpoints.Point memory point) internal pure returns (uint256) {
         if (point.withdrawing) return 0;
         return point.amount / Constants.VOTING_POWER_SCALAR;
     }
 
-    /**
-     * @dev Calculate voting power for an account at current timestamp
-     */
+    /// @notice Calculate voting power for an account at current timestamp
+    /// @param userStorage User checkpoint storage
+    /// @param account Address to query
+    /// @return Current voting power
     function getVotes(
         Checkpoints.UserCheckpointStorage storage userStorage,
         address account
@@ -34,9 +33,11 @@ library VotingPower {
         return getVotesFromPoint(point);
     }
 
-    /**
-     * @dev Calculate voting power for an account at a specific timestamp
-     */
+    /// @notice Calculate voting power for an account at a specific timestamp
+    /// @param userStorage User checkpoint storage
+    /// @param account Address to query
+    /// @param timepoint Historical timestamp
+    /// @return Voting power at the specified timestamp
     function getPastVotes(
         Checkpoints.UserCheckpointStorage storage userStorage,
         address account,
@@ -50,9 +51,9 @@ library VotingPower {
     }
 
 
-    /**
-     * @dev Calculate total voting power at current timestamp
-     */
+    /// @notice Calculate total voting power at current timestamp
+    /// @param globalStorage Global checkpoint storage
+    /// @return Current total voting power
     function getTotalSupply(
         Checkpoints.GlobalCheckpointStorage storage globalStorage
     ) internal view returns (uint256) {
@@ -63,9 +64,10 @@ library VotingPower {
         return getVotesFromPoint(lastPoint);
     }
 
-    /**
-     * @dev Calculate total voting power at a specific timestamp
-     */
+    /// @notice Calculate total voting power at a specific timestamp
+    /// @param globalStorage Global checkpoint storage
+    /// @param timepoint Historical timestamp
+    /// @return Total voting power at the specified timestamp
     function getPastTotalSupply(
         Checkpoints.GlobalCheckpointStorage storage globalStorage,
         uint256 timepoint

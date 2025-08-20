@@ -8,16 +8,12 @@ import {Checkpoints} from "../libraries/Checkpoints.sol";
 import {VotingPower} from "../libraries/VotingPower.sol";
 import {StakeManager} from "../libraries/StakeManager.sol";
 
-/**
- * @title Votes Component
- * @notice IVotes interface implementation for veZKC voting functionality
- * @dev This component handles all voting-related functionality using shared storage
- */
+/// @title Votes Component
+/// @notice IVotes interface implementation for veZKC voting functionality
+/// @dev This component handles all voting-related functionality using shared storage
 abstract contract Votes is Storage, Clock, IVotes {
 
-    /**
-     * @dev IVotes implementation - Returns voting power delegated TO this account
-     */
+    /// @dev Returns voting power delegated TO this account
     function getVotes(address account) public view override returns (uint256) {
         return VotingPower.getVotes(_userCheckpoints, account);
     }
@@ -36,7 +32,6 @@ abstract contract Votes is Storage, Clock, IVotes {
         address delegatee = _delegatee[account];
         return delegatee == address(0) ? account : delegatee;
     }
-
     function delegate(address /*delegatee*/) public pure override {
         // TODO: Implement delegation logic
         // address account = _msgSender();
@@ -83,10 +78,7 @@ abstract contract Votes is Storage, Clock, IVotes {
         // );
     }
 
-    /**
-     * @dev Handle delegation checkpointing for single NFT per user
-     * @dev Direct extraction of existing _checkpointDelegation logic
-     */
+    /// @dev Handle delegation checkpointing for single NFT per user
     function _checkpointDelegation(address /*account*/, address /*oldDelegatee*/, address /*newDelegatee*/) internal pure {
         // TODO: Implement delegation checkpointing
         // // Get the user's single active position

@@ -3,16 +3,14 @@ pragma solidity ^0.8.20;
 
 import {UD60x18, ud, unwrap, pow} from "lib/prb-math/src/UD60x18.sol";
 
-/**
- * @title ZKC Supply Library
- * @notice 
- * @dev Annual supply values and epoch scaling factors per year are precomputed for gas efficiency.
- * Precomputed values were created by running the script/PrecomputeSupply.s.sol script.
- * 
- * Inflation schedule:
- * - Year 0: 7.0% annual, reduces by 0.5% each year
- * - Year 8+: 3.0% annual (minimum rate)
- */
+/// @title ZKC Supply Library
+/// @notice Library for calculating ZKC supply and emissions based on epoch
+/// @dev Annual supply values and epoch scaling factors per year are precomputed for gas efficiency.
+/// Precomputed values were created by running the script/PrecomputeSupply.s.sol script.
+/// 
+/// Inflation schedule:
+/// - Year 0: 7.0% annual, reduces by 0.5% each year
+/// - Year 8+: 3.0% annual (minimum rate)
 library Supply {
     // Base constants
     uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 10**18; // 1 billion ZKC
@@ -48,11 +46,9 @@ library Supply {
     uint256 public constant SUPPLY_YEAR_8 = 1505119522730302372125075313; // Supply at epoch 1456
     uint256 public constant SUPPLY_YEAR_9 = 1550273108412208360804045020; // Supply at epoch 1638
     
-    /**
-     * @notice Get the per-epoch growth factor for a given epoch
-     * @param epoch The epoch number (0-indexed)
-     * @return The growth factor scaled by 1e18
-     */
+    /// @notice Get the per-epoch growth factor for a given epoch
+    /// @param epoch The epoch number (0-indexed)
+    /// @return The growth factor scaled by 1e18
     function getGrowthFactor(uint256 epoch) internal pure returns (uint256) {
         if (epoch == 0) return SCALE; // No growth for epoch 0
         
@@ -72,11 +68,9 @@ library Supply {
         return FINAL_R_PER_EPOCH;
     }
     
-    /**
-     * @notice Calculate the total supply at the start of a given epoch
-     * @param epoch The epoch number (0-indexed)
-     * @return The total supply at the start of the epoch
-     */
+    /// @notice Calculate the total supply at the start of a given epoch
+    /// @param epoch The epoch number (0-indexed)
+    /// @return The total supply at the start of the epoch
     function getSupplyAtEpoch(uint256 epoch) internal pure returns (uint256) {
         if (epoch == 0) return SUPPLY_YEAR_0;
         
@@ -114,11 +108,9 @@ library Supply {
         return unwrap(resultUD);
     }
     
-    /**
-     * @notice Get precomputed supply at year boundary
-     * @param year The year number (0-indexed)
-     * @return The supply at the start of that year
-     */
+    /// @notice Get precomputed supply at year boundary
+    /// @param year The year number (0-indexed)
+    /// @return The supply at the start of that year
     function _getSupplyAtYearBoundary(uint256 year) internal pure returns (uint256) {
         if (year == 0) return SUPPLY_YEAR_0;
         if (year == 1) return SUPPLY_YEAR_1;
@@ -150,11 +142,9 @@ library Supply {
         return unwrap(resultUD);
     }
     
-    /**
-     * @notice Get growth factor for a specific year
-     * @param year The year number (0-indexed)
-     * @return The per-epoch growth factor for that year
-     */
+    /// @notice Get growth factor for a specific year
+    /// @param year The year number (0-indexed)
+    /// @return The per-epoch growth factor for that year
     function _getGrowthFactorForYear(uint256 year) internal pure returns (uint256) {
         if (year == 0) return Y0_R_PER_EPOCH;
         if (year == 1) return Y1_R_PER_EPOCH;
@@ -169,11 +159,9 @@ library Supply {
         return FINAL_R_PER_EPOCH;
     }
     
-    /**
-     * @notice Returns the amount of ZKC that will be emitted at the end of the provided epoch.
-     * @param epoch The epoch number
-     * @return The amount of new tokens to be emitted at the end of this epoch
-     */
+    /// @notice Returns the amount of ZKC that will be emitted at the end of the provided epoch.
+    /// @param epoch The epoch number
+    /// @return The amount of new tokens to be emitted at the end of this epoch
     function getEmissionsForEpoch(uint256 epoch) internal returns (uint256) {
         // TODO: Possible repeated work, both between these calls, 
         // and during batch claims of consecutive epochs.
@@ -193,11 +181,9 @@ library Supply {
         return supplyAtNextEpoch - supplyAtEpoch;
     }
 
-    /**
-     * @notice Get which year a given epoch falls into
-     * @param epoch The epoch number (0-indexed)
-     * @return The year number (0-indexed)
-     */
+    /// @notice Get which year a given epoch falls into
+    /// @param epoch The epoch number (0-indexed)
+    /// @return The year number (0-indexed)
     function getYearForEpoch(uint256 epoch) internal pure returns (uint256) {
         return epoch / EPOCHS_PER_YEAR;
     }
@@ -210,11 +196,9 @@ library Supply {
     // Leaves 20 bytes for epoch (max epoch: 2^160 - 1).
     bytes32 private constant CACHE_PREFIX = 0x5A4B43454D495353494F4E530000000000000000000000000000000000000000;
 
-    /**
-     * @notice Calculate transient storage slot for epoch supply cache
-     * @param epoch The epoch number to cache
-     * @return slot The transient storage slot
-     */
+    /// @notice Calculate transient storage slot for epoch supply cache
+    /// @param epoch The epoch number to cache
+    /// @return slot The transient storage slot
     function _getSupplyCacheSlot(uint256 epoch) private pure returns (bytes32 slot) {
         assembly {
             slot := or(CACHE_PREFIX, epoch)
