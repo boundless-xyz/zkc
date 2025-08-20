@@ -17,10 +17,7 @@ import {ZKC} from "../ZKC.sol";
 /// @notice Staking functionality for veZKC including full NFT implementation
 /// @dev This component handles all staking operations and is the NFT contract
 abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradeable, IStaking {
-    // Reference to ZKC token (will be set in main contract)
     ZKC internal _zkcToken;
-
-    // Events are defined in IStaking interface
 
     /// @dev Override transfers to make NFTs non-transferable (soulbound)
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
@@ -286,91 +283,31 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         Checkpoints.StakeInfo memory oldStake,
         Checkpoints.StakeInfo memory newStake
     ) internal {
-        // Calculate the change in stake amount
-        int256 stakeDelta = int256(newStake.amount) - int256(oldStake.amount);
-
         // Get delegation states
         address voteDelegatee = _voteDelegatee[account];
         address rewardDelegatee = _rewardDelegatee[account];
 
-        // Calculate deltas for user's own checkpoint
-        int256 userVotingDelta = 0;
-        int256 userRewardDelta = 0;
+        // Determine if votes/rewards are delegated to someone else
+        bool isVoteDelegated = voteDelegatee != address(0) && voteDelegatee != account;
+        bool isRewardDelegated = rewardDelegatee != address(0) && rewardDelegatee != account;
 
-        // Handle vote delegation
-        if (voteDelegatee != address(0) && voteDelegatee != account) {
-            // Votes are delegated - update delegatee's checkpoint
-            Checkpoints.checkpointVoteDelegation(_userCheckpoints, voteDelegatee, stakeDelta);
-        } else {
-            // Votes are not delegated - add to user's voting delta
-            userVotingDelta = stakeDelta;
+        // Use the library to handle checkpointing with delegation awareness
+        (int256 votingDelta, int256 rewardDelta) = Checkpoints.checkpointWithDelegation(
+            _userCheckpoints,
+            _globalCheckpoints,
+            account,
+            oldStake,
+            newStake,
+            isVoteDelegated,
+            isRewardDelegated
+        );
+
+        // Handle delegation updates if needed
+        if (isVoteDelegated && votingDelta != 0) {
+            Checkpoints.checkpointVoteDelegation(_userCheckpoints, voteDelegatee, votingDelta);
         }
-
-        // Handle reward delegation
-        if (rewardDelegatee != address(0) && rewardDelegatee != account) {
-            // Rewards are delegated - update delegatee's checkpoint
-            Checkpoints.checkpointRewardDelegation(_userCheckpoints, rewardDelegatee, stakeDelta);
-        } else {
-            // Rewards are not delegated - add to user's reward delta
-            userRewardDelta = stakeDelta;
-        }
-
-        // If either votes or rewards are not delegated, update user's checkpoint with deltas
-        if (userVotingDelta != 0 || userRewardDelta != 0) {
-            // Update user checkpoint only (not global, as we handle that separately)
-            uint256 userEpoch = _userCheckpoints.userPointEpoch[account];
-            Checkpoints.Point memory lastUserPoint = userEpoch > 0
-                ? _userCheckpoints.userPointHistory[account][userEpoch]
-                : Checkpoints.Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
-
-            // Create new user point with deltas applied
-            Checkpoints.Point memory newUserPoint = Checkpoints.Point({
-                votingAmount: uint256(int256(lastUserPoint.votingAmount) + userVotingDelta),
-                rewardAmount: uint256(int256(lastUserPoint.rewardAmount) + userRewardDelta),
-                updatedAt: block.timestamp
-            });
-
-            // Update user checkpoint
-            userEpoch += 1;
-            _userCheckpoints.userPointEpoch[account] = userEpoch;
-            _userCheckpoints.userPointHistory[account][userEpoch] = newUserPoint;
-        }
-
-        // Always update global totals
-        _updateGlobalCheckpoint(oldStake, newStake);
-    }
-
-    /// @dev Update global checkpoint for stake changes
-    function _updateGlobalCheckpoint(Checkpoints.StakeInfo memory oldStake, Checkpoints.StakeInfo memory newStake)
-        internal
-    {
-        // Calculate effective amounts (0 if withdrawing)
-        uint256 oldEffectiveAmount = oldStake.withdrawalRequestedAt > 0 ? 0 : oldStake.amount;
-        uint256 newEffectiveAmount = newStake.withdrawalRequestedAt > 0 ? 0 : newStake.amount;
-
-        // Load current global point
-        uint256 globalEpoch = _globalCheckpoints.globalPointEpoch;
-        Checkpoints.Point memory lastGlobalPoint;
-        if (globalEpoch > 0) {
-            lastGlobalPoint = _globalCheckpoints.globalPointHistory[globalEpoch];
-        }
-
-        // Calculate new global point
-        Checkpoints.Point memory newGlobalPoint = Checkpoints.Point({
-            votingAmount: lastGlobalPoint.votingAmount + newEffectiveAmount - oldEffectiveAmount,
-            rewardAmount: lastGlobalPoint.rewardAmount + newEffectiveAmount - oldEffectiveAmount,
-            updatedAt: block.timestamp
-        });
-
-        // Update global checkpoint
-        if (globalEpoch > 0 && lastGlobalPoint.updatedAt == block.timestamp) {
-            // Update existing point at this timestamp
-            _globalCheckpoints.globalPointHistory[globalEpoch] = newGlobalPoint;
-        } else {
-            // Create new global point
-            globalEpoch += 1;
-            _globalCheckpoints.globalPointHistory[globalEpoch] = newGlobalPoint;
-            _globalCheckpoints.globalPointEpoch = globalEpoch;
+        if (isRewardDelegated && rewardDelta != 0) {
+            Checkpoints.checkpointRewardDelegation(_userCheckpoints, rewardDelegatee, rewardDelta);
         }
     }
 }
