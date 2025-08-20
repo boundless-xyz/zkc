@@ -47,18 +47,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
     /// @inheritdoc IStaking
     function stake(uint256 amount) external nonReentrant returns (uint256 tokenId) {
-        StakeManager.validateStake(amount, _userActivePosition[msg.sender]);
-
-        // Transfer ZKC from user
-        StakeManager.transferTokensIn(IERC20(address(_zkcToken)), msg.sender, amount);
-
-        // Mint veZKC NFT with voting/reward power
-        tokenId = _stakeAndCheckpoint(msg.sender, amount);
-
-        // Track user's active position
-        _userActivePosition[msg.sender] = tokenId;
-
-        return tokenId;
+        return _stake(msg.sender, amount);
     }
 
     /// @inheritdoc IStaking
@@ -67,21 +56,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         nonReentrant
         returns (uint256 tokenId)
     {
-        StakeManager.validateStake(amount, _userActivePosition[msg.sender]);
-
-        // Use permit to approve tokens
-        _zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
-
-        // Transfer ZKC from user
-        StakeManager.transferTokensIn(IERC20(address(_zkcToken)), msg.sender, amount);
-
-        // Mint veZKC NFT with voting/reward power
-        tokenId = _stakeAndCheckpoint(msg.sender, amount);
-
-        // Track user's active position
-        _userActivePosition[msg.sender] = tokenId;
-
-        return tokenId;
+        try _zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s) {} catch {}
+        return _stake(msg.sender, amount);
     }
 
     /// @inheritdoc IStaking
@@ -100,8 +76,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         uint256 tokenId = _userActivePosition[msg.sender];
         if (tokenId == 0) revert NoActivePosition();
 
-        // Use permit to approve tokens
-        _zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
+        try _zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s) {} catch {}
 
         _addToStake(msg.sender, tokenId, amount);
     }
@@ -120,8 +95,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         bytes32 r,
         bytes32 s
     ) external nonReentrant {
-        // Use permit to approve tokens
-        _zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s);
+        try _zkcToken.permit(msg.sender, address(this), amount, permitDeadline, v, r, s) {} catch {}
 
         _addToStake(msg.sender, tokenId, amount);
     }
@@ -193,7 +167,20 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         return _userActivePosition[user];
     }
 
-    // Internal staking implementation
+    function _stake(address user, uint256 amount) internal returns (uint256 tokenId) {
+        StakeManager.validateStake(amount, _userActivePosition[user]);
+
+        // Transfer ZKC from user
+        StakeManager.transferTokensIn(IERC20(address(_zkcToken)), user, amount);
+
+        // Mint veZKC NFT with voting/reward power
+        tokenId = _stakeAndCheckpoint(user, amount);
+
+        // Track user's active position
+        _userActivePosition[user] = tokenId;
+
+        return tokenId;
+    }
 
     function _stakeAndCheckpoint(address to, uint256 amount) internal returns (uint256) {
         uint256 tokenId = ++_currentTokenId;
