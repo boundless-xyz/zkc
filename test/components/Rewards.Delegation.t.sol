@@ -25,8 +25,6 @@ contract RewardsDelegationTest is veZKCTest {
         zkc.approve(address(veToken), type(uint256).max);
     }
 
-    // Basic reward delegation tests
-
     function testSelfRewardDelegationByDefault() public {
         // Alice stakes
         vm.prank(alice);
@@ -159,8 +157,6 @@ contract RewardsDelegationTest is veZKCTest {
         assertEq(veToken.getStakingRewards(alice), 0, "Alice should still have no reward power");
     }
 
-    // Independent delegation tests (rewards vs votes)
-
     function testIndependentRewardAndVoteDelegation() public {
         // Alice stakes
         vm.prank(alice);
@@ -212,16 +208,21 @@ contract RewardsDelegationTest is veZKCTest {
         );
     }
 
-    // PoVW reward cap tests
-
     function testPoVWRewardCapDelegation() public {
         // Alice stakes
         vm.prank(alice);
         veToken.stake(AMOUNT);
 
-        // Check initial PoVW cap
-        uint256 expectedCap = AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
-        assertEq(veToken.getPoVWRewardCap(alice), expectedCap, "Alice should have PoVW cap");
+        // Charlie also stakes (with different amount for clarity)
+        vm.prank(CHARLIE);
+        veToken.stake(AMOUNT * 2);
+
+        // Check initial PoVW caps
+        uint256 aliceCap = AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
+        uint256 charlieCap = (AMOUNT * 2) / Constants.POVW_REWARD_CAP_SCALAR;
+        assertEq(veToken.getPoVWRewardCap(alice), aliceCap, "Alice should have PoVW cap");
+        assertEq(veToken.getPoVWRewardCap(CHARLIE), charlieCap, "Charlie should have PoVW cap");
+        assertEq(veToken.getPoVWRewardCap(bob), 0, "Bob should have no PoVW cap initially");
 
         // Alice delegates rewards to Bob
         vm.prank(alice);
@@ -229,10 +230,18 @@ contract RewardsDelegationTest is veZKCTest {
 
         // PoVW cap should move with reward delegation
         assertEq(veToken.getPoVWRewardCap(alice), 0, "Alice should have no PoVW cap");
-        assertEq(veToken.getPoVWRewardCap(bob), expectedCap, "Bob should have Alice's PoVW cap");
-    }
+        assertEq(veToken.getPoVWRewardCap(bob), aliceCap, "Bob should have Alice's PoVW cap");
 
-    // Historical reward delegation tests
+        // Charlie also delegates rewards to Bob
+        vm.prank(CHARLIE);
+        veToken.delegateRewards(bob);
+
+        // Bob should now have the sum of both PoVW caps
+        assertEq(veToken.getPoVWRewardCap(alice), 0, "Alice should still have no PoVW cap");
+        assertEq(veToken.getPoVWRewardCap(CHARLIE), 0, "Charlie should have no PoVW cap");
+        // Rounding error due to integer division by 3
+        assertApproxEqAbs(veToken.getPoVWRewardCap(bob), aliceCap + charlieCap, 1, "Bob should have sum of both PoVW caps");
+    }
 
     function testHistoricalRewardPowerAfterDelegation() public {
         // Alice stakes
