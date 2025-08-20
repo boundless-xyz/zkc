@@ -63,18 +63,33 @@ abstract contract Votes is Storage, Clock, IVotes {
         }
 
         address oldDelegate = delegates(account);
+        
+        // Skip if delegating to same address
+        if (oldDelegate == delegatee) return;
+        
         _voteDelegatee[account] = delegatee;
+
+        // Get votes before changes for event emission
+        uint256 oldDelegateVotesBefore = getVotes(oldDelegate);
+        uint256 newDelegateVotesBefore = getVotes(delegatee);
 
         // Checkpoint delegation change
         _checkpointDelegation(stake, oldDelegate, delegatee);
 
+        // Get votes after changes for event emission
+        uint256 oldDelegateVotesAfter = getVotes(oldDelegate);
+        uint256 newDelegateVotesAfter = getVotes(delegatee);
+
         emit DelegateChanged(account, oldDelegate, delegatee);
-        emit DelegateVotesChanged(delegatee, getVotes(oldDelegate), getVotes(delegatee));
+        
+        // Emit DelegateVotesChanged for both old and new delegates
+        emit DelegateVotesChanged(oldDelegate, oldDelegateVotesBefore, oldDelegateVotesAfter);
+        emit DelegateVotesChanged(delegatee, newDelegateVotesBefore, newDelegateVotesAfter);
     }
 
     /// @dev Handle delegation checkpointing for single NFT per user
     function _checkpointDelegation(Checkpoints.StakeInfo memory stake, address oldDelegatee, address newDelegatee) internal {
-        // Skip if delegating to same address
+        // Skip if delegating to same address (this should already be checked by caller)
         if (oldDelegatee == newDelegatee) return;
 
         int256 votingDelta = int256(stake.amount);

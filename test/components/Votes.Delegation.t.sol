@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "../veZKC.t.sol";
 import "../../src/interfaces/IVotes.sol";
 import "../../src/interfaces/IStaking.sol";
+import {IVotes as OZIVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {console2} from "forge-std/Test.sol";
 
 contract VotesDelegationTest is veZKCTest {
@@ -24,7 +25,6 @@ contract VotesDelegationTest is veZKCTest {
     }
 
     // Basic delegation tests
-
     function testSelfDelegationByDefault() public {
         // Alice stakes
         vm.prank(alice);
@@ -296,48 +296,131 @@ contract VotesDelegationTest is veZKCTest {
         assertEq(veToken.delegates(alice), bob, "Delegation should remain the same");
     }
 
-    // Events testing
-
     function testDelegationEvents() public {
         // Alice stakes
         vm.prank(alice);
         veToken.stake(AMOUNT);
 
-        // Test delegation event
+        // Test delegation event - Alice delegates to Bob
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateChanged(alice, alice, bob);
+        
+        // Alice loses voting power
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(alice, AMOUNT, 0);
+        
+        // Bob gains voting power
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(bob, 0, AMOUNT);
 
         vm.prank(alice);
         veToken.delegate(bob);
     }
 
-    // Gas optimization tests
+    function testDelegationEventsMultipleChanges() public {
+        // Alice stakes
+        vm.prank(alice);
+        veToken.stake(AMOUNT);
 
-    function testGasOptimizationMultipleDelegations() public {
-        // Setup multiple stakers
-        uint256 numStakers = 10;
-        for (uint256 i = 1; i <= numStakers; i++) {
-            address staker = address(uint160(i + 100));
-            deal(address(zkc), staker, AMOUNT);
-            vm.prank(staker);
-            zkc.approve(address(veToken), type(uint256).max);
-            vm.prank(staker);
-            veToken.stake(AMOUNT);
-        }
+        // First delegation: Alice -> Bob
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateChanged(alice, alice, bob);
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(alice, AMOUNT, 0);
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(bob, 0, AMOUNT);
 
-        // Measure gas for delegations
-        uint256 totalGas = 0;
-        for (uint256 i = 1; i <= numStakers; i++) {
-            address staker = address(uint160(i + 100));
-            uint256 gasBefore = gasleft();
-            vm.prank(staker);
-            veToken.delegate(CHARLIE);
-            uint256 gasUsed = gasBefore - gasleft();
-            totalGas += gasUsed;
-        }
+        vm.prank(alice);
+        veToken.delegate(bob);
 
-        uint256 avgGas = totalGas / numStakers;
-        console2.log("Average gas per delegation:", avgGas);
+        // Second delegation: Alice -> Charlie
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateChanged(alice, bob, CHARLIE);
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(bob, AMOUNT, 0);
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(CHARLIE, 0, AMOUNT);
 
-        // Charlie should have all voting power
-        assertEq(veToken.getVotes(CHARLIE), AMOUNT * numStakers, "Charlie should have all delegated voting power");
+        vm.prank(alice);
+        veToken.delegate(CHARLIE);
     }
+
+    function testDelegationEventsBackToSelf() public {
+        // Alice stakes
+        vm.prank(alice);
+        veToken.stake(AMOUNT);
+
+        // Delegate to Bob first
+        vm.prank(alice);
+        veToken.delegate(bob);
+
+        // Delegate back to self
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateChanged(alice, bob, alice);
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(bob, AMOUNT, 0);
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(alice, 0, AMOUNT);
+
+        vm.prank(alice);
+        veToken.delegate(alice);
+    }
+
+    function testNoDelegationEventsWhenSameDelegate() public {
+        // Alice stakes (starts with self-delegation)
+        vm.prank(alice);
+        veToken.stake(AMOUNT);
+
+        // Try to delegate to self again - should not emit any events
+        vm.recordLogs();
+        vm.prank(alice);
+        veToken.delegate(alice);
+        
+        // Check no events were emitted
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 0, "No events should be emitted when delegating to same address");
+
+        // Delegate to Bob
+        vm.prank(alice);
+        veToken.delegate(bob);
+
+        // Try to delegate to Bob again - should not emit any events
+        vm.recordLogs();
+        vm.prank(alice);
+        veToken.delegate(bob);
+        
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 0, "No events should be emitted when delegating to same address");
+    }
+
+    function testDelegationEventsWithMultipleDelegators() public {
+        // Alice and Bob both stake
+        vm.prank(alice);
+        veToken.stake(AMOUNT);
+        vm.prank(bob);
+        veToken.stake(AMOUNT * 2);
+
+        // Alice delegates to Charlie
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateChanged(alice, alice, CHARLIE);
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(alice, AMOUNT, 0);
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(CHARLIE, 0, AMOUNT);
+
+        vm.prank(alice);
+        veToken.delegate(CHARLIE);
+
+        // Bob also delegates to Charlie
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateChanged(bob, bob, CHARLIE);
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(bob, AMOUNT * 2, 0);
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(CHARLIE, AMOUNT, AMOUNT * 3);
+
+        vm.prank(bob);
+        veToken.delegate(CHARLIE);
+    }
+
 }
