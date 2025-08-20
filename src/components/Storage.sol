@@ -21,7 +21,10 @@ abstract contract Storage {
     mapping(address user => uint256 activeTokenId) internal _userActivePosition;
     
     /// @notice Mapping from account to their chosen voting delegate
-    mapping(address account => address) internal _delegatee;
+    mapping(address account => address) internal _voteDelegatee;
+    
+    /// @notice Mapping from account to their chosen reward delegate
+    mapping(address account => address) internal _rewardDelegatee;
     
     /// @notice Counter for generating unique NFT token IDs
     uint256 internal _currentTokenId;

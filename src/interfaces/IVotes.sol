@@ -4,12 +4,12 @@ pragma solidity ^0.8.20;
 import {IVotes as OZIVotes} from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 
 /// @title IVotes
-/// @notice Empty interface that extends OpenZeppelin's IVotes interface
+/// @notice Interface that extends OpenZeppelin's IVotes interface with custom errors
 /// @dev This allows us to extend the standard IVotes interface in the future if needed
 interface IVotes is OZIVotes {
     // Custom errors
     error NotImplemented();
+    error CannotDelegateWhileWithdrawing();
     
-    // This interface is intentionally empty
-    // It simply extends OpenZeppelin's IVotes interface
+    // This interface extends OpenZeppelin's IVotes interface
 }

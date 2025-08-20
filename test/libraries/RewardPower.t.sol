@@ -23,7 +23,8 @@ contract RewardPowerTest is Test {
     function setUp() public {
         // Initialize with a user point (active stake)
         userStorage.userPointHistory[alice][1] = Checkpoints.Point({
-            amount: AMOUNT,
+            votingAmount: AMOUNT,
+            rewardAmount: AMOUNT,
             updatedAt: vm.getBlockTimestamp(),
             withdrawing: false
         });
@@ -32,7 +33,8 @@ contract RewardPowerTest is Test {
         // Initialize global
         Checkpoints.initializeGlobalPoint(globalStorage);
         globalStorage.globalPointHistory[1] = Checkpoints.Point({
-            amount: AMOUNT,
+            votingAmount: AMOUNT,
+            rewardAmount: AMOUNT,
             updatedAt: vm.getBlockTimestamp(),
             withdrawing: false // Global never withdraws
         });
@@ -78,7 +80,8 @@ contract RewardPowerTest is Test {
     function testWithdrawingUserStakingRewards() public {
         // Create a withdrawing user point
         userStorage.userPointHistory[alice][2] = Checkpoints.Point({
-            amount: AMOUNT,
+            votingAmount: AMOUNT,
+            rewardAmount: AMOUNT,
             updatedAt: vm.getBlockTimestamp(),
             withdrawing: true // User is withdrawing
         });
@@ -128,7 +131,8 @@ contract RewardPowerTest is Test {
     function testWithdrawingUserPoVWRewardCap() public {
         // Create a withdrawing user point
         userStorage.userPointHistory[alice][2] = Checkpoints.Point({
-            amount: AMOUNT,
+            votingAmount: AMOUNT,
+            rewardAmount: AMOUNT,
             updatedAt: vm.getBlockTimestamp(),
             withdrawing: true // User is withdrawing
         });

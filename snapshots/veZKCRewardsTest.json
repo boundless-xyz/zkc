@@ -1,8 +1,8 @@
 {
-  "getPastPoVWRewardCap: Getting historical PoVW cap": "3130",
-  "getPastRewards: Getting historical reward power": "2899",
-  "getPastTotalRewards: Getting historical total reward power": "2747",
-  "getPoVWRewardCap: Getting current PoVW cap": "2035",
-  "getRewards: Getting current reward power": "1560",
-  "getTotalRewards: Getting total reward power": "1272"
+  "getPastPoVWRewardCap: Getting historical PoVW cap": "3249",
+  "getPastRewards: Getting historical reward power": "3018",
+  "getPastTotalRewards: Getting historical total reward power": "2877",
+  "getPoVWRewardCap: Getting current PoVW cap": "2163",
+  "getRewards: Getting current reward power": "1688",
+  "getTotalRewards: Getting total reward power": "1402"
 }

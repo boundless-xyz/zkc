@@ -10,12 +10,12 @@ import {Constants} from "./Constants.sol";
 library VotingPower {
 
     /// @notice Calculate voting power from a point
-    /// @dev Returns amount / VOTING_POWER_SCALAR if not withdrawing, else 0
+    /// @dev Returns votingAmount / VOTING_POWER_SCALAR if not withdrawing, else 0
     /// @param point The checkpoint point to calculate voting power from
     /// @return Voting power (0 if withdrawing)
     function getVotesFromPoint(Checkpoints.Point memory point) internal pure returns (uint256) {
         if (point.withdrawing) return 0;
-        return point.amount / Constants.VOTING_POWER_SCALAR;
+        return point.votingAmount / Constants.VOTING_POWER_SCALAR;
     }
 
     /// @notice Calculate voting power for an account at current timestamp

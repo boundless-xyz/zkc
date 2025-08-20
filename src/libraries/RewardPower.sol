@@ -10,7 +10,7 @@ import {Constants} from "./Constants.sol";
 library RewardPower {
 
     /// @notice Get current staking rewards for an account
-    /// @dev Returns amount / REWARD_POWER_SCALAR if not withdrawing, else 0
+    /// @dev Returns rewardAmount / REWARD_POWER_SCALAR if not withdrawing, else 0
     /// @param userStorage User checkpoint storage
     /// @param account Address to query
     /// @return Current reward power
@@ -23,7 +23,7 @@ library RewardPower {
         
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
         if (point.withdrawing) return 0;
-        return point.amount / Constants.REWARD_POWER_SCALAR;
+        return point.rewardAmount / Constants.REWARD_POWER_SCALAR;
     }
 
     /// @notice Get historical staking rewards for an account at a specific timestamp
@@ -41,7 +41,7 @@ library RewardPower {
         
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
         if (point.withdrawing) return 0;
-        return point.amount / Constants.REWARD_POWER_SCALAR;
+        return point.rewardAmount / Constants.REWARD_POWER_SCALAR;
     }
 
     /// @notice Get current total staking rewards across all users
@@ -54,7 +54,7 @@ library RewardPower {
         if (globalEpoch == 0) return 0;
         
         Checkpoints.Point memory point = globalStorage.globalPointHistory[globalEpoch];
-        return point.amount / Constants.REWARD_POWER_SCALAR;
+        return point.rewardAmount / Constants.REWARD_POWER_SCALAR;
     }
 
     /// @notice Get historical total staking rewards at a specific timestamp
@@ -69,7 +69,7 @@ library RewardPower {
         if (epoch == 0) return 0;
         
         Checkpoints.Point memory point = globalStorage.globalPointHistory[epoch];
-        return point.amount / Constants.REWARD_POWER_SCALAR;
+        return point.rewardAmount / Constants.REWARD_POWER_SCALAR;
     }
 
     /// @notice Get current PoVW reward cap for an account
@@ -86,7 +86,7 @@ library RewardPower {
         
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
         if (point.withdrawing) return 0;
-        return point.amount / Constants.POVW_REWARD_CAP_SCALAR;
+        return point.rewardAmount / Constants.POVW_REWARD_CAP_SCALAR;
     }
 
     /// @notice Get historical PoVW reward cap for an account at a specific timestamp
@@ -104,6 +104,6 @@ library RewardPower {
         
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
         if (point.withdrawing) return 0;
-        return point.amount / Constants.POVW_REWARD_CAP_SCALAR;
+        return point.rewardAmount / Constants.POVW_REWARD_CAP_SCALAR;
     }
 }

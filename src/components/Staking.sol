@@ -133,6 +133,14 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         if (tokenId == 0) revert NoActivePosition();
         if (ownerOf(tokenId) != msg.sender) revert TokenDoesNotExist();
         
+        // Check if user has active delegations (delegating to self is allowed)
+        if (_voteDelegatee[msg.sender] != address(0) && _voteDelegatee[msg.sender] != msg.sender) {
+            revert MustUndelegateVotesFirst();
+        }
+        if (_rewardDelegatee[msg.sender] != address(0) && _rewardDelegatee[msg.sender] != msg.sender) {
+            revert MustUndelegateRewardsFirst();
+        }
+        
         // Get current stake info
         Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
         
@@ -196,8 +204,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         
         _stakes[tokenId] = newStake;
         
-        // Create checkpoint for voting power change
-        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, to, emptyStake, newStake);
+        // Handle delegation-aware checkpointing
+        _checkpointWithDelegation(to, emptyStake, newStake);
 
         emit StakeCreated(tokenId, to, amount);
         return tokenId;
@@ -216,8 +224,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         
         address owner = ownerOf(tokenId);
         
-        // Create checkpoint for voting power change
-        Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldStake, newStake);
+        // Handle delegation-aware checkpointing
+        _checkpointWithDelegation(owner, oldStake, newStake);
 
         emit StakeAdded(tokenId, owner, newAmount, newStake.amount);
     }
@@ -235,7 +243,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         
         address owner = ownerOf(tokenId);
         
-        // Create checkpoint for voting power change (powers drop to 0)
+        // When initiating unstake, user cannot have delegations
+        // So we just update their own checkpoint (powers drop to 0)
         Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, owner, oldStake, newStake);
 
         uint256 withdrawableAt = newStake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
@@ -266,6 +275,113 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // Get the new total amount after adding
         Checkpoints.StakeInfo memory updatedStake = _stakes[tokenId];
         emit StakeAdded(tokenId, ownerOf(tokenId), amount, updatedStake.amount);
+    }
+
+    /// @dev Handle delegation-aware checkpointing
+    /// @param account The account whose stake is changing
+    /// @param oldStake Old stake info before the change
+    /// @param newStake New stake info after the change
+    function _checkpointWithDelegation(
+        address account,
+        Checkpoints.StakeInfo memory oldStake,
+        Checkpoints.StakeInfo memory newStake
+    ) internal {
+        // Calculate the change in stake amount
+        int256 stakeDelta = int256(newStake.amount) - int256(oldStake.amount);
+        
+        // Get delegation states
+        address voteDelegatee = _voteDelegatee[account];
+        address rewardDelegatee = _rewardDelegatee[account];
+        
+        // Track whether we need to update the user's own checkpoint
+        bool needUserCheckpoint = false;
+        
+        // Prepare the Point for user's own checkpoint
+        Checkpoints.Point memory userOldPoint;
+        Checkpoints.Point memory userNewPoint;
+        
+        // Handle vote delegation
+        if (voteDelegatee != address(0) && voteDelegatee != account) {
+            // Votes are delegated - update delegatee's checkpoint
+            Checkpoints.checkpointVoteDelegation(_userCheckpoints, voteDelegatee, stakeDelta);
+        } else {
+            // Votes are not delegated - will be included in user's own checkpoint
+            needUserCheckpoint = true;
+            if (oldStake.amount > 0) {
+                userOldPoint.votingAmount = oldStake.amount;
+            }
+            if (newStake.amount > 0) {
+                userNewPoint.votingAmount = newStake.amount;
+            }
+        }
+        
+        // Handle reward delegation
+        if (rewardDelegatee != address(0) && rewardDelegatee != account) {
+            // Rewards are delegated - update delegatee's checkpoint
+            Checkpoints.checkpointRewardDelegation(_userCheckpoints, rewardDelegatee, stakeDelta);
+        } else {
+            // Rewards are not delegated - will be included in user's own checkpoint
+            needUserCheckpoint = true;
+            if (oldStake.amount > 0) {
+                userOldPoint.rewardAmount = oldStake.amount;
+            }
+            if (newStake.amount > 0) {
+                userNewPoint.rewardAmount = newStake.amount;
+            }
+        }
+        
+        // If either votes or rewards are not delegated, update user's checkpoint
+        if (needUserCheckpoint) {
+            // Set common fields
+            userOldPoint.updatedAt = block.timestamp;
+            userOldPoint.withdrawing = oldStake.withdrawalRequestedAt > 0;
+            userNewPoint.updatedAt = block.timestamp;
+            userNewPoint.withdrawing = newStake.withdrawalRequestedAt > 0;
+            
+            // Update user checkpoint
+            uint256 userEpoch = _userCheckpoints.userPointEpoch[account] + 1;
+            _userCheckpoints.userPointEpoch[account] = userEpoch;
+            _userCheckpoints.userPointHistory[account][userEpoch] = userNewPoint;
+        }
+        
+        // Always update global totals
+        _updateGlobalCheckpoint(oldStake, newStake);
+    }
+    
+    /// @dev Update global checkpoint for stake changes
+    function _updateGlobalCheckpoint(
+        Checkpoints.StakeInfo memory oldStake,
+        Checkpoints.StakeInfo memory newStake
+    ) internal {
+        // Calculate effective amounts (0 if withdrawing)
+        uint256 oldEffectiveAmount = oldStake.withdrawalRequestedAt > 0 ? 0 : oldStake.amount;
+        uint256 newEffectiveAmount = newStake.withdrawalRequestedAt > 0 ? 0 : newStake.amount;
+        
+        // Load current global point
+        uint256 globalEpoch = _globalCheckpoints.globalPointEpoch;
+        Checkpoints.Point memory lastGlobalPoint;
+        if (globalEpoch > 0) {
+            lastGlobalPoint = _globalCheckpoints.globalPointHistory[globalEpoch];
+        }
+        
+        // Calculate new global point
+        Checkpoints.Point memory newGlobalPoint = Checkpoints.Point({
+            votingAmount: lastGlobalPoint.votingAmount + newEffectiveAmount - oldEffectiveAmount,
+            rewardAmount: lastGlobalPoint.rewardAmount + newEffectiveAmount - oldEffectiveAmount,
+            updatedAt: block.timestamp,
+            withdrawing: false
+        });
+        
+        // Update global checkpoint
+        if (globalEpoch > 0 && lastGlobalPoint.updatedAt == block.timestamp) {
+            // Update existing point at this timestamp
+            _globalCheckpoints.globalPointHistory[globalEpoch] = newGlobalPoint;
+        } else {
+            // Create new global point
+            globalEpoch += 1;
+            _globalCheckpoints.globalPointHistory[globalEpoch] = newGlobalPoint;
+            _globalCheckpoints.globalPointEpoch = globalEpoch;
+        }
     }
 
 }

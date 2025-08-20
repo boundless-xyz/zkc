@@ -5,6 +5,9 @@ pragma solidity ^0.8.20;
 /// @notice Interface for reward distribution calculations
 /// @dev Used by external contracts to determine reward allocations based on stake amounts
 interface IRewards {
+    // Events
+    event RewardDelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate);
+    
     /// @notice Get current staking rewards power for an account
     /// @param account Account to query
     /// @return Reward power (staked amount / REWARD_POWER_SCALAR)
@@ -35,4 +38,13 @@ interface IRewards {
     /// @param timepoint Historical timestamp to query
     /// @return PoVW reward cap at the specified timestamp
     function getPastPoVWRewardCap(address account, uint256 timepoint) external view returns (uint256);
+    
+    /// @notice Returns the reward delegate chosen by an account
+    /// @param account Account to query
+    /// @return The address that account has delegated rewards to (or account itself if none)
+    function rewardDelegates(address account) external view returns (address);
+    
+    /// @notice Delegate reward power to another address
+    /// @param delegatee Address to delegate rewards to
+    function delegateRewards(address delegatee) external;
 }

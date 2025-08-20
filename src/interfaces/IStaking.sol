@@ -17,6 +17,8 @@ interface IStaking is IERC721 {
     error WithdrawalNotInitiated();
     error WithdrawalPeriodNotComplete();
     error NonTransferable();
+    error MustUndelegateVotesFirst();
+    error MustUndelegateRewardsFirst();
     
     event StakeCreated(uint256 indexed tokenId, address indexed owner, uint256 amount);
     event StakeAdded(uint256 indexed tokenId, address indexed owner, uint256 addedAmount, uint256 newTotal);

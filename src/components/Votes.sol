@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {IVotes} from "../interfaces/IVotes.sol";
+import {IStaking} from "../interfaces/IStaking.sol";
 import {Clock} from "./Clock.sol";
 import {Storage} from "./Storage.sol";
 import {Checkpoints} from "../libraries/Checkpoints.sol";
@@ -29,29 +30,12 @@ abstract contract Votes is Storage, Clock, IVotes {
     }
 
     function delegates(address account) public view virtual override returns (address) {
-        address delegatee = _delegatee[account];
+        address delegatee = _voteDelegatee[account];
         return delegatee == address(0) ? account : delegatee;
     }
-    function delegate(address /*delegatee*/) public pure override {
-        // TODO: Implement delegation logic
-        // address account = _msgSender();
-        
-        // // Get both user's active positions
-        // uint256 myTokenId = _userActivePosition[account];
-        // uint256 delegateeTokenId = _userActivePosition[delegatee];
-        
-        // require(myTokenId != 0, "No active position");
-        // require(delegateeTokenId != 0, "Delegatee has no active position");
-        
-        // Checkpoints.LockInfo memory myLock = _locks[myTokenId];
-        // Checkpoints.LockInfo memory delegateeLock = _locks[delegateeTokenId];
-        
-        // // Extend my lock to match delegatee's lock if needed
-        // if (delegateeLock.lockEnd > myLock.lockEnd) {
-        //     _extendLockAndCheckpoint(myTokenId, delegateeLock.lockEnd);
-        // }
-        
-        // _delegate(account, delegatee);
+    function delegate(address delegatee) public override {
+        address account = _msgSender();
+        _delegate(account, delegatee);
     }
 
     function delegateBySig(address /*_delegatee*/, uint256 /*_nonce*/, uint256 /*_expiry*/, uint8 /*_v*/, bytes32 /*_r*/, bytes32 /*_s*/)
@@ -62,56 +46,54 @@ abstract contract Votes is Storage, Clock, IVotes {
         revert NotImplemented();
     }
 
-    function _delegate(address /*account*/, address /*delegatee*/) internal pure {
-        // TODO: Implement delegation logic
-        // address oldDelegate = delegates(account);
-        // _delegatee[account] = delegatee;
+    function _delegate(address account, address delegatee) internal {
+        // Check if user has an active position
+        uint256 tokenId = _userActivePosition[account];
+        if (tokenId == 0) revert IStaking.NoActivePosition();
+        
+        // Check if user is withdrawing
+        Checkpoints.StakeInfo memory stake = _stakes[tokenId];
+        if (stake.withdrawalRequestedAt != 0) revert CannotDelegateWhileWithdrawing();
+        
+        // Treat address(0) as self-delegation
+        if (delegatee == address(0)) {
+            delegatee = account;
+        }
+        
+        address oldDelegate = delegates(account);
+        _voteDelegatee[account] = delegatee;
 
-        // // Checkpoint delegation change
-        // _checkpointDelegation(account, oldDelegate, delegatee);
+        // Checkpoint delegation change
+        _checkpointDelegation(account, oldDelegate, delegatee);
 
-        // emit DelegateChanged(account, oldDelegate, delegatee);
-        // emit DelegateVotesChanged(
-        //     delegatee,
-        //     getVotes(oldDelegate),
-        //     getVotes(delegatee)
-        // );
+        emit DelegateChanged(account, oldDelegate, delegatee);
+        emit DelegateVotesChanged(
+            delegatee,
+            getVotes(oldDelegate),
+            getVotes(delegatee)
+        );
     }
 
     /// @dev Handle delegation checkpointing for single NFT per user
-    function _checkpointDelegation(address /*account*/, address /*oldDelegatee*/, address /*newDelegatee*/) internal pure {
-        // TODO: Implement delegation checkpointing
-        // // Get the user's single active position
-        // uint256 tokenId = _userActivePosition[account];
-        // if (tokenId == 0) return; // No active position to delegate
+    function _checkpointDelegation(address account, address oldDelegatee, address newDelegatee) internal {
+        // Get the user's single active position (already validated in _delegate)
+        uint256 tokenId = _userActivePosition[account];
+        Checkpoints.StakeInfo memory stake = _stakes[tokenId];
         
-        // Checkpoints.LockInfo memory lock = _locks[tokenId];
-        // if (lock.lockEnd <= block.timestamp) return; // Expired lock has no power
+        // Skip if delegating to same address
+        if (oldDelegatee == newDelegatee) return;
         
-        // // When called from _addStakeAndCheckpoint with same old and new delegatee,
-        // // this is a re-checkpoint to update the delegatee with new amount
-        // if (oldDelegatee == newDelegatee && oldDelegatee != address(0)) {
-        //     // This is a special case: updating delegation amount after top-up
-        //     // The main _checkpoint already handled updating the owner's checkpoint
-        //     // So we just need to update the delegatee's checkpoint with the difference
-           
-        //     // TODO: skip since _checkpoint already handles it correctly?
-        //     return;
-        // }
+        int256 votingDelta = int256(stake.amount);
         
-        // // Normal delegation change: transfer power from old to new delegatee
-        // // Create lock states for checkpointing
-        // Checkpoints.LockInfo memory emptyLock = StakeManager.emptyLock();
+        // Remove voting power from old delegatee
+        if (oldDelegatee != address(0)) {
+            Checkpoints.checkpointVoteDelegation(_userCheckpoints, oldDelegatee, -votingDelta);
+        }
         
-        // // Remove from old delegatee's checkpoint
-        // if (oldDelegatee != address(0) && oldDelegatee != newDelegatee) {
-        //     Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, oldDelegatee, lock, emptyLock);
-        // }
-        
-        // // Add to new delegatee's checkpoint
-        // if (newDelegatee != address(0) && oldDelegatee != newDelegatee) {
-        //     Checkpoints.checkpoint(_userCheckpoints, _globalCheckpoints, newDelegatee, emptyLock, lock);
-        // }
+        // Add voting power to new delegatee
+        if (newDelegatee != address(0)) {
+            Checkpoints.checkpointVoteDelegation(_userCheckpoints, newDelegatee, votingDelta);
+        }
     }
 
     // Abstract functions that main contract must implement
