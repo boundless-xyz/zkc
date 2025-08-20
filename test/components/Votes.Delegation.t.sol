@@ -5,11 +5,26 @@ import "../veZKC.t.sol";
 import "../../src/interfaces/IVotes.sol";
 import "../../src/interfaces/IStaking.sol";
 import {IVotes as OZIVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {console2} from "forge-std/Test.sol";
 
 contract VotesDelegationTest is veZKCTest {
+    using MessageHashUtils for bytes32;
+    
     address public constant CHARLIE = address(3);
     address public constant DAVE = address(4);
+    
+    // Test accounts with known private keys for signature tests
+    uint256 constant ALICE_PK = 0xA11CE;
+    uint256 constant BOB_PK = 0xB0B;
+    address aliceSigner;
+    address bobSigner;
+    
+    // EIP-712 constants
+    bytes32 private constant VOTE_DELEGATION_TYPEHASH =
+        keccak256("VoteDelegation(address delegatee,uint256 nonce,uint256 expiry)");
+    bytes32 private constant DOMAIN_TYPEHASH = 
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     function setUp() public override {
         super.setUp();
@@ -22,6 +37,39 @@ contract VotesDelegationTest is veZKCTest {
         zkc.approve(address(veToken), type(uint256).max);
         vm.prank(DAVE);
         zkc.approve(address(veToken), type(uint256).max);
+        
+        // Set up signers with known private keys for signature tests
+        aliceSigner = vm.addr(ALICE_PK);
+        bobSigner = vm.addr(BOB_PK);
+        
+        // Fund the signers
+        deal(address(zkc), aliceSigner, AMOUNT * 10);
+        deal(address(zkc), bobSigner, AMOUNT * 10);
+        
+        // Approve veToken to spend ZKC
+        vm.prank(aliceSigner);
+        zkc.approve(address(veToken), type(uint256).max);
+        vm.prank(bobSigner);
+        zkc.approve(address(veToken), type(uint256).max);
+    }
+    
+    // Helper function to create EIP-712 digest for vote delegation
+    function _createVoteDelegationDigest(
+        address delegatee,
+        uint256 nonce,
+        uint256 expiry
+    ) internal view returns (bytes32) {
+        bytes32 structHash = keccak256(abi.encode(VOTE_DELEGATION_TYPEHASH, delegatee, nonce, expiry));
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                DOMAIN_TYPEHASH,
+                keccak256(bytes("Vote Escrowed ZK Coin")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(veToken)
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
     }
 
     // Basic delegation tests
@@ -423,4 +471,163 @@ contract VotesDelegationTest is veZKCTest {
         veToken.delegate(CHARLIE);
     }
 
+    // ============ Delegation by Signature Tests ============
+
+    function testDelegateVotesBySig() public {
+        // Alice stakes
+        vm.prank(aliceSigner);
+        veToken.stake(AMOUNT);
+
+        // Check initial state
+        assertEq(veToken.delegates(aliceSigner), aliceSigner, "Should self-delegate initially");
+        assertEq(veToken.getVotes(aliceSigner), AMOUNT, "Alice should have voting power");
+
+        // Create signature for delegating to Bob
+        uint256 nonce = veToken.nonces(aliceSigner);
+        uint256 expiry = block.timestamp + 1 hours;
+        bytes32 digest = _createVoteDelegationDigest(bobSigner, nonce, expiry);
+        
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PK, digest);
+
+        // Execute delegation by signature
+        veToken.delegateBySig(bobSigner, nonce, expiry, v, r, s);
+
+        // Verify delegation
+        assertEq(veToken.delegates(aliceSigner), bobSigner, "Alice should delegate to Bob");
+        assertEq(veToken.getVotes(aliceSigner), 0, "Alice should have no voting power");
+        assertEq(veToken.getVotes(bobSigner), AMOUNT, "Bob should have Alice's voting power");
+        assertEq(veToken.nonces(aliceSigner), nonce + 1, "Nonce should be incremented");
+    }
+
+    function testExpiredVoteDelegationSignature() public {
+        // Alice stakes
+        vm.prank(aliceSigner);
+        veToken.stake(AMOUNT);
+
+        // Create expired signature
+        uint256 nonce = veToken.nonces(aliceSigner);
+        uint256 expiry = block.timestamp - 1; // Already expired
+        bytes32 digest = _createVoteDelegationDigest(bobSigner, nonce, expiry);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PK, digest);
+
+        // Should revert
+        vm.expectRevert(abi.encodeWithSelector(OZIVotes.VotesExpiredSignature.selector, expiry));
+        veToken.delegateBySig(bobSigner, nonce, expiry, v, r, s);
+    }
+
+    function testInvalidNonceVoteDelegation() public {
+        // Alice stakes
+        vm.prank(aliceSigner);
+        veToken.stake(AMOUNT);
+
+        // Create signature with wrong nonce
+        uint256 wrongNonce = veToken.nonces(aliceSigner) + 1; // Wrong nonce
+        uint256 expiry = block.timestamp + 1 hours;
+        bytes32 digest = _createVoteDelegationDigest(bobSigner, wrongNonce, expiry);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PK, digest);
+
+        // Should revert with invalid nonce error
+        vm.expectRevert();
+        veToken.delegateBySig(bobSigner, wrongNonce, expiry, v, r, s);
+    }
+
+    function testCannotReplayVoteDelegationSignature() public {
+        // Alice stakes
+        vm.prank(aliceSigner);
+        veToken.stake(AMOUNT);
+
+        // Create and use signature
+        uint256 nonce = veToken.nonces(aliceSigner);
+        uint256 expiry = block.timestamp + 1 hours;
+        bytes32 digest = _createVoteDelegationDigest(bobSigner, nonce, expiry);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PK, digest);
+
+        // First use should succeed
+        veToken.delegateBySig(bobSigner, nonce, expiry, v, r, s);
+
+        // Try to replay - should fail due to nonce already used
+        vm.expectRevert();
+        veToken.delegateBySig(bobSigner, nonce, expiry, v, r, s);
+    }
+
+    function testCannotDelegateVotesBySigWithoutPosition() public {
+        // Create signature without staking
+        uint256 nonce = veToken.nonces(aliceSigner);
+        uint256 expiry = block.timestamp + 1 hours;
+        bytes32 digest = _createVoteDelegationDigest(bobSigner, nonce, expiry);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PK, digest);
+
+        // Should revert - no active position
+        vm.expectRevert(IStaking.NoActivePosition.selector);
+        veToken.delegateBySig(bobSigner, nonce, expiry, v, r, s);
+    }
+
+    function testCannotDelegateVotesBySigWhileWithdrawing() public {
+        // Alice stakes
+        vm.prank(aliceSigner);
+        veToken.stake(AMOUNT);
+
+        // Initiate unstake
+        vm.prank(aliceSigner);
+        veToken.initiateUnstake();
+
+        // Create signature
+        uint256 nonce = veToken.nonces(aliceSigner);
+        uint256 expiry = block.timestamp + 1 hours;
+        bytes32 digest = _createVoteDelegationDigest(bobSigner, nonce, expiry);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PK, digest);
+
+        // Should revert - cannot delegate while withdrawing
+        vm.expectRevert(IVotes.CannotDelegateVotesWhileWithdrawing.selector);
+        veToken.delegateBySig(bobSigner, nonce, expiry, v, r, s);
+    }
+
+    function testMultipleSignersDelegateVotesToSameAccount() public {
+        // Both Alice and Bob stake
+        vm.prank(aliceSigner);
+        veToken.stake(AMOUNT);
+        vm.prank(bobSigner);
+        veToken.stake(AMOUNT * 2);
+
+        // Alice delegates votes to Charlie by signature
+        uint256 aliceNonce = veToken.nonces(aliceSigner);
+        uint256 expiry = block.timestamp + 1 hours;
+        bytes32 aliceDigest = _createVoteDelegationDigest(CHARLIE, aliceNonce, expiry);
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(ALICE_PK, aliceDigest);
+        
+        veToken.delegateBySig(CHARLIE, aliceNonce, expiry, v1, r1, s1);
+
+        // Bob also delegates votes to Charlie by signature
+        uint256 bobNonce = veToken.nonces(bobSigner);
+        bytes32 bobDigest = _createVoteDelegationDigest(CHARLIE, bobNonce, expiry);
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(BOB_PK, bobDigest);
+        
+        veToken.delegateBySig(CHARLIE, bobNonce, expiry, v2, r2, s2);
+
+        // Verify Charlie has combined voting power
+        assertEq(veToken.getVotes(CHARLIE), AMOUNT * 3, "Charlie should have combined voting power");
+    }
+
+    function testCannotUseVoteSignatureForRewardDelegation() public {
+        // Alice stakes
+        vm.prank(aliceSigner);
+        veToken.stake(AMOUNT);
+
+        // Create a VOTE delegation signature
+        uint256 nonce = veToken.nonces(aliceSigner);
+        uint256 expiry = block.timestamp + 1 hours;
+        bytes32 digest = _createVoteDelegationDigest(bobSigner, nonce, expiry);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PK, digest);
+
+        // Try to use the vote delegation signature for reward delegation
+        // This should fail because the signature was created with VOTE_DELEGATION_TYPEHASH
+        // but delegateRewardsBySig expects REWARD_DELEGATION_TYPEHASH
+        vm.expectRevert();
+        veToken.delegateRewardsBySig(bobSigner, nonce, expiry, v, r, s);
+
+        // Verify nothing changed
+        assertEq(veToken.rewardDelegates(aliceSigner), aliceSigner, "Rewards should still be self-delegated");
+        assertEq(veToken.delegates(aliceSigner), aliceSigner, "Votes should still be self-delegated");
+        assertEq(veToken.nonces(aliceSigner), nonce, "Nonce should not be consumed");
+    }
 }

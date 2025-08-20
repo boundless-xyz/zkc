@@ -484,8 +484,6 @@ contract veZKCRewardsTest is veZKCTest {
         assertEq(veToken.getPastStakingRewards(bob, currentTime), 0, "Historical rewards should be 0 without stake");
     }
 
-    // ============ PoVW Reward Cap Tests ============
-
     function testBasicPoVWRewardCap() public {
         // Alice stakes
         vm.prank(alice);

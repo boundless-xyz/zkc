@@ -8,9 +8,7 @@ import {Constants} from "./Constants.sol";
 /// @dev This library contains the core Point-based state management used by both
 ///      voting and reward systems. It follows the standard veToken checkpoint pattern.
 library Checkpoints {
-    /// @notice Point represents staking state at a specific moment
-    /// @dev No decay - powers are simply amount / scalar
-    /// @dev Withdrawing flag indicates if user is in withdrawal period (powers = 0)
+    /// @notice Point represents voting/reward power state at a specific moment
     struct Point {
         /// @notice Amount counting toward voting power (own stake + delegated votes)
         uint256 votingAmount;
@@ -41,7 +39,7 @@ library Checkpoints {
 
     /// @notice Storage structure for global checkpoint data
     struct GlobalCheckpointStorage {
-        /// @notice Protocol-wide voting power tracking
+        /// @notice Protocol-wide reward/voting power tracking
         mapping(uint256 => Point) globalPointHistory;
         /// @notice Current index for global point history
         uint256 globalPointEpoch;

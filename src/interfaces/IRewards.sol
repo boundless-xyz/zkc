@@ -7,6 +7,7 @@ pragma solidity ^0.8.20;
 interface IRewards {
     // Custom errors
     error CannotDelegateRewardsWhileWithdrawing();
+    error RewardsExpiredSignature(uint256 expiry);
     
     // Events
     event RewardDelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate);
@@ -50,4 +51,20 @@ interface IRewards {
     /// @notice Delegate reward power to another address
     /// @param delegatee Address to delegate rewards to
     function delegateRewards(address delegatee) external;
+
+    /// @notice Delegate rewards using a signature
+    /// @param delegatee Address to delegate rewards to
+    /// @param nonce Nonce for the signature
+    /// @param expiry Expiration timestamp for the signature
+    /// @param v Recovery byte of the signature
+    /// @param r R component of the signature
+    /// @param s S component of the signature
+    function delegateRewardsBySig(
+        address delegatee,
+        uint256 nonce,
+        uint256 expiry,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external;
 }

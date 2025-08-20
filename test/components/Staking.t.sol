@@ -36,7 +36,6 @@ contract veZKCStakeTest is veZKCTest {
         vm.stopPrank();
     }
 
-    // Test basic staking with approval
     function testStakeWithApproval() public {
         vm.startPrank(alice);
 
@@ -67,7 +66,6 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(zkc.balanceOf(address(veToken)), STAKE_AMOUNT);
     }
 
-    // Test staking with permit
     function testStakeWithPermit() public {
         uint256 deadline = vm.getBlockTimestamp() + 1 hours;
 
@@ -91,7 +89,6 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(zkc.balanceOf(address(veToken)), STAKE_AMOUNT);
     }
 
-    // Test add to stake with approval
     function testAddToStakeWithApproval() public {
         // Initial stake
         vm.startPrank(alice);
@@ -125,7 +122,6 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(veToken.getActiveTokenId(alice), tokenId);
     }
 
-    // Test add to stake with permit
     function testAddToStakeWithPermit() public {
         // Initial stake with permit
         uint256 deadline1 = vm.getBlockTimestamp() + 1 hours;
@@ -154,7 +150,6 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(veToken.getActiveTokenId(alice), tokenId);
     }
 
-    // Test add to stake by token ID (donation)
     function testAddToStakeByTokenId() public {
         // Alice stakes
         vm.startPrank(alice);
@@ -181,7 +176,6 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(veToken.ownerOf(aliceTokenId), alice);
     }
 
-    // Test withdrawal workflow
     function testWithdrawalWorkflow() public {
         // Alice stakes
         vm.startPrank(alice);
@@ -233,7 +227,6 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(finalWithdrawableAt, 0);
     }
 
-    // Test cannot add to stake while withdrawing
     function testCannotAddToStakeWhileWithdrawing() public {
         vm.startPrank(alice);
 
@@ -252,7 +245,6 @@ contract veZKCStakeTest is veZKCTest {
         vm.stopPrank();
     }
 
-    // Test cannot stake if already have active position
     function testCannotStakeWithActivePosition() public {
         vm.startPrank(alice);
 
@@ -268,7 +260,6 @@ contract veZKCStakeTest is veZKCTest {
         vm.stopPrank();
     }
 
-    // Test cannot initiate withdrawal without active position
     function testCannotInitiateWithdrawalWithoutPosition() public {
         vm.startPrank(alice);
 
@@ -279,7 +270,6 @@ contract veZKCStakeTest is veZKCTest {
         vm.stopPrank();
     }
 
-    // Test cannot complete withdrawal without initiating
     function testCannotCompleteWithdrawalWithoutInitiating() public {
         vm.startPrank(alice);
 
@@ -294,7 +284,6 @@ contract veZKCStakeTest is veZKCTest {
         vm.stopPrank();
     }
 
-    // Test cannot initiate withdrawal twice
     function testCannotInitiateWithdrawalTwice() public {
         vm.startPrank(alice);
 
@@ -310,7 +299,6 @@ contract veZKCStakeTest is veZKCTest {
         vm.stopPrank();
     }
 
-    // Test zero amount staking
     function testCannotStakeZeroAmount() public {
         vm.startPrank(alice);
 
@@ -321,7 +309,6 @@ contract veZKCStakeTest is veZKCTest {
         vm.stopPrank();
     }
 
-    // Test zero amount add to stake
     function testCannotAddZeroAmountToStake() public {
         vm.startPrank(alice);
 
@@ -337,7 +324,6 @@ contract veZKCStakeTest is veZKCTest {
         vm.stopPrank();
     }
 
-    // Test multiple users staking
     function testMultipleUsersStaking() public {
         // Alice stakes
         vm.startPrank(alice);
@@ -373,7 +359,6 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(veToken.getPastTotalSupply(currentTime), STAKE_AMOUNT + STAKE_AMOUNT * 2);
     }
 
-    // Test unstaking then restaking creates new token ID
     function testUnstakeAndRestake() public {
         vm.startPrank(alice);
 
@@ -416,6 +401,4 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(stakedAmount, STAKE_AMOUNT);
         assertEq(withdrawableAt, 0); // Not withdrawing
     }
-
-    // Note: _createPermitSignature is inherited from veZKCTest base contract
 }

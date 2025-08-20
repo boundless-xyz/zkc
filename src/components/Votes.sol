@@ -8,10 +8,15 @@ import {Storage} from "./Storage.sol";
 import {Checkpoints} from "../libraries/Checkpoints.sol";
 import {VotingPower} from "../libraries/VotingPower.sol";
 import {StakeManager} from "../libraries/StakeManager.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IVotes as OZIVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 
 /// @title Votes Component
 /// @notice IVotes interface implementation for veZKC voting functionality
 abstract contract Votes is Storage, Clock, IVotes {
+    /// @dev EIP-712 type hash for vote delegation
+    bytes32 private constant VOTE_DELEGATION_TYPEHASH =
+        keccak256("VoteDelegation(address delegatee,uint256 nonce,uint256 expiry)");
     function getVotes(address account) public view override returns (uint256) {
         return VotingPower.getVotes(_userCheckpoints, account);
     }
@@ -37,14 +42,29 @@ abstract contract Votes is Storage, Clock, IVotes {
     }
 
     function delegateBySig(
-        address, /*_delegatee*/
-        uint256, /*_nonce*/
-        uint256, /*_expiry*/
-        uint8, /*_v*/
-        bytes32, /*_r*/
-        bytes32 /*_s*/
-    ) public pure override {
-        revert NotImplemented();
+        address delegatee,
+        uint256 nonce,
+        uint256 expiry,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) public override {
+        if (block.timestamp > expiry) {
+            revert OZIVotes.VotesExpiredSignature(expiry);
+        }
+        
+        // Create the digest for the signature
+        bytes32 structHash = keccak256(abi.encode(VOTE_DELEGATION_TYPEHASH, delegatee, nonce, expiry));
+        bytes32 digest = _hashTypedDataV4(structHash);
+        
+        // Recover the signer from the signature
+        address signer = ECDSA.recover(digest, v, r, s);
+        
+        // Verify and consume the nonce
+        _useNonce(signer, nonce);
+        
+        // Delegate on behalf of the signer
+        _delegate(signer, delegatee);
     }
 
     /// @dev Handle delegation checkpointing for single NFT per user
@@ -103,4 +123,5 @@ abstract contract Votes is Storage, Clock, IVotes {
 
     // Abstract functions that main contract must implement
     function _msgSender() internal view virtual returns (address);
+    function _hashTypedDataV4(bytes32 structHash) internal view virtual returns (bytes32);
 }

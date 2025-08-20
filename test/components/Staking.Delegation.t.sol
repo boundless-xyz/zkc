@@ -24,8 +24,6 @@ contract StakingDelegationTest is veZKCTest {
         zkc.approve(address(veToken), type(uint256).max);
     }
 
-    // Tests for withdrawal restrictions with delegation
-
     function testCannotInitiateUnstakeWithVoteDelegation() public {
         // Alice stakes and delegates votes
         vm.prank(alice);
@@ -116,8 +114,6 @@ contract StakingDelegationTest is veZKCTest {
         // Verify Alice got her tokens back
         assertEq(zkc.balanceOf(alice), initialBalance, "Alice should receive her tokens back");
     }
-
-    // Tests for delegation during withdrawal period
 
     function testCannotDelegateVotesWhileWithdrawing() public {
         // Alice stakes
@@ -215,8 +211,6 @@ contract StakingDelegationTest is veZKCTest {
         assertEq(veToken.getStakingRewards(alice), 0, "Alice should have no reward power");
     }
 
-    // Complex delegation scenarios
-
     function testComplexDelegationScenario() public {
         // Multiple users stake
         vm.prank(alice);
@@ -299,8 +293,6 @@ contract StakingDelegationTest is veZKCTest {
         );
     }
 
-    // Edge case: Delegation with zero address
-
     function testZeroAddressDelegationBehavior() public {
         // Alice stakes
         vm.prank(alice);
@@ -331,8 +323,6 @@ contract StakingDelegationTest is veZKCTest {
         assertEq(veToken.getVotes(bob), 0, "Bob should have no power");
         assertEq(veToken.getStakingRewards(bob), 0, "Bob should have no rewards");
     }
-
-    // Complex delegation scenarios
 
     function testComplexDelegationChains() public {
         // Setup 5 users with stakes

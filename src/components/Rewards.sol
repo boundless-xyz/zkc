@@ -8,11 +8,15 @@ import {IStaking} from "../interfaces/IStaking.sol";
 import {IVotes} from "../interfaces/IVotes.sol";
 import {RewardPower} from "../libraries/RewardPower.sol";
 import {Checkpoints} from "../libraries/Checkpoints.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /// @title Rewards Component
 /// @notice IRewards interface implementation for veZKC reward functionality
 /// @dev This component handles all reward-related functionality using shared storage
 abstract contract Rewards is Storage, Clock, IRewards {
+    /// @dev EIP-712 type hash for reward delegation
+    bytes32 private constant REWARD_DELEGATION_TYPEHASH =
+        keccak256("RewardDelegation(address delegatee,uint256 nonce,uint256 expiry)");
     /// @inheritdoc IRewards
     function getStakingRewards(address account) external view override returns (uint256) {
         return RewardPower.getStakingRewards(_userCheckpoints, account);
@@ -58,6 +62,33 @@ abstract contract Rewards is Storage, Clock, IRewards {
         _delegateRewards(account, delegatee);
     }
 
+    /// @inheritdoc IRewards
+    function delegateRewardsBySig(
+        address delegatee,
+        uint256 nonce,
+        uint256 expiry,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) public override {
+        if (block.timestamp > expiry) {
+            revert RewardsExpiredSignature(expiry);
+        }
+        
+        // Create the digest for the signature
+        bytes32 structHash = keccak256(abi.encode(REWARD_DELEGATION_TYPEHASH, delegatee, nonce, expiry));
+        bytes32 digest = _hashTypedDataV4(structHash);
+        
+        // Recover the signer from the signature
+        address signer = ECDSA.recover(digest, v, r, s);
+        
+        // Verify and consume the nonce (shared with vote delegation)
+        _useNonce(signer, nonce);
+        
+        // Delegate rewards on behalf of the signer
+        _delegateRewards(signer, delegatee);
+    }
+
     /// @dev Internal function to handle reward delegation
     function _delegateRewards(address account, address delegatee) internal {
         // Check if user has an active position
@@ -101,4 +132,5 @@ abstract contract Rewards is Storage, Clock, IRewards {
     }
 
     function _msgSender() internal view virtual returns (address);
+    function _hashTypedDataV4(bytes32 structHash) internal view virtual returns (bytes32);
 }

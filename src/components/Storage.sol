@@ -7,6 +7,9 @@ import {Checkpoints} from "../libraries/Checkpoints.sol";
 /// @notice Shared storage base contract for veZKC components
 /// @dev This contract contains all the shared state that both voting and reward components need
 abstract contract Storage {
+    // Custom error for nonce validation
+    error InvalidAccountNonce(address account, uint256 currentNonce);
+    
     /// @notice User-specific checkpoint storage for tracking voting/reward power history
     Checkpoints.UserCheckpointStorage internal _userCheckpoints;
 
@@ -33,4 +36,20 @@ abstract contract Storage {
 
     /// @notice Mapping from token ID to its index in the owner's token list
     mapping(uint256 tokenId => uint256) internal _ownedTokensIndex;
+
+    /// @notice Nonces for EIP-712 signatures (shared between vote and reward delegation)
+    mapping(address owner => uint256) internal _nonces;
+    
+    /// @notice Get the current nonce for an account (for EIP-712 signatures)
+    function nonces(address owner) public view returns (uint256) {
+        return _nonces[owner];
+    }
+    
+    /// @notice Internal function to validate and consume a nonce
+    function _useNonce(address owner, uint256 nonce) internal {
+        uint256 currentNonce = _nonces[owner]++;
+        if (nonce != currentNonce) {
+            revert InvalidAccountNonce(owner, currentNonce);
+        }
+    }
 }
