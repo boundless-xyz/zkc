@@ -53,4 +53,17 @@ abstract contract BaseDeployment is Script {
         
         vm.ffi(updateArgs);
     }
+
+    /// @notice Get the current implementation address from ERC1967 proxy
+    /// @param proxy The proxy contract address
+    /// @return impl The implementation address
+    function _getImplementationAddress(address proxy) internal view returns (address impl) {
+        // ERC1967 implementation storage slot
+        // bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
+        bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        
+        // Read from the proxy contract's storage
+        bytes32 result = vm.load(proxy, slot);
+        impl = address(uint160(uint256(result)));
+    }
 }

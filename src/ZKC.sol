@@ -32,6 +32,7 @@ contract ZKC is
     /// @notice Remaining mintable amount for the second initial minter
     uint256 public initialMinter2Remaining;
 
+    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     /// @notice Admin role identifier
     bytes32 public immutable ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
 
@@ -53,9 +54,11 @@ contract ZKC is
     /// @notice Percentage of emissions allocated to staking rewards (25%)
     uint256 public constant STAKING_ALLOCATION_BPS = 2500;
 
+    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     /// @notice Role identifier for PoVW reward minter
     bytes32 public immutable POVW_MINTER_ROLE = keccak256("POVW_MINTER_ROLE");
 
+    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
     /// @notice Role identifier for staking reward minter
     bytes32 public immutable STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
 

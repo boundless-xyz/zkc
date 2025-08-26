@@ -41,7 +41,8 @@ contract UpgradeZKC is BaseDeployment {
         opts.referenceBuildInfoDir = "build-info-reference";
 
         console2.log("Upgrading ZKC at: ", config.zkc);
-        console2.log("Current implementation: ", Upgrades.getImplementationAddress(config.zkc));
+        address currentImpl = _getImplementationAddress(config.zkc);
+        console2.log("Current implementation: ", currentImpl);
 
         // Perform safe upgrade
         Upgrades.upgradeProxy(
@@ -56,7 +57,8 @@ contract UpgradeZKC is BaseDeployment {
 
         vm.stopBroadcast();
 
-        // Update deployment.toml with new implementation
+        // Update deployment.toml with new implementation and store previous
+        _updateDeploymentConfig(deploymentKey, "zkc-impl-prev", currentImpl);
         _updateDeploymentConfig(deploymentKey, "zkc-impl", newImpl);
         _updateDeploymentCommit(deploymentKey);
 
@@ -96,7 +98,8 @@ contract UpgradeVeZKC is BaseDeployment {
         opts.referenceBuildInfoDir = "build-info-reference";
 
         console2.log("Upgrading veZKC at: ", config.veZKC);
-        console2.log("Current implementation: ", Upgrades.getImplementationAddress(config.veZKC));
+        address currentImpl = _getImplementationAddress(config.veZKC);
+        console2.log("Current implementation: ", currentImpl);
 
         // Perform safe upgrade
         Upgrades.upgradeProxy(
@@ -111,7 +114,8 @@ contract UpgradeVeZKC is BaseDeployment {
 
         vm.stopBroadcast();
 
-        // Update deployment.toml with new implementation
+        // Update deployment.toml with new implementation and store previous
+        _updateDeploymentConfig(deploymentKey, "vezkc-impl-prev", currentImpl);
         _updateDeploymentConfig(deploymentKey, "vezkc-impl", newImpl);
         _updateDeploymentCommit(deploymentKey);
 
@@ -149,7 +153,8 @@ contract UpgradeStakingRewards is BaseDeployment {
         opts.referenceBuildInfoDir = "build-info-reference";
 
         console2.log("Upgrading StakingRewards at: ", config.stakingRewards);
-        console2.log("Current implementation: ", Upgrades.getImplementationAddress(config.stakingRewards));
+        address currentImpl = _getImplementationAddress(config.stakingRewards);
+        console2.log("Current implementation: ", currentImpl);
 
         // Perform safe upgrade
         Upgrades.upgradeProxy(
@@ -164,7 +169,8 @@ contract UpgradeStakingRewards is BaseDeployment {
 
         vm.stopBroadcast();
 
-        // Update deployment.toml with new implementation
+        // Update deployment.toml with new implementation and store previous
+        _updateDeploymentConfig(deploymentKey, "staking-rewards-impl-prev", currentImpl);
         _updateDeploymentConfig(deploymentKey, "staking-rewards-impl", newImpl);
         _updateDeploymentCommit(deploymentKey);
 
@@ -178,5 +184,6 @@ contract UpgradeStakingRewards is BaseDeployment {
         console2.log("StakingRewards Upgrade Complete");
         console2.log("New Implementation: ", newImpl);
     }
+
 
 }

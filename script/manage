@@ -158,6 +158,8 @@ forge_script() {
         script_file="Upgrade.s.sol"
     elif [[ "$script_name" == Update* ]]; then
         script_file="Update.s.sol"
+    elif [[ "$script_name" == Dev_* ]]; then
+        script_file="Ops.s.sol"
     else
         echo "❌ Unknown script type: $script_name"
         exit 1
@@ -186,10 +188,6 @@ forge_script() {
         
         cmd="fireblocks-json-rpc --http -- $cmd"
     else
-        if [[ -z "${PRIVATE_KEY:-}" ]]; then
-            echo "❌ PRIVATE_KEY not set and not using Fireblocks"
-            exit 1
-        fi
         cmd="$cmd --private-key $PRIVATE_KEY"
     fi
     
@@ -225,7 +223,7 @@ Commands:
   upgrade-staking        Upgrade StakingRewards implementation
   update-povw-minter     Set POVW_MINTER_ROLE in ZKC contract
   update-staking-minter  Set STAKING_MINTER_ROLE in ZKC contract
-  update-both-minters    Set both POVW and STAKING minter roles
+  dev-mint-to-self       Development: mint initial tokens to caller
 
 Options:
   -f, --fireblocks       Use Fireblocks for transaction signing
@@ -235,26 +233,31 @@ Options:
 
 Environment Variables:
   CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia)
+  PRIVATE_KEY            Required. Private key for transaction signing (0x...)
   STACK_TAG              Optional. Stack tag for environment variants (e.g., 'staging')
   
 Examples:
   # Deploy ZKC to anvil
-  CHAIN_KEY=anvil ./script/manage deploy-zkc --broadcast
+  PRIVATE_KEY=0xac0974bec... CHAIN_KEY=anvil ./script/manage deploy-zkc --broadcast
   
   # Deploy veZKC to sepolia with Fireblocks (requires ZKC already deployed)
-  CHAIN_KEY=ethereum-sepolia ./script/manage deploy-vezkc --fireblocks --broadcast --verify
+  PRIVATE_KEY=0x... CHAIN_KEY=ethereum-sepolia ./script/manage deploy-vezkc --fireblocks --broadcast --verify
   
   # Deploy StakingRewards to anvil (requires ZKC and veZKC already deployed)
-  CHAIN_KEY=anvil ./script/manage deploy-staking --broadcast
+  PRIVATE_KEY=0x... CHAIN_KEY=anvil ./script/manage deploy-staking --broadcast
   
   # Upgrade ZKC on mainnet with verification
-  CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc --broadcast --verify
+  PRIVATE_KEY=0x... CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc --broadcast --verify
   
   # Set POVW minter role (requires POVW_MINTER env var)
-  POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage update-povw-minter --broadcast
+  PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage update-povw-minter --broadcast
+  
+  # Development: mint initial tokens to self (requires MINT_AMOUNT env var)
+  PRIVATE_KEY=0x... MINT_AMOUNT=1000000000000000000000000 CHAIN_KEY=anvil ./script/manage dev-mint-to-self --broadcast
 
 Notes:
-  - Configuration is loaded from deployment.toml and deployment_secrets.toml
+  - Network configuration is loaded from deployment.toml and deployment_secrets.toml
+  - Private keys must be provided via PRIVATE_KEY environment variable
   - Upgrades require reference builds for safety checks
   - Fireblocks requires fireblocks-json-rpc to be installed
   - All deployments automatically update deployment.toml
@@ -280,7 +283,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            deploy-*|upgrade-*)
+            deploy-*|upgrade-*|update-*|dev-*)
                 COMMAND="$1"
                 shift
                 ;;
@@ -316,9 +319,15 @@ main() {
     # Load configuration from TOML files
     echo "📋 Loading configuration..."
     load_env_var "rpc-url" "RPC_URL" "deployment_secrets.toml"
-    load_env_var "private-key" "PRIVATE_KEY" "deployment_secrets.toml"
     load_env_var "etherscan-api-key" "ETHERSCAN_API_KEY" "deployment_secrets.toml"
     load_env_var "id" "CHAIN_ID"
+    
+    # PRIVATE_KEY must be set as environment variable
+    if [[ -z "${PRIVATE_KEY:-}" ]]; then
+        echo "❌ PRIVATE_KEY environment variable is required"
+        echo "Set it with: export PRIVATE_KEY=0x..."
+        exit 1
+    fi
     
     if [[ "$USE_FIREBLOCKS" == "true" ]]; then
         load_env_var "fireblocks-api-key" "FIREBLOCKS_API_KEY" "deployment_secrets.toml"
@@ -384,8 +393,8 @@ main() {
         update-staking-minter)
             forge_script "UpdateStakingMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
-        update-both-minters)
-            forge_script "UpdateBothMinters" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+        dev-mint-to-self)
+            forge_script "Dev_InitialMintToSelf" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         *)
             echo "❌ Unknown command: $COMMAND"

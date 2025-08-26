@@ -11,10 +11,13 @@ struct DeploymentConfig {
     address admin;
     address zkc;
     address zkcImpl;
+    address zkcImplPrev;
     address veZKC;
     address veZKCImpl;
+    address veZKCImplPrev;
     address stakingRewards;
     address stakingRewardsImpl;
+    address stakingRewardsImplPrev;
     address povwMinter;
     address stakingMinter;
     string deploymentCommit;
@@ -36,10 +39,13 @@ library ConfigLoader {
         config.admin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".admin"));
         config.zkc = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc"));
         config.zkcImpl = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-impl"));
+        config.zkcImplPrev = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-impl-prev"));
         config.veZKC = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".vezkc"));
         config.veZKCImpl = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".vezkc-impl"));
+        config.veZKCImplPrev = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".vezkc-impl-prev"));
         config.stakingRewards = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards"));
         config.stakingRewardsImpl = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards-impl"));
+        config.stakingRewardsImplPrev = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards-impl-prev"));
         config.povwMinter = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".povw-minter"));
         config.stakingMinter = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-minter"));
         
