@@ -1,0 +1,403 @@
+#!/bin/bash
+set -euo pipefail
+
+# Load environment configuration from TOML files
+load_env_var() {
+    local key="$1"
+    local var_name="$2"
+    local file="${3:-deployment.toml}"
+    
+    # Try secrets file first if it exists
+    if [[ -f "deployment_secrets.toml" ]] && [[ "$file" == "deployment_secrets.toml" ]]; then
+        value=$(python3 -c "
+import tomlkit
+try:
+    doc = tomlkit.load(open('deployment_secrets.toml'))
+    print(doc['deployment']['$CHAIN_KEY'].get('$key', ''))
+except:
+    print('')
+" 2>/dev/null || echo "")
+        if [[ -n "$value" ]]; then
+            export "$var_name"="$value"
+            return
+        fi
+    fi
+    
+    # Fallback to main deployment.toml
+    value=$(python3 -c "
+import tomlkit
+try:
+    doc = tomlkit.load(open('deployment.toml'))
+    print(doc['deployment']['$CHAIN_KEY'].get('$key', ''))
+except:
+    print('')
+" 2>/dev/null || echo "")
+    if [[ -n "$value" ]]; then
+        export "$var_name"="$value"
+    fi
+}
+
+# Check prerequisites
+check_prerequisites() {
+    echo "Checking prerequisites..."
+    
+    command -v python3 >/dev/null 2>&1 || { 
+        echo "❌ python3 is required but not installed"
+        exit 1
+    }
+    
+    python3 -c "import tomlkit" 2>/dev/null || { 
+        echo "❌ tomlkit is required: pip install tomlkit"
+        exit 1
+    }
+    
+    command -v yq >/dev/null 2>&1 || { 
+        echo "❌ yq is required: brew install yq"
+        exit 1
+    }
+    
+    command -v cast >/dev/null 2>&1 || { 
+        echo "❌ cast is required: install Foundry"
+        exit 1
+    }
+    
+    echo "✅ All prerequisites satisfied"
+}
+
+# Create reference build for upgrades
+create_reference_build() {
+    local deployed_commit
+    
+    echo "Creating reference build for upgrade safety checks..."
+    
+    # Get deployed commit from deployment.toml
+    deployed_commit=$(python3 -c "
+import tomlkit
+doc = tomlkit.load(open('deployment.toml'))
+commit = doc['deployment']['$CHAIN_KEY'].get('deployment-commit', '')
+if not commit:
+    raise Exception('No deployment commit found for $CHAIN_KEY')
+print(commit.strip())
+")
+    
+    if [[ -z "$deployed_commit" ]]; then
+        echo "❌ No deployment commit found for $CHAIN_KEY"
+        echo "Cannot create reference build for upgrade"
+        exit 1
+    fi
+    
+    echo "📦 Creating reference build from commit: $deployed_commit"
+    
+    # Create worktree for reference build
+    local worktree_path="../zkc-reference-${deployed_commit}"
+    
+    # Clean up existing worktree if it exists
+    if [[ -d "$worktree_path" ]]; then
+        echo "🧹 Cleaning up existing reference worktree..."
+        git worktree remove "$worktree_path" --force 2>/dev/null || true
+    fi
+    
+    # Clean up existing reference build info
+    if [[ -d "build-info-reference" ]]; then
+        echo "🧹 Cleaning up existing reference build info..."
+        rm -rf "build-info-reference"
+    fi
+    
+    # Create new worktree
+    git worktree add "$worktree_path" "$deployed_commit"
+    
+    # Build reference and copy build info
+    echo "🔨 Building reference contracts..."
+    (
+        cd "$worktree_path"
+        # Clean and do a full build to ensure complete build info
+        forge clean
+        FOUNDRY_PROFILE=reference forge build
+        
+        # Check if build info was created
+        if [[ ! -d "out-reference/build-info" ]] || [[ -z "$(ls -A out-reference/build-info 2>/dev/null)" ]]; then
+            echo "❌ No build info created in reference build"
+            echo "Trying default build..."
+            forge clean
+            forge build
+            if [[ -d "out/build-info" ]]; then
+                mkdir -p "$OLDPWD/build-info-reference"
+                cp -R out/build-info/* "$OLDPWD/build-info-reference/"
+            fi
+        else
+            mkdir -p "$OLDPWD/build-info-reference"
+            cp -R out-reference/build-info/* "$OLDPWD/build-info-reference/"
+        fi
+    )
+    
+    # Clean up worktree
+    git worktree remove "$worktree_path" --force
+    
+    # Verify build info was copied
+    if [[ -d "build-info-reference" ]] && [[ -n "$(ls -A build-info-reference 2>/dev/null)" ]]; then
+        echo "✅ Reference build created in build-info-reference/"
+        echo "📁 Build info files: $(ls -1 build-info-reference | wc -l) files"
+    else
+        echo "❌ Failed to create reference build info"
+        echo "This may cause upgrade validation to fail"
+    fi
+}
+
+# Execute forge script with proper configuration
+forge_script() {
+    local script_name="$1"
+    shift
+    
+    echo "🚀 Executing $script_name..."
+    
+    # Determine the correct script file
+    local script_file
+    if [[ "$script_name" == Deploy* ]]; then
+        script_file="Deploy.s.sol"
+    elif [[ "$script_name" == Upgrade* ]]; then
+        script_file="Upgrade.s.sol"
+    elif [[ "$script_name" == Update* ]]; then
+        script_file="Update.s.sol"
+    else
+        echo "❌ Unknown script type: $script_name"
+        exit 1
+    fi
+    
+    local cmd="forge script script/$script_file:$script_name"
+    cmd="$cmd --rpc-url $RPC_URL"
+    
+    # Add etherscan verification if available
+    if [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
+        cmd="$cmd --etherscan-api-key $ETHERSCAN_API_KEY"
+    fi
+    
+    # Configure signing method
+    if [[ "$USE_FIREBLOCKS" == "true" ]]; then
+        if ! command -v fireblocks-json-rpc >/dev/null 2>&1; then
+            echo "❌ fireblocks-json-rpc not found in PATH"
+            echo "Install from: https://github.com/fireblocks/fireblocks-json-rpc"
+            exit 1
+        fi
+        
+        if [[ -z "${FIREBLOCKS_API_KEY:-}" ]]; then
+            echo "❌ FIREBLOCKS_API_KEY not set"
+            exit 1
+        fi
+        
+        cmd="fireblocks-json-rpc --http -- $cmd"
+    else
+        if [[ -z "${PRIVATE_KEY:-}" ]]; then
+            echo "❌ PRIVATE_KEY not set and not using Fireblocks"
+            exit 1
+        fi
+        cmd="$cmd --private-key $PRIVATE_KEY"
+    fi
+    
+    # Add optional flags
+    for arg in "$@"; do
+        cmd="$cmd $arg"
+    done
+    
+    echo "📝 Running: $cmd"
+    eval "$cmd"
+    
+    # deployment.toml is now updated automatically via FFI calls in the Solidity scripts
+    if [[ "$script_name" == "Deploy"* ]] && [[ " $@ " == *" --broadcast "* ]]; then
+        echo "✅ Deployment completed - deployment.toml updated automatically"
+    elif [[ "$script_name" == "Upgrade"* ]] && [[ " $@ " == *" --broadcast "* ]]; then
+        echo "✅ Upgrade completed - deployment.toml updated automatically"
+    fi
+}
+
+# Deployment.toml is now updated automatically via FFI calls in Solidity scripts
+
+# Print usage information
+usage() {
+    cat << EOF
+Usage: $0 <command> [options]
+
+Commands:
+  deploy-zkc             Deploy ZKC token contract
+  deploy-vezkc           Deploy veZKC staking contract
+  deploy-staking         Deploy StakingRewards contract
+  upgrade-zkc            Upgrade ZKC implementation
+  upgrade-vezkc          Upgrade veZKC implementation  
+  upgrade-staking        Upgrade StakingRewards implementation
+  update-povw-minter     Set POVW_MINTER_ROLE in ZKC contract
+  update-staking-minter  Set STAKING_MINTER_ROLE in ZKC contract
+  update-both-minters    Set both POVW and STAKING minter roles
+
+Options:
+  -f, --fireblocks       Use Fireblocks for transaction signing
+  --broadcast            Broadcast transactions to network
+  --verify               Verify contracts on Etherscan
+  -h, --help             Show this help message
+
+Environment Variables:
+  CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia)
+  STACK_TAG              Optional. Stack tag for environment variants (e.g., 'staging')
+  
+Examples:
+  # Deploy ZKC to anvil
+  CHAIN_KEY=anvil ./script/manage deploy-zkc --broadcast
+  
+  # Deploy veZKC to sepolia with Fireblocks (requires ZKC already deployed)
+  CHAIN_KEY=ethereum-sepolia ./script/manage deploy-vezkc --fireblocks --broadcast --verify
+  
+  # Deploy StakingRewards to anvil (requires ZKC and veZKC already deployed)
+  CHAIN_KEY=anvil ./script/manage deploy-staking --broadcast
+  
+  # Upgrade ZKC on mainnet with verification
+  CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc --broadcast --verify
+  
+  # Set POVW minter role (requires POVW_MINTER env var)
+  POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage update-povw-minter --broadcast
+
+Notes:
+  - Configuration is loaded from deployment.toml and deployment_secrets.toml
+  - Upgrades require reference builds for safety checks
+  - Fireblocks requires fireblocks-json-rpc to be installed
+  - All deployments automatically update deployment.toml
+EOF
+}
+
+# Main execution logic
+main() {
+    echo "🔧 ZKC Deployment Manager"
+    echo "=========================="
+    
+    # Parse flags first
+    USE_FIREBLOCKS=false
+    SCRIPT_ARGS=()
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -f|--fireblocks)
+                USE_FIREBLOCKS=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            deploy-*|upgrade-*)
+                COMMAND="$1"
+                shift
+                ;;
+            *)
+                SCRIPT_ARGS+=("$1")
+                shift
+                ;;
+        esac
+    done
+    
+    # Check for required command
+    if [[ -z "${COMMAND:-}" ]]; then
+        echo "❌ No command specified"
+        usage
+        exit 1
+    fi
+    
+    # Check prerequisites
+    check_prerequisites
+    
+    # Required environment variable
+    if [[ -z "${CHAIN_KEY:-}" ]]; then
+        echo "❌ CHAIN_KEY environment variable is required"
+        echo "Example: CHAIN_KEY=anvil ./script/manage deploy-all --broadcast"
+        exit 1
+    fi
+    
+    echo "🌐 Chain: $CHAIN_KEY"
+    if [[ -n "${STACK_TAG:-}" ]]; then
+        echo "🏷️  Stack: $STACK_TAG"
+    fi
+    
+    # Load configuration from TOML files
+    echo "📋 Loading configuration..."
+    load_env_var "rpc-url" "RPC_URL" "deployment_secrets.toml"
+    load_env_var "private-key" "PRIVATE_KEY" "deployment_secrets.toml"
+    load_env_var "etherscan-api-key" "ETHERSCAN_API_KEY" "deployment_secrets.toml"
+    load_env_var "id" "CHAIN_ID"
+    
+    if [[ "$USE_FIREBLOCKS" == "true" ]]; then
+        load_env_var "fireblocks-api-key" "FIREBLOCKS_API_KEY" "deployment_secrets.toml"
+        echo "🔐 Using Fireblocks for signing"
+    fi
+    
+    # Verify required configuration
+    if [[ -z "${RPC_URL:-}" ]]; then
+        echo "❌ RPC URL not configured for $CHAIN_KEY"
+        exit 1
+    fi
+    
+    if [[ -z "${CHAIN_ID:-}" ]]; then
+        echo "❌ Chain ID not configured for $CHAIN_KEY"
+        exit 1
+    fi
+    
+    # Verify chain ID matches RPC
+    echo "🔍 Verifying chain configuration..."
+    actual_chain_id=$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null || echo "")
+    if [[ "$actual_chain_id" != "$CHAIN_ID" ]]; then
+        echo "❌ Chain ID mismatch:"
+        echo "   Expected: $CHAIN_ID (from deployment.toml)"
+        echo "   Actual:   $actual_chain_id (from RPC)"
+        exit 1
+    fi
+    echo "✅ Chain ID verified: $CHAIN_ID"
+    
+    # Create reference build for upgrade commands
+    if [[ "$COMMAND" == upgrade-* ]]; then
+        create_reference_build
+        
+        # Also ensure current build is clean and complete
+        echo "🔨 Ensuring current build is complete..."
+        forge clean
+        forge build
+        echo "✅ Current build completed"
+    fi
+    
+    # Execute the requested command
+    case "$COMMAND" in
+        deploy-zkc)
+            forge_script "DeployZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        deploy-vezkc)
+            forge_script "DeployVeZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        deploy-staking)
+            forge_script "DeployStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        upgrade-zkc)
+            forge_script "UpgradeZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        upgrade-vezkc)
+            forge_script "UpgradeVeZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        upgrade-staking)
+            forge_script "UpgradeStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        update-povw-minter)
+            forge_script "UpdatePOVWMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        update-staking-minter)
+            forge_script "UpdateStakingMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        update-both-minters)
+            forge_script "UpdateBothMinters" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        *)
+            echo "❌ Unknown command: $COMMAND"
+            usage
+            exit 1
+            ;;
+    esac
+    
+    echo ""
+    echo "✅ Command completed successfully: $COMMAND"
+    echo "=========================="
+}
+
+# Run main function with all arguments
+main "$@"

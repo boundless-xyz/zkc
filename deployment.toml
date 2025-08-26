@@ -1,0 +1,41 @@
+[deployment.anvil]
+name = "Anvil"
+id = 31337
+admin = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+zkc = "0xfb081c39f3d55097e644960ec1537fa6c6473d90"
+zkc-impl = "0x627c4d3f750461700b7e6eac53ad83873b61ea97"
+vezkc = "0x0314000e284c880923dfdf684fc8a1fe4b51d477"
+vezkc-impl = "0x4204f4bb4f31f0d8b838e7082fb9c77e2f5d6f08"
+staking-rewards = "0x8a3ee54375fa125116a2c767e2a75e1616b20437"
+staking-rewards-impl = "0xebba801757838bb5bf503a74a01d0146f554b20b"
+povw-minter = ""
+staking-minter = ""
+deployment-commit = "96a0a3e"
+
+[deployment.ethereum-mainnet]
+name = "Ethereum Mainnet"
+id = 1
+admin = ""
+zkc = ""
+zkc-impl = ""
+vezkc = ""
+vezkc-impl = ""
+staking-rewards = ""
+staking-rewards-impl = ""
+povw-minter = ""
+staking-minter = ""
+deployment-commit = ""
+
+[deployment.ethereum-sepolia]
+name = "Ethereum Sepolia"
+id = 11155111
+admin = ""
+zkc = ""
+zkc-impl = ""
+vezkc = ""
+vezkc-impl = ""
+staking-rewards = ""
+staking-rewards-impl = ""
+povw-minter = ""
+staking-minter = ""
+deployment-commit = ""
