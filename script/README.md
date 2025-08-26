@@ -1,6 +1,4 @@
-# ZKC Deployment Guide
-
-Simple guide for deploying and upgrading ZKC contracts using the `manage` script.
+# ZKC Scripts Guide
 
 ## Prerequisites
 
@@ -68,33 +66,10 @@ CHAIN_KEY=ethereum-mainnet ./script/manage deploy-zkc --fireblocks --broadcast -
 CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc --fireblocks --broadcast --verify
 ```
 
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `deploy-zkc` | Deploy ZKC token |
-| `deploy-vezkc` | Deploy veZKC staking (requires ZKC) |
-| `upgrade-zkc` | Upgrade ZKC implementation |
-| `upgrade-vezkc` | Upgrade veZKC implementation |
-| `upgrade-staking` | Upgrade StakingRewards implementation |
-| `upgrade-all` | Upgrade all implementations |
-
-## Options
-
-- `--broadcast`: Send transactions to network
-- `--verify`: Verify on Etherscan  
-- `--fireblocks` / `-f`: Use Fireblocks signing
-
-## Networks
-
-- `anvil`: Local development
-- `ethereum-mainnet`: Ethereum Mainnet
-- `ethereum-sepolia`: Ethereum Sepolia testnet
-
 ## Files
 
 - `deployment.toml`: Contract addresses (auto-updated)
-- `deployment_secrets.toml`: Private keys, RPC URLs (gitignored)
+- `deployment_secrets.toml`: RPC URLs (gitignored)
 
 ## Examples
 
