@@ -192,6 +192,11 @@ contract ZKC is
     }
 
     /// @inheritdoc IZKC
+    function getCurrentEpochEndTime() public view returns (uint256) {
+        return getEpochEndTime(getCurrentEpoch());
+    }
+
+    /// @inheritdoc IZKC
     function getEpochStartTime(uint256 epoch) public view returns (uint256) {
         return epoch0StartTime + (epoch * EPOCH_DURATION);
     }
