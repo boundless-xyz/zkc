@@ -48,7 +48,7 @@ contract UpgradeZKC is BaseDeployment {
         Upgrades.upgradeProxy(
             config.zkc,
             "ZKC.sol:ZKC",
-            "",  // No reinitializer
+            abi.encodeCall(ZKC.initializeV2, ()), // Update to new initializer or remove if not needed
             opts
         );
 

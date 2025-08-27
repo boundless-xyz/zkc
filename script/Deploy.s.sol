@@ -69,6 +69,8 @@ contract DeployZKC is BaseDeployment {
         );
         address zkc = address(proxy);
 
+        proxy.call(abi.encodeCall(ZKC.initializeV2, ()));
+
         vm.stopBroadcast();
 
         // Update deployment.toml with deployed addresses
