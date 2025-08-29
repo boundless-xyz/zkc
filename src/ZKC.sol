@@ -2,6 +2,9 @@
 pragma solidity ^0.8.20;
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20BurnableUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+
 import {ERC20PermitUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -15,6 +18,7 @@ import {IZKC} from "./interfaces/IZKC.sol";
 contract ZKC is
     Initializable,
     ERC20Upgradeable,
+    ERC20BurnableUpgradeable,
     ERC20PermitUpgradeable,
     AccessControlUpgradeable,
     UUPSUpgradeable,
@@ -81,6 +85,7 @@ contract ZKC is
         address _owner
     ) public initializer {
         __ERC20_init("ZK Coin", "ZKC");
+        __ERC20Burnable_init();
         __ERC20Permit_init("ZK Coin");
         __AccessControl_init();
         __UUPSUpgradeable_init();
