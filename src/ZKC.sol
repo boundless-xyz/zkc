@@ -91,7 +91,7 @@ contract ZKC is
         initialMinter2 = _initialMinter2;
         initialMinter1Remaining = _initialMinter1Amount;
         initialMinter2Remaining = _initialMinter2Amount;
-        _grantRole(DEFAULT_ADMIN_ROLE, _owner);
+        _grantRole(ADMIN_ROLE, _owner);
     }
 
     /// @dev On upgrade, set the epoch 0 start time to initiate the start of the first epoch.

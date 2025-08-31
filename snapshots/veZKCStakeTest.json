@@ -1,7 +1,7 @@
 {
-  "addToStake: Adding to existing stake": "86965",
-  "addToStakeByTokenId: Adding to another user's stake": "92002",
+  "addToStake: Adding to existing stake": "88008",
+  "addToStakeByTokenId: Adding to another user's stake": "93045",
   "completeUnstake: Completing withdrawal and burning NFT": "18524",
-  "initiateUnstake: Starting withdrawal process": "60228",
-  "stake: Basic staking with approval": "346023"
+  "initiateUnstake: Starting withdrawal process": "61198",
+  "stake: Basic staking with approval": "346655"
 }

@@ -44,7 +44,7 @@ contract veZKC is
         __EIP712_init("Vote Escrowed ZK Coin", "1");
 
         _zkcToken = ZKC(zkcTokenAddress);
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(ADMIN_ROLE, _admin);
 
         // Initialize checkpoint system
         Checkpoints.initializeGlobalPoint(_globalCheckpoints);
