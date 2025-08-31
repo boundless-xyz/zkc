@@ -33,7 +33,6 @@ contract CheckpointsTest is Test {
     }
 
     function testInitializeGlobalPoint() public {
-        // Directly access global storage instead of using removed getGlobalPoint function
         Checkpoints.Point memory point = globalStorage.globalPointHistory[0];
         assertEq(point.votingAmount, 0, "Initial global voting amount should be 0");
         assertEq(point.rewardAmount, 0, "Initial global reward amount should be 0");
