@@ -244,8 +244,6 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
             rewardDelta
         );
 
-        uint256 withdrawableAt = newStake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
-        emit UnstakeInitiated(tokenId, owner, withdrawableAt);
     }
 
     function _burnStake(uint256 tokenId) internal {
@@ -269,9 +267,6 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // Add to existing veZKC position
         _addStakeAndCheckpoint(tokenId, amount);
 
-        // Get the new total amount after adding
-        Checkpoints.StakeInfo memory updatedStake = _stakes[tokenId];
-        emit StakeAdded(tokenId, ownerOf(tokenId), amount, updatedStake.amount);
     }
 
     /// @dev Handle delegation-aware checkpointing
