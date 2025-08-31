@@ -51,7 +51,6 @@ contract RollbackZKC is BaseDeployment {
         // Update deployment.toml: swap current and previous implementations
         _updateDeploymentConfig(deploymentKey, "zkc-impl", config.zkcImplPrev);
         _updateDeploymentConfig(deploymentKey, "zkc-impl-prev", currentImpl);
-        _updateDeploymentCommit(deploymentKey);
 
         // Verify rollback
         ZKC zkcContract = ZKC(config.zkc);
@@ -106,7 +105,6 @@ contract RollbackVeZKC is BaseDeployment {
         // Update deployment.toml: swap current and previous implementations
         _updateDeploymentConfig(deploymentKey, "vezkc-impl", config.veZKCImplPrev);
         _updateDeploymentConfig(deploymentKey, "vezkc-impl-prev", currentImpl);
-        _updateDeploymentCommit(deploymentKey);
 
         // Verify rollback
         veZKC veZKCContract = veZKC(config.veZKC);
@@ -162,7 +160,6 @@ contract RollbackStakingRewards is BaseDeployment {
         // Update deployment.toml: swap current and previous implementations
         _updateDeploymentConfig(deploymentKey, "staking-rewards-impl", config.stakingRewardsImplPrev);
         _updateDeploymentConfig(deploymentKey, "staking-rewards-impl-prev", currentImpl);
-        _updateDeploymentCommit(deploymentKey);
 
         // Verify rollback
         StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);

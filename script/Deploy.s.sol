@@ -81,7 +81,7 @@ contract DeployZKC is BaseDeployment {
         _updateDeploymentConfig(deploymentKey, "zkc-impl", implementation);
         _updateDeploymentConfig(deploymentKey, "zkc-admin", admin);
         _updateDeploymentConfig(deploymentKey, "zkc-deployer", msg.sender);
-        _updateDeploymentCommit(deploymentKey);
+        _updateZKCCommit(deploymentKey);
 
         // Sanity checks.
         ZKC zkcContract = ZKC(zkc);
@@ -141,7 +141,7 @@ contract DeployVeZKC is BaseDeployment {
         _updateDeploymentConfig(deploymentKey, "vezkc", veZKCAddress);
         _updateDeploymentConfig(deploymentKey, "vezkc-impl", veZKCImpl);
         _updateDeploymentConfig(deploymentKey, "vezkc-deployer", msg.sender);
-        _updateDeploymentCommit(deploymentKey);
+        _updateVeZKCCommit(deploymentKey);
 
         // Sanity checks
         veZKC veZKCContract = veZKC(veZKCAddress);
@@ -197,7 +197,7 @@ contract DeployStakingRewards is BaseDeployment {
         _updateDeploymentConfig(deploymentKey, "staking-rewards", stakingRewardsAddress);
         _updateDeploymentConfig(deploymentKey, "staking-rewards-impl", stakingRewardsImpl);
         _updateDeploymentConfig(deploymentKey, "staking-rewards-deployer", msg.sender);
-        _updateDeploymentCommit(deploymentKey);
+        _updateStakingRewardsCommit(deploymentKey);
 
         // Sanity checks
         StakingRewards stakingRewardsContract = StakingRewards(stakingRewardsAddress);

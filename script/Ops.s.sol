@@ -69,9 +69,6 @@ contract Dev_InitialMintToSelf is BaseDeployment {
 
         vm.stopBroadcast();
 
-        // Update deployment commit
-        _updateDeploymentCommit(deploymentKey);
-
         // Sanity checks and logging
         uint256 callerBalance = zkcContract.balanceOf(caller);
         console2.log("ZKC Contract: ", config.zkc);

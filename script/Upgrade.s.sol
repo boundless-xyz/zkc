@@ -60,7 +60,7 @@ contract UpgradeZKC is BaseDeployment {
         // Update deployment.toml with new implementation and store previous
         _updateDeploymentConfig(deploymentKey, "zkc-impl-prev", currentImpl);
         _updateDeploymentConfig(deploymentKey, "zkc-impl", newImpl);
-        _updateDeploymentCommit(deploymentKey);
+        _updateZKCCommit(deploymentKey);
 
         // Verify upgrade
         ZKC zkcContract = ZKC(config.zkc);
@@ -117,7 +117,7 @@ contract UpgradeVeZKC is BaseDeployment {
         // Update deployment.toml with new implementation and store previous
         _updateDeploymentConfig(deploymentKey, "vezkc-impl-prev", currentImpl);
         _updateDeploymentConfig(deploymentKey, "vezkc-impl", newImpl);
-        _updateDeploymentCommit(deploymentKey);
+        _updateVeZKCCommit(deploymentKey);
 
         // Verify upgrade
         veZKC veZKCContract = veZKC(config.veZKC);
@@ -172,7 +172,7 @@ contract UpgradeStakingRewards is BaseDeployment {
         // Update deployment.toml with new implementation and store previous
         _updateDeploymentConfig(deploymentKey, "staking-rewards-impl-prev", currentImpl);
         _updateDeploymentConfig(deploymentKey, "staking-rewards-impl", newImpl);
-        _updateDeploymentCommit(deploymentKey);
+        _updateStakingRewardsCommit(deploymentKey);
 
         // Verify upgrade
         StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);

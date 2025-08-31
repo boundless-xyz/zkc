@@ -85,9 +85,6 @@ run_deployment_tests() {
     # Set environment variables for the test
     export FOUNDRY_PROFILE="${FOUNDRY_PROFILE:-deployment-test}"
     export CHAIN_KEY="${CHAIN_KEY}"
-    if [[ -n "${STACK_TAG:-}" ]]; then
-        export STACK_TAG="${STACK_TAG}"
-    fi
     
     # Run the specific deployment test
     echo "📋 Running deployment validation tests..."
@@ -115,8 +112,7 @@ Options:
   -h, --help             Show this help message
 
 Environment Variables:
-  CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia)
-  STACK_TAG              Optional. Stack tag for environment variants (e.g., 'staging')
+  CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia, ethereum-sepolia-staging)
   FOUNDRY_PROFILE        Optional. Foundry profile to use (default: deployment-test)
   
 Examples:
@@ -125,6 +121,9 @@ Examples:
   
   # Test Ethereum Sepolia deployment
   CHAIN_KEY=ethereum-sepolia ./script/test
+  
+  # Test staging environment
+  CHAIN_KEY=ethereum-sepolia-staging ./script/test
   
   # Test Ethereum Mainnet deployment
   CHAIN_KEY=ethereum-mainnet ./script/test
@@ -171,9 +170,6 @@ main() {
     fi
     
     echo "🌐 Chain: $CHAIN_KEY"
-    if [[ -n "${STACK_TAG:-}" ]]; then
-        echo "🏷️  Stack: $STACK_TAG"
-    fi
     
     # Load configuration from TOML files
     echo "📋 Loading configuration..."

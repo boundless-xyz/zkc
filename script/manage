@@ -237,9 +237,8 @@ Options:
   -h, --help             Show this help message
 
 Environment Variables:
-  CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia)
+  CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia, ethereum-sepolia-staging)
   PRIVATE_KEY            Required. Private key for transaction signing (0x...)
-  STACK_TAG              Optional. Stack tag for environment variants (e.g., 'staging')
   
 Examples:
   # Deploy ZKC to anvil
@@ -256,6 +255,9 @@ Examples:
   
   # Deploy veZKC to sepolia with Fireblocks (requires ZKC already deployed)
   PRIVATE_KEY=0x... CHAIN_KEY=ethereum-sepolia ./script/manage deploy-vezkc --fireblocks --broadcast --verify
+  
+  # Deploy to staging environment
+  PRIVATE_KEY=0x... CHAIN_KEY=ethereum-sepolia-staging ./script/manage deploy-zkc --broadcast
   
   # Deploy StakingRewards to anvil (requires ZKC and veZKC already deployed)
   PRIVATE_KEY=0x... CHAIN_KEY=anvil ./script/manage deploy-staking --broadcast
@@ -329,9 +331,6 @@ main() {
     fi
     
     echo "🌐 Chain: $CHAIN_KEY"
-    if [[ -n "${STACK_TAG:-}" ]]; then
-        echo "🏷️  Stack: $STACK_TAG"
-    fi
     
     # Load configuration from TOML files
     echo "📋 Loading configuration..."
