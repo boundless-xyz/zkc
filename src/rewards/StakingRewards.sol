@@ -37,6 +37,10 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
+        require(_zkc != address(0), "ZKC cannot be zero address");
+        require(_veZKC != address(0), "veZKC cannot be zero address");
+        require(_admin != address(0), "Admin cannot be zero address");
+        
         zkc = ZKC(_zkc);
         veZKC = IRewards(_veZKC);
 
