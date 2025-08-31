@@ -40,9 +40,10 @@ contract DeployZKC is BaseDeployment {
         uint256 initialMinter2Amount = vm.envUint("INITIAL_MINTER_2_AMOUNT");
         require(totalInitialSupply == initialMinter1Amount + initialMinter2Amount);
         bytes32 salt = vm.envBytes32("SALT");
+        bytes32 saltImpl = vm.envOr("SALT_IMPL", bytes32(0));
         address admin = vm.envAddress("ADMIN");
 
-        address implementation = address(new ZKC{salt: 0x0}());
+        address implementation = address(new ZKC{salt: saltImpl}());
         console2.log("Deployed ZKC implementation to: ", implementation);
 
         bytes32 initCodeHash = keccak256(
@@ -78,6 +79,7 @@ contract DeployZKC is BaseDeployment {
         (, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         _updateDeploymentConfig(deploymentKey, "zkc", zkc);
         _updateDeploymentConfig(deploymentKey, "zkc-impl", implementation);
+        _updateDeploymentConfig(deploymentKey, "zkc-admin", admin);
         _updateDeploymentConfig(deploymentKey, "zkc-deployer", msg.sender);
         _updateDeploymentCommit(deploymentKey);
 
