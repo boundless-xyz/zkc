@@ -156,6 +156,8 @@ forge_script() {
         script_file="Deploy.s.sol"
     elif [[ "$script_name" == Upgrade* ]]; then
         script_file="Upgrade.s.sol"
+    elif [[ "$script_name" == Rollback* ]]; then
+        script_file="Rollback.s.sol"
     elif [[ "$script_name" == Update* ]]; then
         script_file="Update.s.sol"
     elif [[ "$script_name" == Dev_* ]]; then
@@ -403,13 +405,13 @@ main() {
             forge_script "UpgradeStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         rollback-zkc)
-            forge_script "script/Rollback.s.sol:RollbackZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            forge_script "RollbackZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         rollback-vezkc)
-            forge_script "script/Rollback.s.sol:RollbackVeZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            forge_script "RollbackVeZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         rollback-staking)
-            forge_script "script/Rollback.s.sol:RollbackStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            forge_script "RollbackStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         update-povw-minter)
             forge_script "UpdatePOVWMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"

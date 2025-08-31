@@ -21,13 +21,6 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
  */
 contract RollbackZKC is BaseDeployment {
     
-    /// @notice Get the size of contract code at an address
-    function _getCodeSize(address addr) internal view returns (uint256 size) {
-        assembly {
-            size := extcodesize(addr)
-        }
-    }
-    
     function run() public {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.zkc != address(0), "ZKC not deployed");
@@ -43,12 +36,11 @@ contract RollbackZKC is BaseDeployment {
         // Verify previous implementation has code
         require(_getCodeSize(config.zkcImplPrev) > 0, "Previous implementation has no code");
 
-        // Perform rollback by upgrading to previous implementation
-        Upgrades.upgradeProxy(
-            config.zkc,
-            "ZKC.sol:ZKC",
-            "" // No reinitializer needed for rollback
+        // Perform rollback by directly upgrading to previous implementation (unsafe)
+        (bool success,) = config.zkc.call(
+            abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.zkcImplPrev, "")
         );
+        require(success, "Failed to rollback ZKC implementation");
 
         address rolledBackImpl = _getImplementationAddress(config.zkc);
         console2.log("Rolled back ZKC implementation to: ", rolledBackImpl);
@@ -84,13 +76,6 @@ contract RollbackZKC is BaseDeployment {
  */
 contract RollbackVeZKC is BaseDeployment {
     
-    /// @notice Get the size of contract code at an address
-    function _getCodeSize(address addr) internal view returns (uint256 size) {
-        assembly {
-            size := extcodesize(addr)
-        }
-    }
-    
     function run() public {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.veZKC != address(0), "veZKC not deployed");
@@ -106,12 +91,11 @@ contract RollbackVeZKC is BaseDeployment {
         // Verify previous implementation has code
         require(_getCodeSize(config.veZKCImplPrev) > 0, "Previous implementation has no code");
 
-        // Perform rollback by upgrading to previous implementation
-        Upgrades.upgradeProxy(
-            config.veZKC,
-            "veZKC.sol:veZKC",
-            "" // No reinitializer needed for rollback
+        // Perform rollback by directly upgrading to previous implementation (unsafe)
+        (bool success,) = config.veZKC.call(
+            abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.veZKCImplPrev, "")
         );
+        require(success, "Failed to rollback veZKC implementation");
 
         address rolledBackImpl = _getImplementationAddress(config.veZKC);
         console2.log("Rolled back veZKC implementation to: ", rolledBackImpl);
@@ -148,13 +132,6 @@ contract RollbackVeZKC is BaseDeployment {
  */
 contract RollbackStakingRewards is BaseDeployment {
     
-    /// @notice Get the size of contract code at an address
-    function _getCodeSize(address addr) internal view returns (uint256 size) {
-        assembly {
-            size := extcodesize(addr)
-        }
-    }
-    
     function run() public {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.stakingRewards != address(0), "StakingRewards not deployed");
@@ -170,12 +147,11 @@ contract RollbackStakingRewards is BaseDeployment {
         // Verify previous implementation has code
         require(_getCodeSize(config.stakingRewardsImplPrev) > 0, "Previous implementation has no code");
 
-        // Perform rollback by upgrading to previous implementation
-        Upgrades.upgradeProxy(
-            config.stakingRewards,
-            "StakingRewards.sol:StakingRewards",
-            "" // No reinitializer needed for rollback
+        // Perform rollback by directly upgrading to previous implementation (unsafe)
+        (bool success,) = config.stakingRewards.call(
+            abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.stakingRewardsImplPrev, "")
         );
+        require(success, "Failed to rollback StakingRewards implementation");
 
         address rolledBackImpl = _getImplementationAddress(config.stakingRewards);
         console2.log("Rolled back StakingRewards implementation to: ", rolledBackImpl);

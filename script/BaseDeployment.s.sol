@@ -66,4 +66,11 @@ abstract contract BaseDeployment is Script {
         bytes32 result = vm.load(proxy, slot);
         impl = address(uint160(uint256(result)));
     }
+
+    /// @notice Get the size of contract code at an address
+    function _getCodeSize(address addr) internal view returns (uint256 size) {
+        assembly {
+            size := extcodesize(addr)
+        }
+    }
 }
