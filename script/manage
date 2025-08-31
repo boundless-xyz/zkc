@@ -221,6 +221,9 @@ Commands:
   upgrade-zkc            Upgrade ZKC implementation
   upgrade-vezkc          Upgrade veZKC implementation  
   upgrade-staking        Upgrade StakingRewards implementation
+  rollback-zkc           Rollback ZKC to previous implementation
+  rollback-vezkc         Rollback veZKC to previous implementation
+  rollback-staking       Rollback StakingRewards to previous implementation
   update-povw-minter     Set POVW_MINTER_ROLE in ZKC contract
   update-staking-minter  Set STAKING_MINTER_ROLE in ZKC contract
   dev-mint-to-self       Development: mint initial tokens to caller
@@ -238,7 +241,16 @@ Environment Variables:
   
 Examples:
   # Deploy ZKC to anvil
-  PRIVATE_KEY=0xac0974bec... CHAIN_KEY=anvil ./script/manage deploy-zkc --broadcast
+  CHAIN_KEY=anvil \
+  PRIVATE_KEY=0x... \
+  INITIAL_MINTER_1="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" \
+  INITIAL_MINTER_2="0x0000000000000000000000000000000000000000" \
+  TOTAL_INITIAL_SUPPLY="1000000000000000000000000000" \
+  INITIAL_MINTER_1_AMOUNT="1000000000000000000000000000" \
+  INITIAL_MINTER_2_AMOUNT="0" \
+  SALT="0x0000000000000000000000000000000000000000000000000000000000000001" \
+  ADMIN="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" \
+  script/manage deploy-zkc --broadcast
   
   # Deploy veZKC to sepolia with Fireblocks (requires ZKC already deployed)
   PRIVATE_KEY=0x... CHAIN_KEY=ethereum-sepolia ./script/manage deploy-vezkc --fireblocks --broadcast --verify
@@ -248,6 +260,9 @@ Examples:
   
   # Upgrade ZKC on mainnet with verification
   PRIVATE_KEY=0x... CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc --broadcast --verify
+  
+  # Rollback ZKC to previous implementation
+  PRIVATE_KEY=0x... CHAIN_KEY=anvil ./script/manage rollback-zkc --broadcast
   
   # Set POVW minter role (requires POVW_MINTER env var)
   PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage update-povw-minter --broadcast
@@ -283,7 +298,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            deploy-*|upgrade-*|update-*|dev-*)
+            deploy-*|upgrade-*|rollback-*|update-*|dev-*)
                 COMMAND="$1"
                 shift
                 ;;
@@ -386,6 +401,15 @@ main() {
             ;;
         upgrade-staking)
             forge_script "UpgradeStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        rollback-zkc)
+            forge_script "script/Rollback.s.sol:RollbackZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        rollback-vezkc)
+            forge_script "script/Rollback.s.sol:RollbackVeZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        rollback-staking)
+            forge_script "script/Rollback.s.sol:RollbackStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         update-povw-minter)
             forge_script "UpdatePOVWMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"

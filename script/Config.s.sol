@@ -8,7 +8,9 @@ import {Vm} from "forge-std/Vm.sol";
 struct DeploymentConfig {
     string name;
     uint256 id;
-    address admin;
+    address zkcAdmin;
+    address veZKCAdmin;
+    address stakingRewardsAdmin;
     address zkc;
     address zkcImpl;
     address zkcImplPrev;
@@ -36,7 +38,9 @@ library ConfigLoader {
         
         config.name = toml.readString(string.concat(keyPrefix, ".name"));
         config.id = toml.readUint(string.concat(keyPrefix, ".id"));
-        config.admin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".admin"));
+        config.zkcAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-admin"));
+        config.veZKCAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".vezkc-admin"));
+        config.stakingRewardsAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards-admin"));
         config.zkc = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc"));
         config.zkcImpl = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-impl"));
         config.zkcImplPrev = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-impl-prev"));

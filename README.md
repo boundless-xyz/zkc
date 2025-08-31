@@ -432,3 +432,153 @@ export INITIAL_MINTER_1_AMOUNT="550000000000000000000000000"
 export INITIAL_MINTER_2_AMOUNT="450000000000000000000000000"
 export SALT="0x139ce48cd89155a443786ffbe32185bb50ae2b69f4aee41b0b7eab02dfb6ff33"
 ```
+
+## Deployment Testing
+
+The repository includes comprehensive deployment testing infrastructure to validate that deployed contracts match the configuration and are properly set up across different networks.
+
+### Overview
+
+Deployment tests verify:
+- ✅ **Contract Deployment**: All contracts have non-empty bytecode
+- ✅ **Address Consistency**: Deployed addresses match `deployment.toml` configuration  
+- ✅ **Admin Permissions**: Admin roles and permissions are correctly assigned
+- ✅ **Cross-Contract References**: ZKC ↔ veZKC ↔ StakingRewards integration
+- ✅ **Proxy Configuration**: Implementation addresses match proxy configurations
+- ✅ **Initial State**: Contracts are properly initialized
+- ✅ **Network Validation**: Chain ID and network connectivity
+- ✅ **Minter Roles**: POVW and staking minter permissions
+
+### Running Deployment Tests
+
+#### Prerequisites
+
+Install required dependencies:
+```bash
+# Python dependencies for TOML parsing
+pip install tomlkit
+
+# Foundry for testing (if not already installed)
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+```
+
+#### Basic Usage
+
+Test against different networks by setting the `CHAIN_KEY` environment variable:
+
+```bash
+# Test local anvil deployment
+CHAIN_KEY=anvil ./script/test
+
+# Test Ethereum Sepolia deployment  
+CHAIN_KEY=ethereum-sepolia ./script/test
+
+# Test Ethereum Mainnet deployment
+CHAIN_KEY=ethereum-mainnet ./script/test
+```
+
+#### Configuration Files
+
+The test script loads configuration from:
+- **`deployment.toml`**: Contract addresses and network configurations
+- **`deployment_secrets.toml`**: RPC URLs and sensitive data (create from template)
+
+#### Advanced Usage
+
+```bash
+# Use custom Foundry profile
+FOUNDRY_PROFILE=custom CHAIN_KEY=anvil ./script/test
+
+# Test with stack variants (e.g., staging)
+CHAIN_KEY=ethereum-sepolia STACK_TAG=staging ./script/test
+
+# Run with verbose output
+CHAIN_KEY=anvil ./script/test -vvv
+```
+
+#### Direct Forge Testing
+
+You can also run deployment tests directly with forge:
+
+```bash
+# Test with forking against live network
+CHAIN_KEY=ethereum-sepolia forge test --match-contract DeploymentTest --fork-url $RPC_URL -vvv
+
+# Test locally (requires contracts deployed to local network)
+CHAIN_KEY=anvil forge test --match-contract DeploymentTest -vvv
+```
+
+### What the Tests Validate
+
+The deployment tests verify that:
+- Contract addresses are configured correctly in `deployment.toml`
+- All contracts have been deployed with non-empty bytecode
+- Admin roles are properly assigned across all contracts
+- Proxy contracts point to the correct implementation addresses
+- Cross-contract references are consistent (ZKC ↔ veZKC ↔ StakingRewards)
+- Initial minter configurations are set correctly
+- Network chain ID matches the configuration
+- POVW and staking minter roles are properly configured
+
+### Test Coverage
+
+The deployment tests cover all major contract components:
+
+#### ZKC Token Contract
+- Contract deployment and bytecode verification
+- Proxy → implementation address consistency  
+- Admin role assignments
+- Initial supply and minter configurations
+- POVW and staking minter role permissions
+
+#### veZKC Staking Contract  
+- Contract deployment and bytecode verification
+- Proxy → implementation address consistency
+- Admin role assignments
+- ZKC token reference validation
+
+#### StakingRewards Contract
+- Contract deployment and bytecode verification  
+- Proxy → implementation address consistency
+- Admin role assignments
+- ZKC and veZKC token reference validation
+
+#### Cross-Contract Integration
+- Contract address consistency across all components
+- Proper minter role assignments in ZKC contract
+- Token reference validation between contracts
+
+### Network Support
+
+| Network | Chain ID | Status | Configuration |
+|---------|----------|--------|---------------|
+| Anvil (Local) | 31337 | ✅ Supported | `anvil` |
+| Ethereum Sepolia | 11155111 | ✅ Deployed | `ethereum-sepolia` |  
+| Ethereum Mainnet | 1 | 🔄 Configured | `ethereum-mainnet` |
+
+### Troubleshooting
+
+**Chain ID Mismatch Error**:
+```bash
+❌ Chain ID mismatch:
+   Expected: 11155111 (from deployment.toml)
+   Actual:   1 (from RPC)
+```
+Solution: Verify your RPC URL matches the intended network in `deployment_secrets.toml`
+
+**Missing RPC URL Error**:
+```bash
+❌ RPC URL not configured for ethereum-sepolia
+```
+Solution: Add the RPC URL to your `deployment_secrets.toml`:
+```toml
+[deployment.ethereum-sepolia]
+rpc-url = "https://sepolia.infura.io/v3/YOUR_KEY"
+```
+
+**Contract Not Deployed Error**:
+```bash
+❌ ZKC address must be set in deployment.toml
+```
+Solution: Deploy contracts first using `./script/manage deploy-zkc --broadcast`, or ensure addresses are correctly configured in `deployment.toml`

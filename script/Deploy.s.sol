@@ -69,7 +69,8 @@ contract DeployZKC is BaseDeployment {
         );
         address zkc = address(proxy);
 
-        proxy.call(abi.encodeCall(ZKC.initializeV2, ()));
+        (bool success,) = address(proxy).call(abi.encodeCall(ZKC.initializeV2, ()));
+        require(success, "initializeV2 call failed");
 
         vm.stopBroadcast();
 
@@ -115,6 +116,7 @@ contract DeployVeZKC is BaseDeployment {
 
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.zkc != address(0), "ZKC address not set in deployment.toml");
+        require(config.veZKCAdmin != address(0), "veZKC admin address not set in deployment.toml");
 
         bytes32 salt = vm.envOr("SALT", bytes32(0));
 
@@ -125,7 +127,7 @@ contract DeployVeZKC is BaseDeployment {
         // Deploy proxy with initialization
         ERC1967Proxy proxy = new ERC1967Proxy{salt: salt}(
             veZKCImpl,
-            abi.encodeCall(veZKC.initialize, (config.zkc, config.admin))
+            abi.encodeCall(veZKC.initialize, (config.zkc, config.veZKCAdmin))
         );
         address veZKCAddress = address(proxy);
 
@@ -139,8 +141,8 @@ contract DeployVeZKC is BaseDeployment {
         // Sanity checks
         veZKC veZKCContract = veZKC(veZKCAddress);
         IAccessControl accessControl = IAccessControl(veZKCAddress);
-        console2.log("Admin address: ", config.admin);
-        console2.log("Admin role assigned: ", accessControl.hasRole(veZKCContract.ADMIN_ROLE(), config.admin));
+        console2.log("Admin address: ", config.veZKCAdmin);
+        console2.log("Admin role assigned: ", accessControl.hasRole(veZKCContract.ADMIN_ROLE(), config.veZKCAdmin));
         console2.log("ZKC token address: ", address(veZKCContract.zkcToken()));
         console2.log("================================================");
         console2.log("Deployed veZKC to: ", veZKCAddress);
@@ -168,6 +170,7 @@ contract DeployStakingRewards is BaseDeployment {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.zkc != address(0), "ZKC address not set in deployment.toml");
         require(config.veZKC != address(0), "veZKC address not set in deployment.toml");
+        require(config.stakingRewardsAdmin != address(0), "StakingRewards admin address not set in deployment.toml");
 
         bytes32 salt = vm.envOr("SALT", bytes32(0));
 
@@ -178,7 +181,7 @@ contract DeployStakingRewards is BaseDeployment {
         // Deploy proxy with initialization
         ERC1967Proxy proxy = new ERC1967Proxy{salt: salt}(
             stakingRewardsImpl,
-            abi.encodeCall(StakingRewards.initialize, (config.zkc, config.veZKC, config.admin))
+            abi.encodeCall(StakingRewards.initialize, (config.zkc, config.veZKC, config.stakingRewardsAdmin))
         );
         address stakingRewardsAddress = address(proxy);
 
@@ -192,8 +195,8 @@ contract DeployStakingRewards is BaseDeployment {
         // Sanity checks
         StakingRewards stakingRewardsContract = StakingRewards(stakingRewardsAddress);
         IAccessControl accessControl = IAccessControl(stakingRewardsAddress);
-        console2.log("Admin address: ", config.admin);
-        console2.log("Admin role assigned: ", accessControl.hasRole(stakingRewardsContract.ADMIN_ROLE(), config.admin));
+        console2.log("Admin address: ", config.stakingRewardsAdmin);
+        console2.log("Admin role assigned: ", accessControl.hasRole(stakingRewardsContract.ADMIN_ROLE(), config.stakingRewardsAdmin));
         console2.log("ZKC token address: ", address(stakingRewardsContract.zkc()));
         console2.log("veZKC token address: ", address(stakingRewardsContract.veZKC()));
         console2.log("================================================");

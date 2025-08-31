@@ -1,0 +1,215 @@
+#!/bin/bash
+set -euo pipefail
+
+# ZKC Deployment Testing Script
+# Based on the existing manage script infrastructure
+
+# Load environment configuration from TOML files (reusing from manage script)
+load_env_var() {
+    local key="$1"
+    local var_name="$2"
+    local file="${3:-deployment.toml}"
+    
+    # Try secrets file first if it exists
+    if [[ -f "deployment_secrets.toml" ]] && [[ "$file" == "deployment_secrets.toml" ]]; then
+        value=$(python3 -c "
+import tomlkit
+try:
+    doc = tomlkit.load(open('deployment_secrets.toml'))
+    print(doc['deployment']['$CHAIN_KEY'].get('$key', ''))
+except:
+    print('')
+" 2>/dev/null || echo "")
+        if [[ -n "$value" ]]; then
+            export "$var_name"="$value"
+            return
+        fi
+    fi
+    
+    # Fallback to main deployment.toml
+    value=$(python3 -c "
+import tomlkit
+try:
+    doc = tomlkit.load(open('deployment.toml'))
+    print(doc['deployment']['$CHAIN_KEY'].get('$key', ''))
+except:
+    print('')
+" 2>/dev/null || echo "")
+    if [[ -n "$value" ]]; then
+        export "$var_name"="$value"
+    fi
+}
+
+# Check prerequisites (reusing from manage script)
+check_prerequisites() {
+    echo "Checking prerequisites..."
+    
+    command -v python3 >/dev/null 2>&1 || { 
+        echo "❌ python3 is required but not installed"
+        exit 1
+    }
+    
+    python3 -c "import tomlkit" 2>/dev/null || { 
+        echo "❌ tomlkit is required: pip install tomlkit"
+        exit 1
+    }
+    
+    command -v cast >/dev/null 2>&1 || { 
+        echo "❌ cast is required: install Foundry"
+        exit 1
+    }
+    
+    command -v forge >/dev/null 2>&1 || { 
+        echo "❌ forge is required: install Foundry"
+        exit 1
+    }
+    
+    echo "✅ All prerequisites satisfied"
+}
+
+# Run deployment tests
+run_deployment_tests() {
+    echo "🧪 Running deployment tests..."
+    
+    local test_args=()
+    
+    # Add fork URL for testing against live network
+    if [[ -n "${RPC_URL:-}" ]]; then
+        test_args+=("--fork-url" "$RPC_URL")
+        echo "🔗 Testing against network: $RPC_URL"
+    fi
+    
+    # Add verbosity for better output
+    test_args+=("-vvv")
+    
+    # Set environment variables for the test
+    export FOUNDRY_PROFILE="${FOUNDRY_PROFILE:-deployment-test}"
+    export CHAIN_KEY="${CHAIN_KEY}"
+    if [[ -n "${STACK_TAG:-}" ]]; then
+        export STACK_TAG="${STACK_TAG}"
+    fi
+    
+    # Run the specific deployment test
+    echo "📋 Running deployment validation tests..."
+    local cmd="forge test --match-contract DeploymentTest"
+    
+    # Add test arguments
+    for arg in "${test_args[@]}"; do
+        cmd="$cmd $arg"
+    done
+    
+    echo "📝 Running: $cmd"
+    eval "$cmd"
+}
+
+# Print usage information
+usage() {
+    cat << EOF
+Usage: $0 [options]
+
+Description:
+  Run deployment tests to validate that deployed contracts match the configuration
+  in deployment.toml and that all contracts are properly deployed and configured.
+
+Options:
+  -h, --help             Show this help message
+
+Environment Variables:
+  CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia)
+  STACK_TAG              Optional. Stack tag for environment variants (e.g., 'staging')
+  FOUNDRY_PROFILE        Optional. Foundry profile to use (default: deployment-test)
+  
+Examples:
+  # Test anvil deployment
+  CHAIN_KEY=anvil ./script/test
+  
+  # Test Ethereum Sepolia deployment
+  CHAIN_KEY=ethereum-sepolia ./script/test
+  
+  # Test Ethereum Mainnet deployment
+  CHAIN_KEY=ethereum-mainnet ./script/test
+  
+  # Test with custom foundry profile
+  FOUNDRY_PROFILE=custom CHAIN_KEY=anvil ./script/test
+
+Notes:
+  - Network configuration is loaded from deployment.toml and deployment_secrets.toml
+  - Tests run against live network using --fork-url
+  - Only contracts with addresses set in deployment.toml are tested
+  - Tests are designed to be non-destructive (read-only operations)
+EOF
+}
+
+# Main execution logic
+main() {
+    echo "🧪 ZKC Deployment Test Runner"
+    echo "============================="
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "❌ Unknown option: $1"
+                usage
+                exit 1
+                ;;
+        esac
+    done
+    
+    # Check prerequisites
+    check_prerequisites
+    
+    # Required environment variable
+    if [[ -z "${CHAIN_KEY:-}" ]]; then
+        echo "❌ CHAIN_KEY environment variable is required"
+        echo "Example: CHAIN_KEY=anvil ./script/test"
+        exit 1
+    fi
+    
+    echo "🌐 Chain: $CHAIN_KEY"
+    if [[ -n "${STACK_TAG:-}" ]]; then
+        echo "🏷️  Stack: $STACK_TAG"
+    fi
+    
+    # Load configuration from TOML files
+    echo "📋 Loading configuration..."
+    load_env_var "rpc-url" "RPC_URL" "deployment_secrets.toml"
+    load_env_var "id" "CHAIN_ID"
+    
+    # Verify required configuration
+    if [[ -z "${RPC_URL:-}" ]]; then
+        echo "❌ RPC URL not configured for $CHAIN_KEY"
+        echo "Add rpc-url to deployment_secrets.toml or set RPC_URL environment variable"
+        exit 1
+    fi
+    
+    if [[ -z "${CHAIN_ID:-}" ]]; then
+        echo "❌ Chain ID not configured for $CHAIN_KEY"
+        exit 1
+    fi
+    
+    # Verify chain ID matches RPC
+    echo "🔍 Verifying chain configuration..."
+    actual_chain_id=$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null || echo "")
+    if [[ "$actual_chain_id" != "$CHAIN_ID" ]]; then
+        echo "❌ Chain ID mismatch:"
+        echo "   Expected: $CHAIN_ID (from deployment.toml)"
+        echo "   Actual:   $actual_chain_id (from RPC)"
+        exit 1
+    fi
+    echo "✅ Chain ID verified: $CHAIN_ID"
+    
+    # Run the deployment tests
+    run_deployment_tests
+    
+    echo ""
+    echo "✅ Deployment tests completed successfully!"
+    echo "============================="
+}
+
+# Run main function with all arguments
+main "$@"
