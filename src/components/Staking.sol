@@ -120,9 +120,6 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
         // Mark as withdrawing and checkpoint (powers drop to 0)
         _initiateUnstakeAndCheckpoint(tokenId);
-
-        uint256 withdrawableAt = block.timestamp + Constants.WITHDRAWAL_PERIOD;
-        emit UnstakeInitiated(tokenId, msg.sender, withdrawableAt);
     }
 
     /// @inheritdoc IStaking
@@ -244,6 +241,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
             rewardDelta
         );
 
+        uint256 withdrawableAt = newStake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
+        emit UnstakeInitiated(tokenId, owner, withdrawableAt);
     }
 
     function _burnStake(uint256 tokenId) internal {
