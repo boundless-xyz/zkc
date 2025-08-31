@@ -41,7 +41,7 @@ library StakeManager {
     {
         return Checkpoints.StakeInfo({
             amount: currentStake.amount + additionalAmount,
-            withdrawalRequestedAt: 0 // Reset withdrawal when adding stake
+            withdrawalRequestedAt: 0
         });
     }
 

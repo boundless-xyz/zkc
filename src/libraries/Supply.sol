@@ -190,7 +190,7 @@ library Supply {
     /// @dev This is a transient storage cache, so it is not persisted across blocks.
     ///      NOTE: We do not need to clear the cache after use, as supply values are deterministic.
     /// @dev Apply a prefix to reduce risk of collisions with future tstore features.
-    ///      Prefix is ASCII "ZKCEMISSIONS" (0x5A4B43454D495353494F4E53) padded to 32 bytes.
+    ///      Prefix is "ZKCEMISSIONS" hex encoded (0x5A4B43454D495353494F4E53) padded to 32 bytes.
     ///      Leaves 20 bytes for epoch (max epoch: 2^160 - 1).
     bytes32 private constant CACHE_PREFIX = 0x5A4B43454D495353494F4E530000000000000000000000000000000000000000;
 
