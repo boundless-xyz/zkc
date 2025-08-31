@@ -51,6 +51,9 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     }
 
     /// @notice Calculate the rewards a user is owed for the given epochs
+    /// @dev Unlike claimRewards(), this allows duplicate epochs and current/future epochs.
+    ///      Duplicate epochs will return the same reward amount.
+    ///      Current/future epochs will return zero rewards.
     /// @param user The user address
     /// @param epochs The epochs to calculate rewards for
     /// @return rewards The rewards owed

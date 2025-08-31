@@ -30,6 +30,7 @@ library StakeManager {
     }
 
     /// @notice Create a stake with added amount (top-up)
+    /// @dev Only allowed for active stakes, not those with pending withdrawal
     /// @param currentStake Existing stake information
     /// @param additionalAmount Amount to add to the stake
     /// @return Updated StakeInfo with combined amount
