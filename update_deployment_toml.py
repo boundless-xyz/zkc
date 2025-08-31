@@ -29,12 +29,15 @@ def main():
     parser.add_argument('--zkc', help='ZKC proxy address')
     parser.add_argument('--zkc-impl', help='ZKC implementation address')
     parser.add_argument('--zkc-impl-prev', help='Previous ZKC implementation address')
+    parser.add_argument('--zkc-deployer', help='ZKC deployer address')
     parser.add_argument('--vezkc', help='veZKC proxy address')
     parser.add_argument('--vezkc-impl', help='veZKC implementation address')
     parser.add_argument('--vezkc-impl-prev', help='Previous veZKC implementation address')
+    parser.add_argument('--vezkc-deployer', help='veZKC deployer address')
     parser.add_argument('--staking-rewards', help='StakingRewards proxy address')
     parser.add_argument('--staking-rewards-impl', help='StakingRewards implementation address')
     parser.add_argument('--staking-rewards-impl-prev', help='Previous StakingRewards implementation address')
+    parser.add_argument('--staking-rewards-deployer', help='StakingRewards deployer address')
     parser.add_argument('--povw-minter', help='POVW minter address')
     parser.add_argument('--staking-minter', help='Staking minter address')
     
@@ -81,12 +84,15 @@ def main():
             'zkc': args.zkc,
             'zkc_impl': args.zkc_impl,
             'zkc_impl_prev': args.zkc_impl_prev,
+            'zkc_deployer': args.zkc_deployer,
             'vezkc': args.vezkc,
             'vezkc_impl': args.vezkc_impl,
             'vezkc_impl_prev': args.vezkc_impl_prev,
+            'vezkc_deployer': args.vezkc_deployer,
             'staking_rewards': args.staking_rewards,
             'staking_rewards_impl': args.staking_rewards_impl,
             'staking_rewards_impl_prev': args.staking_rewards_impl_prev,
+            'staking_rewards_deployer': args.staking_rewards_deployer,
             'povw_minter': args.povw_minter,
             'staking_minter': args.staking_minter,
             'deployment_commit': args.deployment_commit,

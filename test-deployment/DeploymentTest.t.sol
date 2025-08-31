@@ -7,10 +7,10 @@ import {Vm} from "forge-std/Vm.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {IERC1967} from "@openzeppelin/contracts/interfaces/IERC1967.sol";
 
-import {ZKC} from "../../src/ZKC.sol";
-import {veZKC} from "../../src/veZKC.sol";
-import {StakingRewards} from "../../src/rewards/StakingRewards.sol";
-import {ConfigLoader, DeploymentConfig} from "../../script/Config.s.sol";
+import {ZKC} from "../src/ZKC.sol";
+import {veZKC} from "../src/veZKC.sol";
+import {StakingRewards} from "../src/rewards/StakingRewards.sol";
+import {ConfigLoader, DeploymentConfig} from "../script/Config.s.sol";
 
 /// @title DeploymentTest
 /// @notice Test designed to be run against a chain with an active deployment of ZKC contracts.

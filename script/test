@@ -91,7 +91,7 @@ run_deployment_tests() {
     
     # Run the specific deployment test
     echo "📋 Running deployment validation tests..."
-    local cmd="forge test --match-contract DeploymentTest"
+    local cmd="forge test"
     
     # Add test arguments
     for arg in "${test_args[@]}"; do

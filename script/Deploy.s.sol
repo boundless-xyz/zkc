@@ -75,14 +75,16 @@ contract DeployZKC is BaseDeployment {
         vm.stopBroadcast();
 
         // Update deployment.toml with deployed addresses
-        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        (, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         _updateDeploymentConfig(deploymentKey, "zkc", zkc);
         _updateDeploymentConfig(deploymentKey, "zkc-impl", implementation);
+        _updateDeploymentConfig(deploymentKey, "zkc-deployer", msg.sender);
         _updateDeploymentCommit(deploymentKey);
 
         // Sanity checks.
         ZKC zkcContract = ZKC(zkc);
         IAccessControl accessControl = IAccessControl(zkc);
+        console2.log("Deployer address: ", msg.sender);
         console2.log("Admin address: ", admin);
         console2.log("Admin role assigned: ", accessControl.hasRole(zkcContract.ADMIN_ROLE(), admin));
         console2.log("Initial Minter 1: ", zkcContract.initialMinter1());
@@ -136,11 +138,13 @@ contract DeployVeZKC is BaseDeployment {
         // Update deployment.toml
         _updateDeploymentConfig(deploymentKey, "vezkc", veZKCAddress);
         _updateDeploymentConfig(deploymentKey, "vezkc-impl", veZKCImpl);
+        _updateDeploymentConfig(deploymentKey, "vezkc-deployer", msg.sender);
         _updateDeploymentCommit(deploymentKey);
 
         // Sanity checks
         veZKC veZKCContract = veZKC(veZKCAddress);
         IAccessControl accessControl = IAccessControl(veZKCAddress);
+        console2.log("Deployer address: ", msg.sender);
         console2.log("Admin address: ", config.veZKCAdmin);
         console2.log("Admin role assigned: ", accessControl.hasRole(veZKCContract.ADMIN_ROLE(), config.veZKCAdmin));
         console2.log("ZKC token address: ", address(veZKCContract.zkcToken()));
@@ -190,11 +194,13 @@ contract DeployStakingRewards is BaseDeployment {
         // Update deployment.toml
         _updateDeploymentConfig(deploymentKey, "staking-rewards", stakingRewardsAddress);
         _updateDeploymentConfig(deploymentKey, "staking-rewards-impl", stakingRewardsImpl);
+        _updateDeploymentConfig(deploymentKey, "staking-rewards-deployer", msg.sender);
         _updateDeploymentCommit(deploymentKey);
 
         // Sanity checks
         StakingRewards stakingRewardsContract = StakingRewards(stakingRewardsAddress);
         IAccessControl accessControl = IAccessControl(stakingRewardsAddress);
+        console2.log("Deployer address: ", msg.sender);
         console2.log("Admin address: ", config.stakingRewardsAdmin);
         console2.log("Admin role assigned: ", accessControl.hasRole(stakingRewardsContract.ADMIN_ROLE(), config.stakingRewardsAdmin));
         console2.log("ZKC token address: ", address(stakingRewardsContract.zkc()));
