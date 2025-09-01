@@ -66,17 +66,36 @@ check_prerequisites() {
 
 # Create reference build for upgrades
 create_reference_build() {
+    local contract_type="$1"
     local deployed_commit
+    local commit_field
     
-    echo "Creating reference build for upgrade safety checks..."
+    # Determine which commit field to use based on contract type
+    case "$contract_type" in
+        zkc)
+            commit_field="zkc-commit"
+            ;;
+        vezkc)
+            commit_field="vezkc-commit"
+            ;;
+        staking)
+            commit_field="staking-rewards-commit"
+            ;;
+        *)
+            echo "❌ Unknown contract type: $contract_type"
+            exit 1
+            ;;
+    esac
+    
+    echo "Creating reference build for $contract_type upgrade safety checks..."
     
     # Get deployed commit from deployment.toml
     deployed_commit=$(python3 -c "
 import tomlkit
 doc = tomlkit.load(open('deployment.toml'))
-commit = doc['deployment']['$CHAIN_KEY'].get('deployment-commit', '')
+commit = doc['deployment']['$CHAIN_KEY'].get('$commit_field', '')
 if not commit:
-    raise Exception('No deployment commit found for $CHAIN_KEY')
+    raise Exception('No $commit_field found for $CHAIN_KEY')
 print(commit.strip())
 ")
     
@@ -89,7 +108,7 @@ print(commit.strip())
     echo "📦 Creating reference build from commit: $deployed_commit"
     
     # Create worktree for reference build
-    local worktree_path="../zkc-reference-${deployed_commit}"
+    local worktree_path="../${contract_type}-reference-${deployed_commit}"
     
     # Clean up existing worktree if it exists
     if [[ -d "$worktree_path" ]]; then
@@ -374,7 +393,25 @@ main() {
     
     # Create reference build for upgrade commands
     if [[ "$COMMAND" == upgrade-* ]]; then
-        create_reference_build
+        # Extract contract type from command
+        local contract_type=""
+        case "$COMMAND" in
+            upgrade-zkc)
+                contract_type="zkc"
+                ;;
+            upgrade-vezkc)
+                contract_type="vezkc"
+                ;;
+            upgrade-staking)
+                contract_type="staking"
+                ;;
+            *)
+                echo "❌ Unknown upgrade command: $COMMAND"
+                exit 1
+                ;;
+        esac
+        
+        create_reference_build "$contract_type"
         
         # Also ensure current build is clean and complete
         echo "🔨 Ensuring current build is complete..."

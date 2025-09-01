@@ -234,15 +234,6 @@ contract DeploymentTest is Test {
         assertEq(block.chainid, deployment.id, "Chain ID must match deployment configuration");
     }
     
-    function testDeploymentCommitIsSet() external view {
-        // Only require commit for mainnet deployments
-        if (deployment.id == 1) { // Ethereum mainnet
-            require(bytes(deployment.deploymentCommit).length > 0, "Deployment commit must be set for mainnet");
-        }
-    }
-    
-    // ============ Rollback Support Tests ============
-    
     function testZKCPreviousImplementationTracking() external view {
         if (deployment.zkc != address(0) && deployment.zkcImplPrev != address(0)) {
             // Verify previous implementation has bytecode (could be rolled back to)
