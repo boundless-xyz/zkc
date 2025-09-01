@@ -160,7 +160,7 @@ contract ZKC is
     /// @inheritdoc IZKC
     function getTotalPoVWEmissionsAtEpochStart(uint256 epoch) public pure returns (uint256) {
         uint256 totalEmissions = getSupplyAtEpochStart(epoch) - INITIAL_SUPPLY;
-        return (totalEmissions * POVW_ALLOCATION_BPS) / BASIS_POINTS;
+        return (totalEmissions * POVW_ALLOCATION_BPS + BASIS_POINTS - 1) / BASIS_POINTS;
     }
 
     /// @inheritdoc IZKC
@@ -177,12 +177,16 @@ contract ZKC is
     /// @inheritdoc IZKC
     function getPoVWEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
-        return (totalEmission * POVW_ALLOCATION_BPS) / BASIS_POINTS;
+        // Round up povw emissions. Combined with staking emissions rounding down,
+        // this ensures we don't leave any dust .
+        return (totalEmission * POVW_ALLOCATION_BPS + BASIS_POINTS - 1) / BASIS_POINTS;
     }
 
     /// @inheritdoc IZKC
     function getStakingEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
+        // Round down staking emissions. Combined with povw emissions rounding up,
+        // this ensures we don't leave any dust.
         return (totalEmission * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
