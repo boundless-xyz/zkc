@@ -250,9 +250,16 @@ library Checkpoints {
             : Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
 
         // Create new user point with deltas applied
+        int256 newVotingAmount = int256(lastUserPoint.votingAmount) + votingDelta;
+        int256 newRewardAmount = int256(lastUserPoint.rewardAmount) + rewardDelta;
+        
+        // Sanity check for underflow, which would inflate power on cast to uint256
+        require(newVotingAmount >= 0, "Checkpoints: voting amount underflow");
+        require(newRewardAmount >= 0, "Checkpoints: reward amount underflow");
+        
         Point memory newUserPoint = Point({
-            votingAmount: uint256(int256(lastUserPoint.votingAmount) + votingDelta),
-            rewardAmount: uint256(int256(lastUserPoint.rewardAmount) + rewardDelta),
+            votingAmount: uint256(newVotingAmount),
+            rewardAmount: uint256(newRewardAmount),
             updatedAt: block.timestamp
         });
 
@@ -267,9 +274,16 @@ library Checkpoints {
             ? globalStorage.globalPointHistory[globalEpoch]
             : Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
 
+        int256 newGlobalVotingAmount = int256(lastGlobalPoint.votingAmount) + votingDelta;
+        int256 newGlobalRewardAmount = int256(lastGlobalPoint.rewardAmount) + rewardDelta;
+        
+        // Sanity check for underflow, which would inflate power on cast to uint256
+        require(newGlobalVotingAmount >= 0, "Checkpoints: global voting amount underflow");
+        require(newGlobalRewardAmount >= 0, "Checkpoints: global reward amount underflow");
+        
         Point memory newGlobalPoint = Point({
-            votingAmount: uint256(int256(lastGlobalPoint.votingAmount) + votingDelta),
-            rewardAmount: uint256(int256(lastGlobalPoint.rewardAmount) + rewardDelta),
+            votingAmount: uint256(newGlobalVotingAmount),
+            rewardAmount: uint256(newGlobalRewardAmount),
             updatedAt: block.timestamp
         });
 
@@ -298,8 +312,13 @@ library Checkpoints {
             : Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
 
         // Create new point with updated voting amount
+        int256 newVotingAmount = int256(lastPoint.votingAmount) + votingDelta;
+        
+        // Sanity check for underflow, which would inflate power on cast to uint256
+        require(newVotingAmount >= 0, "Checkpoints: voting amount underflow");
+        
         Point memory newPoint = Point({
-            votingAmount: uint256(int256(lastPoint.votingAmount) + votingDelta),
+            votingAmount: uint256(newVotingAmount),
             rewardAmount: lastPoint.rewardAmount, // Keep reward amount unchanged
             updatedAt: block.timestamp
         });
@@ -325,9 +344,14 @@ library Checkpoints {
             : Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
 
         // Create new point with updated reward amount
+        int256 newRewardAmount = int256(lastPoint.rewardAmount) + rewardDelta;
+        
+        // Sanity check for underflow, which would inflate power on cast to uint256
+        require(newRewardAmount >= 0, "Checkpoints: reward amount underflow");
+        
         Point memory newPoint = Point({
             votingAmount: lastPoint.votingAmount, // Keep voting amount unchanged
-            rewardAmount: uint256(int256(lastPoint.rewardAmount) + rewardDelta),
+            rewardAmount: uint256(newRewardAmount),
             updatedAt: block.timestamp
         });
 
@@ -373,9 +397,16 @@ library Checkpoints {
                 : Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
 
             // Create new user point with deltas applied
+            int256 newVotingAmount = int256(lastUserPoint.votingAmount) + userVotingDelta;
+            int256 newRewardAmount = int256(lastUserPoint.rewardAmount) + userRewardDelta;
+            
+            // Sanity check for underflow, which would inflate power on cast to uint256
+            require(newVotingAmount >= 0, "Checkpoints: voting amount underflow");
+            require(newRewardAmount >= 0, "Checkpoints: reward amount underflow");
+            
             Point memory newUserPoint = Point({
-                votingAmount: uint256(int256(lastUserPoint.votingAmount) + userVotingDelta),
-                rewardAmount: uint256(int256(lastUserPoint.rewardAmount) + userRewardDelta),
+                votingAmount: uint256(newVotingAmount),
+                rewardAmount: uint256(newRewardAmount),
                 updatedAt: block.timestamp
             });
 
