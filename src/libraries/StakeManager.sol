@@ -75,6 +75,15 @@ library StakeManager {
         return isWithdrawing(stake) && block.timestamp >= stake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
     }
 
+    /// @notice Validate that withdrawal can be completed, reverting with appropriate error
+    /// @param stake Stake information to check
+    function validateWithdrawalCompletion(Checkpoints.StakeInfo memory stake) internal view {
+        if (!isWithdrawing(stake)) revert WithdrawalNotInitiated();
+        if (block.timestamp < stake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD) {
+            revert WithdrawalPeriodNotComplete();
+        }
+    }
+
     /// @notice Validate staking parameters
     /// @param amount Amount to stake
     /// @param userActivePosition User's current active position (should be 0)
@@ -102,8 +111,7 @@ library StakeManager {
     /// @param stake Current stake information
     function validateUnstakeCompletion(uint256 tokenId, Checkpoints.StakeInfo memory stake) internal view {
         if (tokenId == 0) revert NoActivePosition();
-        if (!isWithdrawing(stake)) revert WithdrawalNotInitiated();
-        if (!canCompleteWithdrawal(stake)) revert WithdrawalPeriodNotComplete();
+        validateWithdrawalCompletion(stake);
     }
 
     /// @notice Transfer ZKC tokens from user to contract

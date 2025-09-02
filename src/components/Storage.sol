@@ -31,11 +31,6 @@ abstract contract Storage {
     /// @notice Counter for generating unique NFT token IDs
     uint256 internal _currentTokenId;
 
-    /// @notice Array of token IDs owned by each account (for enumeration)
-    mapping(address account => uint256[]) internal _ownedTokens;
-
-    /// @notice Mapping from token ID to its index in the owner's token list
-    mapping(uint256 tokenId => uint256) internal _ownedTokensIndex;
 
     /// @notice Nonces for EIP-712 signatures (shared between vote and reward delegation)
     mapping(address owner => uint256) internal _nonces;

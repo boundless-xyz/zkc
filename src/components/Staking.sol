@@ -39,7 +39,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         override(ERC721Upgradeable, IERC165)
         returns (bool)
     {
-        return interfaceId == type(IERC721).interfaceId || super.supportsInterface(interfaceId);
+        return interfaceId == type(IERC721).interfaceId || interfaceId == type(IStaking).interfaceId || super.supportsInterface(interfaceId);
     }
 
     /// @inheritdoc IStaking
