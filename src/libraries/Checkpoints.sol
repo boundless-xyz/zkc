@@ -346,8 +346,8 @@ library Checkpoints {
     /// @param newStake New stake state
     /// @param isVoteDelegated Whether votes are delegated (to someone other than self)
     /// @param isRewardDelegated Whether rewards are delegated (to someone other than self)
-    /// @return userVotingDelta The voting power delta for the user (for delegation updates)
-    /// @return userRewardDelta The reward power delta for the user (for delegation updates)
+    /// @return The voting power delta for the user (for delegation updates)
+    /// @return The reward power delta for the user (for delegation updates)
     function checkpointWithDelegation(
         UserCheckpointStorage storage userStorage,
         GlobalCheckpointStorage storage globalStorage,
@@ -356,13 +356,13 @@ library Checkpoints {
         StakeInfo memory newStake,
         bool isVoteDelegated,
         bool isRewardDelegated
-    ) internal returns (int256 userVotingDelta, int256 userRewardDelta) {
+    ) internal returns (int256, int256) {
         // Calculate the change in stake amount
         int256 stakeDelta = int256(newStake.amount) - int256(oldStake.amount);
 
         // Calculate deltas for user's own checkpoint
-        userVotingDelta = isVoteDelegated ? int256(0) : stakeDelta;
-        userRewardDelta = isRewardDelegated ? int256(0) : stakeDelta;
+        int256 userVotingDelta = isVoteDelegated ? int256(0) : stakeDelta;
+        int256 userRewardDelta = isRewardDelegated ? int256(0) : stakeDelta;
 
         // If either votes or rewards are not delegated, update user's checkpoint with deltas
         if (userVotingDelta != 0 || userRewardDelta != 0) {
