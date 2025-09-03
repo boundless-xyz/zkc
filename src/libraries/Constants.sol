@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 /// @title Constants Library
 /// @notice Shared constants used across the veZKC system

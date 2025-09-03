@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 /// @title IZKC
 /// @notice Interface for the ZKC token with epoch-based emissions

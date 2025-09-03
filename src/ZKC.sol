@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PermitUpgradeable} from
@@ -54,10 +54,10 @@ contract ZKC is
     uint256 public constant STAKING_ALLOCATION_BPS = 2500;
 
     /// @notice Role identifier for PoVW reward minter
-    bytes32 public immutable POVW_MINTER_ROLE = keccak256("POVW_MINTER_ROLE");
+    bytes32 public constant POVW_MINTER_ROLE = keccak256("POVW_MINTER_ROLE");
 
     /// @notice Role identifier for staking reward minter
-    bytes32 public immutable STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
+    bytes32 public constant STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
 
     /// @notice Timestamp when epoch 0 started
     uint256 public epoch0StartTime;
