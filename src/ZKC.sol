@@ -104,8 +104,8 @@ contract ZKC is
         require(recipients.length == amounts.length);
         require(msg.sender == initialMinter1 || msg.sender == initialMinter2);
 
-        uint256 minted = 0;
-        for (uint256 i = 0; i < recipients.length; i++) {
+        uint256 minted;
+        for (uint256 i; i < recipients.length; ++i) {
             uint256 amount = amounts[i];
             _mint(recipients[i], amount);
             minted += amount;

@@ -63,7 +63,7 @@ library Checkpoints {
         view
         returns (uint256)
     {
-        uint256 min = 0;
+        uint256 min;
         uint256 max = self.userPointEpoch[user];
 
         // Shortcut to find the most recent checkpoint, which if claims
@@ -93,7 +93,7 @@ library Checkpoints {
         view
         returns (uint256)
     {
-        uint256 min = 0;
+        uint256 min;
         uint256 max = self.globalPointEpoch;
 
         // Shortcut to find the most recent checkpoint, which if claims

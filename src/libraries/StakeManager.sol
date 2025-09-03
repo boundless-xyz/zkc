@@ -75,11 +75,13 @@ library StakeManager {
         return isWithdrawing(stake) && block.timestamp >= stake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
     }
 
-    /// @notice Validate staking parameters
+    /// @notice Validate conditions for creating a new staking position
     /// @param amount Amount to stake
     /// @param userActivePosition User's current active position (should be 0)
     function validateStake(uint256 amount, uint256 userActivePosition) internal pure {
         if (amount == 0) revert ZeroAmount();
+        // User still has an active position when withdrawing, so withdrawing state
+        // is also covered by this check.
         if (userActivePosition != 0) revert UserAlreadyHasActivePosition();
     }
 
