@@ -15,6 +15,7 @@ abstract contract Clock is IERC6372 {
         return uint48(block.timestamp);
     }
 
+    /// @inheritdoc IERC6372
     function CLOCK_MODE() public pure virtual override returns (string memory) {
         return "mode=timestamp";
     }

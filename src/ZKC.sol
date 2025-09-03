@@ -73,6 +73,13 @@ contract ZKC is
         _disableInitializers();
     }
 
+    /// @notice Initialize the ZKC token contract with initial minting parameters
+    /// @dev Sets up initial minters and their allocations. Can only be called once during deployment.
+    /// @param _initialMinter1 Address of the first initial minter
+    /// @param _initialMinter2 Address of the second initial minter
+    /// @param _initialMinter1Amount Amount that the first minter is allowed to mint
+    /// @param _initialMinter2Amount Amount that the second minter is allowed to mint
+    /// @param _owner Address that will be granted the admin role
     function initialize(
         address _initialMinter1,
         address _initialMinter2,
@@ -85,7 +92,7 @@ contract ZKC is
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
-        require(_initialMinter1Amount + _initialMinter2Amount == INITIAL_SUPPLY);
+        require(_initialMinter1Amount + _initialMinter2Amount == INITIAL_SUPPLY, "Initial minter amounts must equal initial supply");
 
         initialMinter1 = _initialMinter1;
         initialMinter2 = _initialMinter2;
@@ -94,6 +101,7 @@ contract ZKC is
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
     }
 
+    /// @notice Initialize version 2 of the contract with epoch start time
     /// @dev On upgrade, set the epoch 0 start time to initiate the start of the first epoch.
     function initializeV2() public reinitializer(2) {
         epoch0StartTime = block.timestamp;
@@ -101,8 +109,8 @@ contract ZKC is
 
     /// @inheritdoc IZKC
     function initialMint(address[] calldata recipients, uint256[] calldata amounts) public {
-        require(recipients.length == amounts.length);
-        require(msg.sender == initialMinter1 || msg.sender == initialMinter2);
+        require(recipients.length == amounts.length, "Recipients and amounts arrays must have equal length");
+        require(msg.sender == initialMinter1 || msg.sender == initialMinter2, "Caller must be authorized initial minter");
 
         uint256 minted = 0;
         for (uint256 i = 0; i < recipients.length; i++) {
@@ -205,6 +213,7 @@ contract ZKC is
     /// @dev Does not include rewards that will be emitted at the end of the current epoch.
     /// @dev Overrides ERC20 totalSupply to return epoch-based theoretical supply, however
     ///      not all tokens may have been claimed (and thus minted) by recipients yet.
+    /// @return The theoretical total supply of ZKC tokens at the current epoch
     function totalSupply() public view override returns (uint256) {
         return getSupplyAtEpochStart(getCurrentEpoch());
     }
@@ -214,5 +223,8 @@ contract ZKC is
         return super.totalSupply();
     }
 
+    /// @notice Authorize contract upgrades (UUPS pattern)
+    /// @dev Only accounts with ADMIN_ROLE can authorize upgrades
+    /// @param newImplementation Address of the new implementation contract
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
 }

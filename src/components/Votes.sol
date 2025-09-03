@@ -17,30 +17,37 @@ abstract contract Votes is Storage, Clock, IVotes {
     /// @dev EIP-712 type hash for vote delegation
     bytes32 private constant VOTE_DELEGATION_TYPEHASH =
         keccak256("VoteDelegation(address delegatee,uint256 nonce,uint256 expiry)");
+    
+    /// @inheritdoc OZIVotes
     function getVotes(address account) public view override returns (uint256) {
         return VotingPower.getVotes(_userCheckpoints, account);
     }
 
+    /// @inheritdoc OZIVotes
     function getPastVotes(address account, uint256 timepoint) public view override returns (uint256) {
         _requirePastTimepoint(timepoint);
         return VotingPower.getPastVotes(_userCheckpoints, account, timepoint);
     }
 
+    /// @inheritdoc OZIVotes
     function getPastTotalSupply(uint256 timepoint) public view override returns (uint256) {
         _requirePastTimepoint(timepoint);
         return VotingPower.getPastTotalSupply(_globalCheckpoints, timepoint);
     }
 
+    /// @inheritdoc OZIVotes
     function delegates(address account) public view virtual override returns (address) {
         address delegatee = _voteDelegatee[account];
         return delegatee == address(0) ? account : delegatee;
     }
 
+    /// @inheritdoc OZIVotes
     function delegate(address delegatee) public override {
         address account = _msgSender();
         _delegate(account, delegatee);
     }
 
+    /// @inheritdoc OZIVotes
     function delegateBySig(
         address delegatee,
         uint256 nonce,
@@ -67,7 +74,6 @@ abstract contract Votes is Storage, Clock, IVotes {
         _delegate(signer, delegatee);
     }
 
-    /// @dev Handle delegation checkpointing for single NFT per user
     function _delegate(address account, address delegatee) internal {
         // Check if user has an active position
         uint256 tokenId = _userActivePosition[account];
@@ -107,7 +113,6 @@ abstract contract Votes is Storage, Clock, IVotes {
         emit DelegateVotesChanged(delegatee, newDelegateVotesBefore, newDelegateVotesAfter);
     }
 
-    /// @dev Handle delegation checkpointing for single NFT per user
     function _checkpointDelegation(Checkpoints.StakeInfo memory stake, address oldDelegatee, address newDelegatee) internal {
         // Skip if delegating to same address (this should already be checked by caller)
         if (oldDelegatee == newDelegatee) return;

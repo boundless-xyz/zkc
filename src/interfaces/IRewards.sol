@@ -9,7 +9,10 @@ interface IRewards {
     error CannotDelegateRewardsWhileWithdrawing();
     error RewardsExpiredSignature(uint256 expiry);
     
-    // Events
+    /// @notice Emitted when an account changes their reward delegation
+    /// @param delegator The account that changed their delegation
+    /// @param fromDelegate The previous delegate (or the delegator if they were self-delegated)
+    /// @param toDelegate The new delegate (or the delegator if they are self-delegating)
     event RewardDelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate);
 
     /// @notice Get current staking rewards power for an account

@@ -32,6 +32,10 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         return super._update(to, tokenId, auth);
     }
 
+    /// @notice Check if contract supports a given interface
+    /// @dev Implements ERC165 interface detection for IERC721 and inherited interfaces
+    /// @param interfaceId The interface identifier to check
+    /// @return bool True if the interface is supported
     function supportsInterface(bytes4 interfaceId)
         public
         view
