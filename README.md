@@ -414,21 +414,15 @@ Emitted when operator approval is set (though transfers are disabled).
 event ApprovalForAll(address indexed owner, address indexed operator, bool approved)
 ```
 
-## Deployments
+# Deployments
 
-### ZKC
+## ZKC
 
-**Address**: `0x000006c2A22ff4A44ff1f5d0F2ed65F781F55555`  
-**Network**: Ethereum Mainnet  
-**Deployed by**: `0x139Ce48CD89155a443786FFBE32185Bb50Ae2b6`
+**Mainnet**: `0x000006c2A22ff4A44ff1f5d0F2ed65F781F55555`  
+**(Bridged) Base**: `0xAA61bB7777bD01B684347961918f1E07fBbCe7CF`  
 
-#### Deployment Configuration
-```bash
-export ADMIN="0x3886eEaf95AA2bDDdf0C924925e290291f70447F"
-export INITIAL_MINTER_1="0x139Ce48CD89155a443786FFBE32185Bb50Ae2b69"
-export INITIAL_MINTER_2="0x48a0d6757F7AFcf7E24cc8329B18A4d99c1Aa11C"
-export TOTAL_INITIAL_SUPPLY="1000000000000000000000000000"
-export INITIAL_MINTER_1_AMOUNT="550000000000000000000000000"
-export INITIAL_MINTER_2_AMOUNT="450000000000000000000000000"
-export SALT="0x139ce48cd89155a443786ffbe32185bb50ae2b69f4aee41b0b7eab02dfb6ff33"
-```
+# Testnet Deployments
+## ZKC
+
+**Sepolia**: `0xb4FC69A452D09D2662BD8C3B5BB756902260aE28`  
+**(Bridged) Base Sepolia**: `0x8d4dA4b7938471A919B08F941461b2ed1679d7bb`
