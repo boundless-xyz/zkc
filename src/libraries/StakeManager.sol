@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Checkpoints} from "./Checkpoints.sol";
 import {Constants} from "./Constants.sol";
+import {IStaking} from "../interfaces/IStaking.sol";
 
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -13,15 +14,6 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 library StakeManager {
     using SafeERC20 for IERC20;
 
-    // Custom errors
-    error ZeroAmount();
-    error UserAlreadyHasActivePosition();
-    error CannotAddToWithdrawingPosition();
-    error NoActivePosition();
-    error WithdrawalAlreadyInitiated();
-    error WithdrawalNotInitiated();
-    error WithdrawalPeriodNotComplete();
-
     /// @notice Create a new stake info struct
     /// @param amount Amount of ZKC to stake
     /// @return New StakeInfo with specified amount and no withdrawal
@@ -30,6 +22,7 @@ library StakeManager {
     }
 
     /// @notice Create a stake with added amount (top-up)
+    /// @dev Only allowed for active stakes, not those with pending withdrawal
     /// @param currentStake Existing stake information
     /// @param additionalAmount Amount to add to the stake
     /// @return Updated StakeInfo with combined amount
@@ -40,7 +33,7 @@ library StakeManager {
     {
         return Checkpoints.StakeInfo({
             amount: currentStake.amount + additionalAmount,
-            withdrawalRequestedAt: 0 // Reset withdrawal when adding stake
+            withdrawalRequestedAt: 0
         });
     }
 
@@ -88,22 +81,22 @@ library StakeManager {
     /// @param amount Amount to stake
     /// @param userActivePosition User's current active position (should be 0)
     function validateStake(uint256 amount, uint256 userActivePosition) internal pure {
-        if (amount == 0) revert ZeroAmount();
-        if (userActivePosition != 0) revert UserAlreadyHasActivePosition();
+        if (amount == 0) revert IStaking.ZeroAmount();
+        if (userActivePosition != 0) revert IStaking.UserAlreadyHasActivePosition();
     }
 
     /// @notice Validate add to stake parameters
     /// @param amount Amount to add
     /// @param stake Current stake information
     function validateAddToStake(uint256 amount, Checkpoints.StakeInfo memory stake) internal pure {
-        if (amount == 0) revert ZeroAmount();
-        if (isWithdrawing(stake)) revert CannotAddToWithdrawingPosition();
+        if (amount == 0) revert IStaking.ZeroAmount();
+        if (isWithdrawing(stake)) revert IStaking.CannotAddToWithdrawingPosition();
     }
 
     /// @notice Validate withdrawal initiation
     /// @param stake Current stake information
     function validateWithdrawalInitiation(Checkpoints.StakeInfo memory stake) internal pure {
-        if (isWithdrawing(stake)) revert WithdrawalAlreadyInitiated();
+        if (isWithdrawing(stake)) revert IStaking.WithdrawalAlreadyInitiated();
     }
 
     /// @notice Validate unstaking completion

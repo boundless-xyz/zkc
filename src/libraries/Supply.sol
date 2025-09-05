@@ -29,12 +29,12 @@ library Supply {
     uint256 public constant Y8_R_PER_EPOCH = 1000162424190707866; // Year 8+: 3.000% annual
 
     /// @dev Year 8 and beyond use the minimum 3% rate
-    uint256 public constant FINAL_R_PER_EPOCH = 1000162424190707866; // 3.000% annual (minimum)
+    uint256 public constant FINAL_R_PER_EPOCH = Y8_R_PER_EPOCH;
 
     /// @notice Precomputed supply values at year boundaries for optimization
     /// @dev These values represent the total supply at the START of each year, where a year
     ///      is defined as 182 epochs.
-    uint256 public constant SUPPLY_YEAR_0 = 1000000000000000000000000000; // Initial supply
+    uint256 public constant SUPPLY_YEAR_0 = INITIAL_SUPPLY;
     uint256 public constant SUPPLY_YEAR_1 = 1069999999999998184000000000; // Supply at epoch 182
     uint256 public constant SUPPLY_YEAR_2 = 1139549999999995737640000000; // Supply at epoch 364
     uint256 public constant SUPPLY_YEAR_3 = 1207922999999993680269850000; // Supply at epoch 546
@@ -51,20 +51,8 @@ library Supply {
     function getGrowthFactor(uint256 epoch) internal pure returns (uint256) {
         if (epoch == 0) return SCALE; // No growth for epoch 0
 
-        // Determine which year this epoch falls into (0-indexed)
-        uint256 year = epoch / EPOCHS_PER_YEAR;
-
-        if (year == 0) return Y0_R_PER_EPOCH;
-        if (year == 1) return Y1_R_PER_EPOCH;
-        if (year == 2) return Y2_R_PER_EPOCH;
-        if (year == 3) return Y3_R_PER_EPOCH;
-        if (year == 4) return Y4_R_PER_EPOCH;
-        if (year == 5) return Y5_R_PER_EPOCH;
-        if (year == 6) return Y6_R_PER_EPOCH;
-        if (year == 7) return Y7_R_PER_EPOCH;
-
-        // Year 8 and beyond use the minimum rate
-        return FINAL_R_PER_EPOCH;
+        uint256 year = getYearForEpoch(epoch);
+        return _getGrowthFactorForYear(year);
     }
 
     /// @notice Calculate the total supply at the start of a given epoch
@@ -74,7 +62,7 @@ library Supply {
         if (epoch == 0) return SUPPLY_YEAR_0;
 
         // Determine which year this epoch falls into
-        uint256 year = epoch / EPOCHS_PER_YEAR;
+        uint256 year = getYearForEpoch(epoch);
 
         // Start from the precomputed supply at the beginning of this year
         uint256 supply = _getSupplyAtYearBoundary(year);
@@ -190,6 +178,7 @@ library Supply {
     /// @dev This is a transient storage cache, so it is not persisted across blocks.
     ///      NOTE: We do not need to clear the cache after use, as supply values are deterministic.
     /// @dev Apply a prefix to reduce risk of collisions with future tstore features.
+    ///      Prefix is "ZKCEMISSIONS" hex encoded (0x5A4B43454D495353494F4E53) padded to 32 bytes.
     ///      Leaves 20 bytes for epoch (max epoch: 2^160 - 1).
     bytes32 private constant CACHE_PREFIX = 0x5A4B43454D495353494F4E530000000000000000000000000000000000000000;
 

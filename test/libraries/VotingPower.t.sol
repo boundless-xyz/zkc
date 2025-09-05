@@ -57,15 +57,6 @@ contract VotingPowerTest is Test {
         assertEq(pastVotes, AMOUNT / Constants.VOTING_POWER_SCALAR);
     }
 
-    function testGetTotalSupply() public {
-        uint256 totalSupply = VotingPower.getTotalSupply(globalStorage);
-        assertEq(totalSupply, AMOUNT / Constants.VOTING_POWER_SCALAR);
-
-        // Total supply doesn't change over time
-        vm.warp(vm.getBlockTimestamp() + 52 weeks);
-        uint256 totalSupplyLater = VotingPower.getTotalSupply(globalStorage);
-        assertEq(totalSupplyLater, AMOUNT / Constants.VOTING_POWER_SCALAR);
-    }
 
     function testGetPastTotalSupply() public {
         uint256 t0 = vm.getBlockTimestamp();

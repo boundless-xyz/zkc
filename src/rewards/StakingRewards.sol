@@ -37,10 +37,14 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
+        require(_zkc != address(0), "ZKC cannot be zero address");
+        require(_veZKC != address(0), "veZKC cannot be zero address");
+        require(_admin != address(0), "Admin cannot be zero address");
+        
         zkc = ZKC(_zkc);
         veZKC = IRewards(_veZKC);
 
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(ADMIN_ROLE, _admin);
     }
 
     /// @notice Claim rewards for the given epochs
@@ -50,7 +54,11 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         return _claim(msg.sender, epochs);
     }
 
-    /// @notice Calculate the rewards a user is owed for the given epochs
+    /// @notice Calculate the rewards a user is owed for the given epochs. If the epoch has not ended yet, it will return zero rewards.
+    /// @dev Unlike claimRewards(), this allows duplicate epochs and current/future epochs.
+    ///      Callers should validate epochs before calling this function.
+    ///      Duplicate epochs will return the same reward amount.
+    ///      Current/future epochs will return zero rewards (as those epochs have not ended yet)
     /// @param user The user address
     /// @param epochs The epochs to calculate rewards for
     /// @return rewards The rewards owed
@@ -80,6 +88,10 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     }
 
     /// @notice Internal function to calculate the rewards a user is owed for the given epochs
+    /// @dev Unlike _claim(), this allows duplicate epochs and current/future epochs.
+    ///      Callers should validate epochs when using this function.
+    ///      Duplicate epochs will return the same reward amount.
+    ///      Current/future epochs will return zero rewards (as those epochs have not ended yet)
     /// @param user The user address
     /// @param epochs The epochs to calculate rewards for
     /// @return rewards The list of rewards owed
