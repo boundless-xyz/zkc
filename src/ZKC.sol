@@ -2,6 +2,9 @@
 pragma solidity 0.8.26;
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20BurnableUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+
 import {ERC20PermitUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -15,6 +18,7 @@ import {IZKC} from "./interfaces/IZKC.sol";
 contract ZKC is
     Initializable,
     ERC20Upgradeable,
+    ERC20BurnableUpgradeable,
     ERC20PermitUpgradeable,
     AccessControlUpgradeable,
     UUPSUpgradeable,
@@ -86,16 +90,19 @@ contract ZKC is
         __UUPSUpgradeable_init();
 
         require(_initialMinter1Amount + _initialMinter2Amount == INITIAL_SUPPLY);
+        require(_initialMinter1 != address(0) || _initialMinter2 != address(0), "An initialMinter must be defined");
+        require(_owner != address(0), "Owner cannot be zero address");
 
         initialMinter1 = _initialMinter1;
         initialMinter2 = _initialMinter2;
         initialMinter1Remaining = _initialMinter1Amount;
         initialMinter2Remaining = _initialMinter2Amount;
-        _grantRole(DEFAULT_ADMIN_ROLE, _owner);
+        _grantRole(ADMIN_ROLE, _owner);
     }
 
     /// @dev On upgrade, set the epoch 0 start time to initiate the start of the first epoch.
     function initializeV2() public reinitializer(2) {
+        __ERC20Burnable_init();
         epoch0StartTime = block.timestamp;
     }
 
@@ -104,8 +111,8 @@ contract ZKC is
         require(recipients.length == amounts.length);
         require(msg.sender == initialMinter1 || msg.sender == initialMinter2);
 
-        uint256 minted = 0;
-        for (uint256 i = 0; i < recipients.length; i++) {
+        uint256 minted;
+        for (uint256 i; i < recipients.length; ++i) {
             uint256 amount = amounts[i];
             _mint(recipients[i], amount);
             minted += amount;
@@ -160,7 +167,7 @@ contract ZKC is
     /// @inheritdoc IZKC
     function getTotalPoVWEmissionsAtEpochStart(uint256 epoch) public pure returns (uint256) {
         uint256 totalEmissions = getSupplyAtEpochStart(epoch) - INITIAL_SUPPLY;
-        return (totalEmissions * POVW_ALLOCATION_BPS) / BASIS_POINTS;
+        return (totalEmissions * POVW_ALLOCATION_BPS + BASIS_POINTS - 1) / BASIS_POINTS;
     }
 
     /// @inheritdoc IZKC
@@ -177,18 +184,27 @@ contract ZKC is
     /// @inheritdoc IZKC
     function getPoVWEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
-        return (totalEmission * POVW_ALLOCATION_BPS) / BASIS_POINTS;
+        // Round up povw emissions. Combined with staking emissions rounding down,
+        // this ensures we don't leave any dust.
+        return (totalEmission * POVW_ALLOCATION_BPS + BASIS_POINTS - 1) / BASIS_POINTS;
     }
 
     /// @inheritdoc IZKC
     function getStakingEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
+        // Round down staking emissions. Combined with povw emissions rounding up,
+        // this ensures we don't leave any dust.
         return (totalEmission * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
     /// @inheritdoc IZKC
     function getCurrentEpoch() public view returns (uint256) {
         return (block.timestamp - epoch0StartTime) / EPOCH_DURATION;
+    }
+
+    /// @inheritdoc IZKC
+    function getCurrentEpochEndTime() public view returns (uint256) {
+        return getEpochEndTime(getCurrentEpoch());
     }
 
     /// @inheritdoc IZKC

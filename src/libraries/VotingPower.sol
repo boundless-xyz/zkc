@@ -49,20 +49,6 @@ library VotingPower {
         return getVotesFromPoint(point);
     }
 
-    /// @notice Calculate total voting power at current timestamp
-    /// @param globalStorage Global checkpoint storage
-    /// @return Current total voting power
-    function getTotalSupply(Checkpoints.GlobalCheckpointStorage storage globalStorage)
-        internal
-        view
-        returns (uint256)
-    {
-        uint256 globalEpoch = globalStorage.globalPointEpoch;
-        if (globalEpoch == 0) return 0;
-
-        Checkpoints.Point memory lastPoint = globalStorage.globalPointHistory[globalEpoch];
-        return getVotesFromPoint(lastPoint);
-    }
 
     /// @notice Calculate total voting power at a specific timestamp
     /// @param globalStorage Global checkpoint storage

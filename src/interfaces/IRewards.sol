@@ -11,6 +11,7 @@ interface IRewards {
     
     // Events
     event RewardDelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate);
+    event DelegateRewardsChanged(address indexed delegate, uint256 previousRewards, uint256 newRewards);
 
     /// @notice Get current staking rewards power for an account
     /// @param account Account to query

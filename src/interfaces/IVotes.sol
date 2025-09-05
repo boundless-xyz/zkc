@@ -8,7 +8,6 @@ import {IVotes as OZIVotes} from "@openzeppelin/contracts/interfaces/IERC5805.so
 /// @dev This allows us to extend the standard IVotes interface in the future if needed
 interface IVotes is OZIVotes {
     // Custom errors
-    error NotImplemented();
     error CannotDelegateVotesWhileWithdrawing();
 
     // This interface extends OpenZeppelin's IVotes interface

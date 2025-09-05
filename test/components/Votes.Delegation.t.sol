@@ -91,6 +91,7 @@ contract VotesDelegationTest is veZKCTest {
         // Alice delegates to Bob
         vm.prank(alice);
         veToken.delegate(bob);
+        vm.snapshotGasLastCall("delegate_votes_initial");
 
         // Check delegation
         assertEq(veToken.delegates(alice), bob, "Alice should delegate to Bob");
@@ -111,6 +112,7 @@ contract VotesDelegationTest is veZKCTest {
         // Alice re-delegates to Charlie
         vm.prank(alice);
         veToken.delegate(CHARLIE);
+        vm.snapshotGasLastCall("delegate_votes_redelegation");
 
         assertEq(veToken.delegates(alice), CHARLIE, "Alice should delegate to Charlie");
         assertEq(veToken.getVotes(bob), 0, "Bob should have no voting power");
@@ -198,6 +200,51 @@ contract VotesDelegationTest is veZKCTest {
         assertEq(veToken.getVotes(alice), 0, "Alice should have no voting power");
         assertEq(veToken.getVotes(bob), AMOUNT, "Bob should only have Alice's delegated power");
         assertEq(veToken.getVotes(CHARLIE), AMOUNT * 2, "Charlie should have his own + Bob's stake");
+    }
+
+    function testDelegationIsNonTransitive() public {
+        // Setup: Three users with different stake amounts
+        uint256 aliceStake = 1000 ether;
+        uint256 bobStake = 500 ether;
+        uint256 charlieStake = 200 ether;
+        
+        // All three users stake
+        vm.prank(alice);
+        veToken.stake(aliceStake);
+        vm.prank(bob);
+        veToken.stake(bobStake);
+        vm.prank(CHARLIE);
+        veToken.stake(charlieStake);
+        
+        // Initial state - everyone self-delegates
+        assertEq(veToken.getVotes(alice), aliceStake, "Alice should have her own voting power");
+        assertEq(veToken.getVotes(bob), bobStake, "Bob should have his own voting power");
+        assertEq(veToken.getVotes(CHARLIE), charlieStake, "Charlie should have his own voting power");
+        
+        // Alice delegates her voting power to Bob
+        vm.prank(alice);
+        veToken.delegate(bob);
+        
+        // Bob now has his own stake + Alice's delegated stake
+        assertEq(veToken.getVotes(alice), 0, "Alice should have no voting power after delegating");
+        assertEq(veToken.getVotes(bob), bobStake + aliceStake, "Bob should have his own + Alice's voting power");
+        assertEq(veToken.getVotes(CHARLIE), charlieStake, "Charlie's voting power unchanged");
+        
+        // Bob delegates his voting power to Charlie
+        // IMPORTANT: Only Bob's own stake moves to Charlie, Alice's delegation stays with Bob
+        vm.prank(bob);
+        veToken.delegate(CHARLIE);
+        
+        // Final distribution demonstrates non-transitivity:
+        // - Alice's delegation stays with Bob (doesn't transfer to Charlie)
+        // - Only Bob's own stake goes to Charlie
+        assertEq(veToken.getVotes(alice), 0, "Alice still has no voting power");
+        assertEq(veToken.getVotes(bob), aliceStake, "Bob retains Alice's delegated power");
+        assertEq(veToken.getVotes(CHARLIE), charlieStake + bobStake, "Charlie has his own + Bob's stake only");
+        
+        // Verify the total is conserved
+        uint256 totalVotes = veToken.getVotes(alice) + veToken.getVotes(bob) + veToken.getVotes(CHARLIE);
+        assertEq(totalVotes, aliceStake + bobStake + charlieStake, "Total voting power is conserved");
     }
 
     // Historical delegation tests
