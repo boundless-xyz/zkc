@@ -32,6 +32,11 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         _disableInitializers();
     }
 
+    /// @notice Initialize the StakingRewards contract
+    /// @dev Sets up the contract with ZKC token, veZKC rewards interface, and admin role
+    /// @param _zkc Address of the ZKC token contract
+    /// @param _veZKC Address of the veZKC contract implementing IRewards
+    /// @param _admin Address that will be granted the admin role
     function initialize(address _zkc, address _veZKC, address _admin) public initializer {
         __AccessControl_init();
         __UUPSUpgradeable_init();
