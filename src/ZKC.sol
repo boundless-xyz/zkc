@@ -85,7 +85,6 @@ contract ZKC is
         address _owner
     ) public initializer {
         __ERC20_init("ZK Coin", "ZKC");
-        __ERC20Burnable_init();
         __ERC20Permit_init("ZK Coin");
         __AccessControl_init();
         __UUPSUpgradeable_init();
@@ -101,6 +100,7 @@ contract ZKC is
 
     /// @dev On upgrade, set the epoch 0 start time to initiate the start of the first epoch.
     function initializeV2() public reinitializer(2) {
+        __ERC20Burnable_init();
         epoch0StartTime = block.timestamp;
     }
 

@@ -130,6 +130,7 @@ contract ZKCTotalSupplyTest is ZKCTest {
 
         // burn the full balance
         uint256 userBalance = zkc.balanceOf(user);
+        require(userBalance > 0, "User balance is 0");
         uint256 burnedAmount = userBalance;
         emit IERC20.Transfer(user, address(0), burnedAmount);
         vm.prank(user);
