@@ -2,6 +2,9 @@
 pragma solidity ^0.8.20;
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20BurnableUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+
 import {ERC20PermitUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -15,6 +18,7 @@ import {IZKC} from "./interfaces/IZKC.sol";
 contract ZKC is
     Initializable,
     ERC20Upgradeable,
+    ERC20BurnableUpgradeable,
     ERC20PermitUpgradeable,
     AccessControlUpgradeable,
     UUPSUpgradeable,
@@ -96,6 +100,7 @@ contract ZKC is
 
     /// @dev On upgrade, set the epoch 0 start time to initiate the start of the first epoch.
     function initializeV2() public reinitializer(2) {
+        __ERC20Burnable_init();
         epoch0StartTime = block.timestamp;
     }
 
@@ -189,6 +194,11 @@ contract ZKC is
     /// @inheritdoc IZKC
     function getCurrentEpoch() public view returns (uint256) {
         return (block.timestamp - epoch0StartTime) / EPOCH_DURATION;
+    }
+
+    /// @inheritdoc IZKC
+    function getCurrentEpochEndTime() public view returns (uint256) {
+        return getEpochEndTime(getCurrentEpoch());
     }
 
     /// @inheritdoc IZKC
