@@ -45,9 +45,13 @@ contract ZKCTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         zkc = ZKC(address(proxy));
 
-        // Initialize V2 to set epoch 0 start time
+        // Initialize V2 to set epoch 0 start time to max
         vm.prank(owner);
         zkc.initializeV2();
+        
+        // Initialize V3 to actually start epochs
+        vm.prank(owner);
+        zkc.initializeV3();
         epoch0StartTime = vm.getBlockTimestamp();
 
         // Grant roles

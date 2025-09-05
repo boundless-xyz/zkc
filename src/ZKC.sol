@@ -39,7 +39,7 @@ contract ZKC is
     uint256 public constant INITIAL_SUPPLY = Supply.INITIAL_SUPPLY;
 
     /// @notice Duration of each epoch in seconds
-    uint256 public constant EPOCH_DURATION = 2 days;
+    uint256 public constant EPOCH_DURATION = Supply.EPOCH_DURATION;
 
     /// @notice Number of epochs per year
     uint256 public constant EPOCHS_PER_YEAR = Supply.EPOCHS_PER_YEAR;
@@ -60,7 +60,11 @@ contract ZKC is
     bytes32 public immutable STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
 
     /// @notice Timestamp when epoch 0 started
-    uint256 public epoch0StartTime;
+    /// @dev Initially set to max uint256 to indicate that epoch 0 has not started yet.
+    ///      and prevent reward emissions functions from being callable before epoch 0 starts.
+    ///      When initializeV2 is called, this value will be updated with the correct
+    ///      start time of epoch, and the reward functions will be callable.
+    uint256 public epoch0StartTime = type(uint256).max;
 
     /// @notice Total amount of PoVW rewards claimed
     uint256 public poVWClaimed;
@@ -71,6 +75,12 @@ contract ZKC is
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
+    }
+
+    /// @notice Internal function to check if epochs have started
+    /// @return bool True if epochs have started, false otherwise
+    function _epochsStarted() internal view returns (bool) {
+        return epoch0StartTime != 0 && epoch0StartTime != type(uint256).max;
     }
 
     function initialize(
@@ -94,8 +104,16 @@ contract ZKC is
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
     }
 
-    /// @dev On upgrade, set the epoch 0 start time to initiate the start of the first epoch.
+    /// @dev Must be called atomically during upgrade.
+    /// @dev On upgrade, initialize epoch0StartTime to max value to indicate epoch 0 has not started.
+    /// @notice Callable by anyone to initialize the contract to version 2
     function initializeV2() public reinitializer(2) {
+        epoch0StartTime = type(uint256).max;
+    }
+
+    /// @dev Set the epoch 0 start time to initiate the start of the first epoch.
+    /// @notice Only callable by the contract owner (admin role)
+    function initializeV3() public reinitializer(3) onlyRole(ADMIN_ROLE) {
         epoch0StartTime = block.timestamp;
     }
 
@@ -188,16 +206,19 @@ contract ZKC is
 
     /// @inheritdoc IZKC
     function getCurrentEpoch() public view returns (uint256) {
+        if (!_epochsStarted()) revert EpochsNotStarted();
         return (block.timestamp - epoch0StartTime) / EPOCH_DURATION;
     }
 
     /// @inheritdoc IZKC
     function getEpochStartTime(uint256 epoch) public view returns (uint256) {
+        if (!_epochsStarted()) revert EpochsNotStarted();
         return epoch0StartTime + (epoch * EPOCH_DURATION);
     }
 
     /// @inheritdoc IZKC
     function getEpochEndTime(uint256 epoch) public view returns (uint256) {
+        if (!_epochsStarted()) revert EpochsNotStarted();
         return getEpochStartTime(epoch + 1) - 1;
     }
 
@@ -206,6 +227,9 @@ contract ZKC is
     /// @dev Overrides ERC20 totalSupply to return epoch-based theoretical supply, however
     ///      not all tokens may have been claimed (and thus minted) by recipients yet.
     function totalSupply() public view override returns (uint256) {
+        if (!_epochsStarted()) {
+            return INITIAL_SUPPLY;
+        }
         return getSupplyAtEpochStart(getCurrentEpoch());
     }
 
