@@ -90,6 +90,8 @@ contract ZKC is
         __UUPSUpgradeable_init();
 
         require(_initialMinter1Amount + _initialMinter2Amount == INITIAL_SUPPLY);
+        require(_initialMinter1 != address(0) || _initialMinter2 != address(0), "An initialMinter must be defined");
+        require(_owner != address(0), "Owner cannot be zero address");
 
         initialMinter1 = _initialMinter1;
         initialMinter2 = _initialMinter2;
