@@ -11,9 +11,9 @@ library Checkpoints {
     /// @notice Point represents voting/reward power state at a specific moment
     /// @dev TODO: Pack struct for gas savings.
     struct Point {
-        /// @notice Amount counting toward voting power (own stake + delegated votes)
+        /// @notice Amount counting toward voting power (own stake (if not delegated to others) + any votes delegated to user)
         uint256 votingAmount;
-        /// @notice Amount counting toward reward power (own stake + delegated rewards)
+        /// @notice Amount counting toward reward power (own stake (if not delegated to others) + any rewards delegated to user)
         uint256 rewardAmount;
         /// @notice Timestamp when recorded
         uint256 updatedAt;
