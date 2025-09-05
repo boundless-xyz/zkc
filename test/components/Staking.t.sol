@@ -236,7 +236,7 @@ contract veZKCStakeTest is veZKCTest {
         assertEq(veToken.getVotes(alice), 0);
 
         // Cannot complete withdrawal immediately
-        vm.expectRevert(StakeManager.WithdrawalPeriodNotComplete.selector);
+        vm.expectRevert(IStaking.WithdrawalPeriodNotComplete.selector);
         veToken.completeUnstake();
 
         // Warp forward past withdrawal period
@@ -276,7 +276,7 @@ contract veZKCStakeTest is veZKCTest {
 
         // Try to add to stake (should fail with specific error)
         zkc.approve(address(veToken), ADD_AMOUNT);
-        vm.expectRevert(StakeManager.CannotAddToWithdrawingPosition.selector);
+        vm.expectRevert(IStaking.CannotAddToWithdrawingPosition.selector);
         veToken.addToStake(ADD_AMOUNT);
 
         vm.stopPrank();
@@ -291,7 +291,7 @@ contract veZKCStakeTest is veZKCTest {
 
         // Try to stake again (should fail with specific error)
         zkc.approve(address(veToken), STAKE_AMOUNT);
-        vm.expectRevert(StakeManager.UserAlreadyHasActivePosition.selector);
+        vm.expectRevert(IStaking.UserAlreadyHasActivePosition.selector);
         veToken.stake(STAKE_AMOUNT);
 
         vm.stopPrank();
@@ -315,7 +315,7 @@ contract veZKCStakeTest is veZKCTest {
         veToken.stake(STAKE_AMOUNT);
 
         // Try to complete withdrawal without initiating
-        vm.expectRevert(StakeManager.WithdrawalNotInitiated.selector);
+        vm.expectRevert(IStaking.WithdrawalNotInitiated.selector);
         veToken.completeUnstake();
 
         vm.stopPrank();
@@ -330,7 +330,7 @@ contract veZKCStakeTest is veZKCTest {
         veToken.initiateUnstake();
 
         // Try to initiate again (should fail)
-        vm.expectRevert(StakeManager.WithdrawalAlreadyInitiated.selector);
+        vm.expectRevert(IStaking.WithdrawalAlreadyInitiated.selector);
         veToken.initiateUnstake();
 
         vm.stopPrank();
@@ -340,7 +340,7 @@ contract veZKCStakeTest is veZKCTest {
         vm.startPrank(alice);
 
         zkc.approve(address(veToken), 0);
-        vm.expectRevert(StakeManager.ZeroAmount.selector);
+        vm.expectRevert(IStaking.ZeroAmount.selector);
         veToken.stake(0);
 
         vm.stopPrank();
@@ -355,7 +355,7 @@ contract veZKCStakeTest is veZKCTest {
 
         // Try to add zero amount
         zkc.approve(address(veToken), 0);
-        vm.expectRevert(StakeManager.ZeroAmount.selector);
+        vm.expectRevert(IStaking.ZeroAmount.selector);
         veToken.addToStake(0);
 
         vm.stopPrank();

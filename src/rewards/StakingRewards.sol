@@ -40,7 +40,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         zkc = ZKC(_zkc);
         veZKC = IRewards(_veZKC);
 
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(ADMIN_ROLE, _admin);
     }
 
     /// @notice Claim rewards for the given epochs
