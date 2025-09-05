@@ -216,8 +216,203 @@ veZkcToken.addToStakeWithPermit(
 );
 ```
 
+## Delegation
+
+### Overview
+
+Voting and reward power can be delegated independently, allowing users to maintain control over different aspects of their staked positions:
+
+- **Voting Delegation**: Transfer governance voting power to another address
+- **Reward Delegation**: Transfer reward earning power to another address 
+
+### Key Contract Functions
+
+#### Voting Delegation
+- `delegate(address delegatee)`: Delegate all voting power to another address
+- `getVotes(address account)`: Get current voting power (own + delegated)
+- `getPastVotes(address account, uint256 timepoint)`: Get historical voting power at specific block
+- `delegates(address account)`: View current voting delegate
+
+#### Reward Delegation
+- `delegateRewards(address delegatee)`: Delegate all reward power to another address
+- `getRewardPower(address account)`: Get current reward power (own + delegated)
+- `getPastRewardPower(address account, uint256 timepoint)`: Get historical reward power
+- `getRewardDelegates(address account)`: View current reward delegate
+
+### Delegation Examples
+
+#### Basic Separate Delegation
+```solidity
+// Alice stakes 1000 ZKC
+veZkcToken.stake(1000 ether);
+
+// Alice delegates voting to Bob (governance participation)
+veZkcToken.delegate(bob);
+
+// Alice delegates rewards to Charlie (rewards claiming power)
+veZkcToken.delegateRewards(charlie);
+
+// Result:
+// - Alice: Owns the NFT position
+// - Bob: Has Alice's voting power for governance
+// - Charlie: Earns can claim rewards from Alice's stake
+```
+
+#### Withdrawal with Active Delegations Received
+
+Delegations remain active even when delegator initiates withdrawal.
+
+```solidity
+// Alice has 1000 ZKC staked
+// Bob has 500 ZKC staked and delegated voting to Alice
+// Charlie has 300 ZKC staked and delegated rewards to Alice
+
+// Alice initiates withdrawal of her own stake
+veZkcToken.initiateUnstake();
+
+// During 30-day withdrawal period:
+// - Alice's own voting power: 0 (withdrawing)
+// - Alice's total voting power: 500 (from Bob's delegation)
+// - Alice's own reward power: 0 (withdrawing)
+// - Alice's total reward power: 300 (from Charlie's delegation)
+
+// Alice can still:
+// - Vote in governance with Bob's 500 voting power
+// - Claim rewards based on Charlie's 300 reward power
+```
+
+#### Revoking Delegation
+```solidity
+// Alice previously delegated to Bob
+veZkcToken.delegate(bob);
+
+// Alice revokes by delegating to herself
+veZkcToken.delegate(alice);
+
+// Or delegates to someone new
+veZkcToken.delegate(charlie);
+
+// Reward delegation works the same way
+veZkcToken.delegateRewards(alice); // Self-delegate to revoke
+```
+
+#### Non-Transitive Delegation Example
+
+```solidity
+// Setup: Three users with staked positions
+// Alice: 1000 ZKC staked
+// Bob: 500 ZKC staked  
+// Charlie: 200 ZKC staked
+
+// Alice delegates her voting power to Bob
+veZkcToken.delegate(bob);
+// Bob now has: 500 (own) + 1000 (from Alice) = 1500 voting power
+
+// Bob delegates his voting power to Charlie
+veZkcToken.delegate(charlie);
+// Charlie now has: 200 (own) + 500 (from Bob) = 700 voting power
+// Note: Charlie does NOT receive Alice's 1000 - that stays with Bob
+
+// Final distribution:
+// - Alice: 0 voting power (delegated to Bob)
+// - Bob: 1000 voting power (Alice's delegation only)
+// - Charlie: 700 voting power (own 200 + Bob's 500)
+```
 
 
+## Events
+
+### Staking Events
+
+#### StakeCreated
+Emitted when a new staking position is created.
+```solidity
+event StakeCreated(uint256 indexed tokenId, address indexed owner, uint256 amount)
+```
+
+#### StakeAdded
+Emitted when tokens are added to an existing staking position.
+```solidity
+event StakeAdded(uint256 indexed tokenId, address indexed owner, uint256 addedAmount, uint256 newTotal)
+```
+
+#### UnstakeInitiated
+Emitted when a user initiates the withdrawal process.
+```solidity
+event UnstakeInitiated(uint256 indexed tokenId, address indexed owner, uint256 withdrawableAt)
+```
+
+#### UnstakeCompleted
+Emitted when a user completes withdrawal and receives their ZKC tokens.
+```solidity
+event UnstakeCompleted(uint256 indexed tokenId, address indexed owner, uint256 amount)
+```
+
+#### StakeBurned
+Emitted when a staking position NFT is burned (after withdrawal completion).
+```solidity
+event StakeBurned(uint256 indexed tokenId)
+```
+
+### Delegation Events
+
+#### DelegateChanged (Voting)
+Emitted when voting delegation changes.
+```solidity
+event DelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate)
+```
+
+#### DelegateVotesChanged (Voting)
+Emitted when an account's voting power changes due to delegation.
+```solidity
+event DelegateVotesChanged(address indexed delegate, uint256 previousVotes, uint256 newVotes)
+```
+
+#### RewardDelegateChanged (Rewards)
+Emitted when reward delegation changes.
+```solidity
+event RewardDelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate)
+```
+
+#### DelegateRewardsChanged (Rewards)
+Emitted when an account's reward power changes due to delegation.
+```solidity
+event DelegateRewardsChanged(address indexed delegate, uint256 previousRewards, uint256 newRewards)
+```
+
+### ZKC Token Events
+
+#### PoVWRewardsClaimed
+Emitted when Proof of Verifiable Work rewards are minted for a recipient.
+```solidity
+event PoVWRewardsClaimed(address indexed recipient, uint256 amount)
+```
+
+#### StakingRewardsClaimed
+Emitted when staking rewards are minted for a recipient.
+```solidity
+event StakingRewardsClaimed(address indexed recipient, uint256 amount)
+```
+
+### Standard ERC721 Events
+
+#### Transfer
+Emitted when a veZKC NFT is minted, burned, or would transfer (though transfers are disabled).
+```solidity
+event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
+```
+
+#### Approval
+Emitted when approval is granted (though transfers are disabled, this is still part of ERC721).
+```solidity
+event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId)
+```
+
+#### ApprovalForAll
+Emitted when operator approval is set (though transfers are disabled).
+```solidity
+event ApprovalForAll(address indexed owner, address indexed operator, bool approved)
+```
 
 ## Deployments
 
