@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {UD60x18, ud, unwrap, pow} from "lib/prb-math/src/UD60x18.sol";
+import {UD60x18, ud, unwrap, pow, convert} from "lib/prb-math/src/UD60x18.sol";
 
 /// @title ZKC Supply Library
 /// @notice Library for calculating ZKC supply and emissions based on epoch
@@ -14,7 +14,6 @@ import {UD60x18, ud, unwrap, pow} from "lib/prb-math/src/UD60x18.sol";
 library Supply {
     uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 10 ** 18; // 1 billion ZKC
     uint256 public constant EPOCHS_PER_YEAR = 182;
-    uint256 public constant SCALE = 1e18;
 
     /// @notice Precomputed per-epoch growth factors (1e18 scaled)
     /// @dev Calculated with PRBMath UD60x18: r = (1 + annual_rate)^(1/182)
@@ -49,7 +48,7 @@ library Supply {
     /// @param epoch The epoch number (0-indexed)
     /// @return The growth factor scaled by 1e18
     function getGrowthFactor(uint256 epoch) internal pure returns (uint256) {
-        if (epoch == 0) return SCALE; // No growth for epoch 0
+        if (epoch == 0) return 1e18; // No growth for epoch 0
 
         uint256 year = getYearForEpoch(epoch);
         return _getGrowthFactorForYear(year);
@@ -84,13 +83,13 @@ library Supply {
         // Everything is scaled by 1e18 for PRBMath.
         UD60x18 supplyUD = ud(supply);
         UD60x18 factorUD = ud(growthFactor);
-        UD60x18 epochsUD = ud(epochsInYear * SCALE);
+        UD60x18 epochsUD = convert(epochsInYear);
 
         // Calculate factor^epochs
         UD60x18 multiplierUD = pow(factorUD, epochsUD);
 
         // Apply to supply: supply * multiplier
-        UD60x18 resultUD = supplyUD * multiplierUD / ud(SCALE);
+        UD60x18 resultUD = supplyUD * multiplierUD;
 
         return unwrap(resultUD);
     }
@@ -117,13 +116,13 @@ library Supply {
         // Use PRBMath to calculate: supply * (FINAL_R_PER_EPOCH ^ (yearsToCalculate * EPOCHS_PER_YEAR))
         UD60x18 supplyUD = ud(supply);
         UD60x18 factorUD = ud(FINAL_R_PER_EPOCH);
-        UD60x18 totalEpochsUD = ud(yearsToCalculate * EPOCHS_PER_YEAR * SCALE);
+        UD60x18 totalEpochsUD = convert(yearsToCalculate * EPOCHS_PER_YEAR);
 
         // Calculate factor^totalEpochs
         UD60x18 multiplierUD = pow(factorUD, totalEpochsUD);
 
         // Apply to supply: supply * multiplier
-        UD60x18 resultUD = supplyUD * multiplierUD / ud(SCALE);
+        UD60x18 resultUD = supplyUD * multiplierUD;
 
         return unwrap(resultUD);
     }
