@@ -95,6 +95,7 @@ contract RewardsDelegationTest is veZKCTest {
         // Alice delegates rewards to Bob
         vm.prank(alice);
         veToken.delegateRewards(bob);
+        vm.snapshotGasLastCall("delegate_rewards_initial");
 
         // Check delegation
         assertEq(veToken.rewardDelegates(alice), bob, "Alice should delegate rewards to Bob");
@@ -123,6 +124,7 @@ contract RewardsDelegationTest is veZKCTest {
         // Alice re-delegates rewards to Charlie
         vm.prank(alice);
         veToken.delegateRewards(CHARLIE);
+        vm.snapshotGasLastCall("delegate_rewards_redelegation");
 
         assertEq(veToken.rewardDelegates(alice), CHARLIE, "Alice should delegate rewards to Charlie");
         assertEq(veToken.getStakingRewards(bob), 0, "Bob should have no reward power");
@@ -393,6 +395,53 @@ contract RewardsDelegationTest is veZKCTest {
         assertEq(totalAfter, expectedTotal, "Total rewards after delegation");
     }
 
+    // Non-transitivity test for reward delegation
+    
+    function testRewardDelegationIsNonTransitive() public {
+        // Setup: Three users with different stake amounts
+        uint256 aliceStake = 1000 ether;
+        uint256 bobStake = 500 ether;
+        uint256 charlieStake = 200 ether;
+        
+        // All three users stake
+        vm.prank(alice);
+        veToken.stake(aliceStake);
+        vm.prank(bob);
+        veToken.stake(bobStake);
+        vm.prank(CHARLIE);
+        veToken.stake(charlieStake);
+        
+        // Initial state - everyone self-delegates rewards
+        assertEq(veToken.getStakingRewards(alice), aliceStake, "Alice should have her own reward power");
+        assertEq(veToken.getStakingRewards(bob), bobStake, "Bob should have his own reward power");
+        assertEq(veToken.getStakingRewards(CHARLIE), charlieStake, "Charlie should have his own reward power");
+        
+        // Alice delegates her reward power to Bob
+        vm.prank(alice);
+        veToken.delegateRewards(bob);
+        
+        // Bob now has his own stake + Alice's delegated stake for rewards
+        assertEq(veToken.getStakingRewards(alice), 0, "Alice should have no reward power after delegating");
+        assertEq(veToken.getStakingRewards(bob), bobStake + aliceStake, "Bob should have his own + Alice's reward power");
+        assertEq(veToken.getStakingRewards(CHARLIE), charlieStake, "Charlie's reward power unchanged");
+        
+        // Bob delegates his reward power to Charlie
+        // IMPORTANT: Only Bob's own stake moves to Charlie, Alice's delegation stays with Bob
+        vm.prank(bob);
+        veToken.delegateRewards(CHARLIE);
+        
+        // Final distribution demonstrates non-transitivity:
+        // - Alice's delegation stays with Bob (doesn't transfer to Charlie)
+        // - Only Bob's own stake goes to Charlie
+        assertEq(veToken.getStakingRewards(alice), 0, "Alice still has no reward power");
+        assertEq(veToken.getStakingRewards(bob), aliceStake, "Bob retains Alice's delegated reward power");
+        assertEq(veToken.getStakingRewards(CHARLIE), charlieStake + bobStake, "Charlie has his own + Bob's stake only");
+        
+        // Verify the total is conserved
+        uint256 totalRewards = veToken.getStakingRewards(alice) + veToken.getStakingRewards(bob) + veToken.getStakingRewards(CHARLIE);
+        assertEq(totalRewards, aliceStake + bobStake + charlieStake, "Total reward power is conserved");
+    }
+
     // Edge cases and error conditions
 
     function testCannotDelegateRewardsWithoutPosition() public {
@@ -477,10 +526,20 @@ contract RewardsDelegationTest is veZKCTest {
         // Alice stakes
         vm.prank(alice);
         veToken.stake(AMOUNT);
+        
+        uint256 aliceInitialRewards = veToken.getStakingRewards(alice);
 
-        // Test reward delegation event - Alice delegates to Bob
+        // Test reward delegation events - Alice delegates to Bob
         vm.expectEmit(true, true, true, true);
         emit IRewards.RewardDelegateChanged(alice, alice, bob);
+        
+        // Alice loses reward power
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(alice, aliceInitialRewards, 0);
+        
+        // Bob gains reward power
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(bob, 0, aliceInitialRewards);
 
         vm.prank(alice);
         veToken.delegateRewards(bob);
@@ -517,10 +576,16 @@ contract RewardsDelegationTest is veZKCTest {
         // Alice stakes
         vm.prank(alice);
         veToken.stake(AMOUNT);
+        
+        uint256 aliceRewards = veToken.getStakingRewards(alice);
 
         // First delegation: Alice -> Bob
         vm.expectEmit(true, true, true, true);
         emit IRewards.RewardDelegateChanged(alice, alice, bob);
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(alice, aliceRewards, 0);
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(bob, 0, aliceRewards);
 
         vm.prank(alice);
         veToken.delegateRewards(bob);
@@ -528,6 +593,10 @@ contract RewardsDelegationTest is veZKCTest {
         // Second delegation: Alice -> Charlie
         vm.expectEmit(true, true, true, true);
         emit IRewards.RewardDelegateChanged(alice, bob, CHARLIE);
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(bob, aliceRewards, 0);
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(CHARLIE, 0, aliceRewards);
 
         vm.prank(alice);
         veToken.delegateRewards(CHARLIE);
@@ -537,6 +606,8 @@ contract RewardsDelegationTest is veZKCTest {
         // Alice stakes
         vm.prank(alice);
         veToken.stake(AMOUNT);
+        
+        uint256 aliceRewards = veToken.getStakingRewards(alice);
 
         // Delegate rewards to Bob first
         vm.prank(alice);
@@ -545,6 +616,10 @@ contract RewardsDelegationTest is veZKCTest {
         // Delegate rewards back to self
         vm.expectEmit(true, true, true, true);
         emit IRewards.RewardDelegateChanged(alice, bob, alice);
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(bob, aliceRewards, 0);
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(alice, 0, aliceRewards);
 
         vm.prank(alice);
         veToken.delegateRewards(alice);

@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "../ZKC.t.sol";
 import "../../src/libraries/Supply.sol";
+import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 contract ZKCTotalSupplyTest is ZKCTest {
     function setUp() public {
@@ -118,5 +119,43 @@ contract ZKCTotalSupplyTest is ZKCTest {
         uint256 currentEpoch = zkc.getCurrentEpoch();
         assertEq(zkc.totalSupply(), Supply.getSupplyAtEpoch(currentEpoch));
         assertEq(zkc.totalSupply(), zkc.getSupplyAtEpochStart(currentEpoch));
+    }
+
+    function testBurn() public {
+        // Move to epoch 2 to allow minting
+        vm.warp(vm.getBlockTimestamp() + 2 * zkc.EPOCH_DURATION());
+        uint256 totalSupplyBeforeBurn = zkc.totalSupply();
+        
+        uint256 mintAmount = 1000 * 10 ** 18;
+
+        // burn the full balance
+        uint256 userBalance = zkc.balanceOf(user);
+        require(userBalance > 0, "User balance is 0");
+        uint256 burnedAmount = userBalance;
+        emit IERC20.Transfer(user, address(0), burnedAmount);
+        vm.prank(user);
+        zkc.burn(burnedAmount);
+
+        // attempt to burn more than balance
+        vm.expectRevert();
+        vm.prank(user);
+        zkc.burn(1);
+
+        // mint new PoVW rewards
+        vm.prank(povwMinter);
+        zkc.mintPoVWRewardsForRecipient(user, mintAmount);
+
+        assertEq(zkc.claimedTotalSupply(), zkc.INITIAL_SUPPLY() + mintAmount - burnedAmount);
+        assertEq(zkc.totalSupply(), Supply.getSupplyAtEpoch(2));       
+
+        // burn the newly minted PoVW rewards
+        vm.expectEmit(true, true, true, true);
+        emit IERC20.Transfer(user, address(0), mintAmount);
+        vm.prank(user);
+        zkc.burn(mintAmount);
+        uint256 totalSupplyAfterBurn = zkc.totalSupply();
+
+        assertEq(zkc.claimedTotalSupply(), zkc.INITIAL_SUPPLY() - burnedAmount);
+        assertEq(totalSupplyBeforeBurn, totalSupplyAfterBurn, "Theoretical total supply should remain the same after burning");
     }
 }
