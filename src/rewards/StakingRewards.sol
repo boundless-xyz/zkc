@@ -96,17 +96,20 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     /// @param epochs The epochs to calculate rewards for
     /// @return rewards The list of rewards owed
     function _calculate(address user, uint256[] calldata epochs) internal returns (uint256[] memory) {
-        uint256 currentEpoch = zkc.getCurrentEpoch();
+        ZKC zkcMemory = zkc;
+        IRewards veZKCMemory = veZKC;
+        
+        uint256 currentEpoch = zkcMemory.getCurrentEpoch();
         uint256[] memory rewards = new uint256[](epochs.length);
         for (uint256 i = 0; i < epochs.length; i++) {
             uint256 epoch = epochs[i];
             if (epoch >= currentEpoch) continue; // cannot claim ongoing/future epoch
             uint256 snapshotTime = _epochEndTimestamp(epoch);
-            uint256 userPower = veZKC.getPastStakingRewards(user, snapshotTime);
+            uint256 userPower = veZKCMemory.getPastStakingRewards(user, snapshotTime);
             if (userPower == 0) continue;
-            uint256 totalPower = veZKC.getPastTotalStakingRewards(snapshotTime);
+            uint256 totalPower = veZKCMemory.getPastTotalStakingRewards(snapshotTime);
             if (totalPower == 0) continue;
-            uint256 emission = zkc.getStakingEmissionsForEpoch(epoch);
+            uint256 emission = zkcMemory.getStakingEmissionsForEpoch(epoch);
             rewards[i] = (emission * userPower) / totalPower;
         }
         return rewards;
@@ -118,7 +121,9 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     /// @return amount The amount of rewards claimed
     function _claim(address user, uint256[] calldata epochs) internal returns (uint256 amount) {
         uint256[] memory amounts = _calculate(user, epochs);
-        uint256 currentEpoch = zkc.getCurrentEpoch();
+        ZKC zkcMemory = zkc;
+        
+        uint256 currentEpoch = zkcMemory.getCurrentEpoch();
         for (uint256 i = 0; i < epochs.length; i++) {
             uint256 epoch = epochs[i];
             if (_userClaimed[epoch][user]) revert AlreadyClaimed(epoch);
@@ -128,7 +133,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
             amount += amounts[i];
         }
         if (amount == 0) return 0;
-        zkc.mintStakingRewardsForRecipient(user, amount);
+        zkcMemory.mintStakingRewardsForRecipient(user, amount);
         return amount;
     }
 

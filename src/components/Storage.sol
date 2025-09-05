@@ -30,7 +30,7 @@ abstract contract Storage {
 
     /// @notice Counter for generating unique NFT token IDs
     uint256 internal _currentTokenId;
-
+    
     /// @notice Nonces for EIP-712 signatures (shared between vote and reward delegation)
     mapping(address owner => uint256) internal _nonces;
 
