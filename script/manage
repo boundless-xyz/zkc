@@ -430,11 +430,12 @@ main() {
             create_reference_build "$contract_type"
         fi
         
-        # Always ensure current build is clean and complete
-        echo "🔨 Ensuring current build is complete..."
+        # Always ensure current build is clean and complete for all upgrades
+        echo "🧹 Cleaning current build artifacts..."
         forge clean
+        echo "🔨 Rebuilding all contracts for upgrade..."
         forge build
-        echo "✅ Current build completed"
+        echo "✅ Current build completed successfully"
     fi
     
     # Execute the requested command
