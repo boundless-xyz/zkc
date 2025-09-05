@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -25,7 +25,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     IRewards public veZKC;
 
     /// @dev Mapping to track if a user has claimed rewards for an epoch
-    mapping(uint256 => mapping(address => bool)) private _userClaimed;
+    mapping(uint256 epoch => mapping(address user => bool claimed)) private _userClaimed;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {Constants} from "./Constants.sol";
 
@@ -40,7 +40,7 @@ library Checkpoints {
     /// @notice Storage structure for global checkpoint data
     struct GlobalCheckpointStorage {
         /// @notice Protocol-wide reward/voting power tracking
-        mapping(uint256 => Point) globalPointHistory;
+        mapping(uint256 epoch => Point) globalPointHistory;
         /// @notice Current index for global point history
         uint256 globalPointEpoch;
     }

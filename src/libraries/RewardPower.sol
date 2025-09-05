@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {Checkpoints} from "./Checkpoints.sol";
 import {Constants} from "./Constants.sol";
