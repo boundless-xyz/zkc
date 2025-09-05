@@ -101,7 +101,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         
         uint256 currentEpoch = zkcMemory.getCurrentEpoch();
         uint256[] memory rewards = new uint256[](epochs.length);
-        for (uint256 i = 0; i < epochs.length; i++) {
+        for (uint256 i; i < epochs.length; ++i) {
             uint256 epoch = epochs[i];
             if (epoch >= currentEpoch) continue; // cannot claim ongoing/future epoch
             uint256 snapshotTime = _epochEndTimestamp(epoch);
@@ -122,9 +122,9 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     function _claim(address user, uint256[] calldata epochs) internal returns (uint256 amount) {
         uint256[] memory amounts = _calculate(user, epochs);
         ZKC zkcMemory = zkc;
-        
+
         uint256 currentEpoch = zkcMemory.getCurrentEpoch();
-        for (uint256 i = 0; i < epochs.length; i++) {
+        for (uint256 i; i < epochs.length; ++i) {
             uint256 epoch = epochs[i];
             if (_userClaimed[epoch][user]) revert AlreadyClaimed(epoch);
             // Epoch must have ended

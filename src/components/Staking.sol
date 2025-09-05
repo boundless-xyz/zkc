@@ -152,7 +152,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         if (tokenId == 0) return (0, 0);
 
         Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
-        uint256 withdrawableAt = 0;
+        uint256 withdrawableAt;
         if (stakeInfo.withdrawalRequestedAt > 0) {
             withdrawableAt = stakeInfo.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
         }
