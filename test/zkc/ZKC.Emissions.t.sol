@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import "../ZKC.t.sol";
 import "../../src/libraries/Supply.sol";
@@ -194,14 +194,16 @@ contract ZKCEmissionsTest is ZKCTest {
         assertEq(povwEmission + stakingEmission, totalEmission, "Allocations should sum to total");
     }
 
-    function testTotalEmissionsCalculations() public {
+    function testTotalEmissionsCalculations() public view {
         uint256 epoch = 10;
         uint256 totalEmission = zkc.getSupplyAtEpochStart(epoch);
         uint256 povwEmission = zkc.getTotalPoVWEmissionsAtEpochStart(epoch);
         uint256 stakingEmission = zkc.getTotalStakingEmissionsAtEpochStart(epoch);
-        
+
         assertEq(povwEmission, (totalEmission - zkc.INITIAL_SUPPLY()) * zkc.POVW_ALLOCATION_BPS() / zkc.BASIS_POINTS());
-        assertEq(stakingEmission, (totalEmission - zkc.INITIAL_SUPPLY()) * zkc.STAKING_ALLOCATION_BPS() / zkc.BASIS_POINTS());
+        assertEq(
+            stakingEmission, (totalEmission - zkc.INITIAL_SUPPLY()) * zkc.STAKING_ALLOCATION_BPS() / zkc.BASIS_POINTS()
+        );
         assertEq(totalEmission - zkc.INITIAL_SUPPLY(), povwEmission + stakingEmission);
     }
 

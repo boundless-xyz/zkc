@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 /// @title IZKC
 /// @notice Interface for the ZKC token with epoch-based emissions
@@ -15,6 +15,7 @@ interface IZKC {
 
     error EpochNotEnded(uint256 epoch);
     error TotalAllocationExceeded();
+    error EpochsNotStarted();
 
     /// @notice Perform initial token distribution to specified recipients
     /// @dev Only callable by designated initial minters
@@ -68,17 +69,26 @@ interface IZKC {
     function getStakingEmissionsForEpoch(uint256 epoch) external returns (uint256);
 
     /// @notice Get the current epoch number
-    /// @dev Calculated based on time elapsed since deployment
+    /// @dev Calculated based on time elapsed since deployment.
+    /// @dev Reverts if epochs have not started yet.
     /// @return The current epoch number (0-indexed)
     function getCurrentEpoch() external view returns (uint256);
 
+    /// @notice Get the current epoch end time
+    /// @dev Returns the final timestamp at which the current epoch is active.
+    ///      After this time, rewards will be emitted.
+    /// @return The timestamp when the current epoch ends
+    function getCurrentEpochEndTime() external view returns (uint256);
+
     /// @notice Get the start timestamp of a specific epoch
+    /// @dev Reverts if epochs have not started yet.
     /// @param epoch The epoch number
     /// @return The timestamp when the epoch starts
     function getEpochStartTime(uint256 epoch) external view returns (uint256);
 
     /// @notice Get the end timestamp of a specific epoch
     /// @dev Returns the final timestamp at which the epoch is active
+    /// @dev Reverts if epochs have not started yet.
     /// @param epoch The epoch number
     /// @return The timestamp when the epoch ends
     function getEpochEndTime(uint256 epoch) external view returns (uint256);

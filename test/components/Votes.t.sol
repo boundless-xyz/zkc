@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import "../veZKC.t.sol";
 import "../../src/interfaces/IStaking.sol";
@@ -31,7 +31,7 @@ contract veZKCVotesTest is veZKCTest {
 
     function testGetPastVotesHistoricalAccuracy() public {
         // Record initial timestamp
-        uint256 t0 = vm.getBlockTimestamp();
+        vm.getBlockTimestamp();
 
         // Alice stakes at t0
         vm.startPrank(alice);

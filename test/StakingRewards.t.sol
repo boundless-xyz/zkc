@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -29,6 +29,7 @@ contract StakingRewardsTest is Test {
         bytes memory zkcInit = abi.encodeCall(ZKC.initialize, (minter1, minter2, supply / 2, supply / 2, admin));
         zkc = ZKC(address(new ERC1967Proxy(address(zkcImpl), zkcInit)));
         zkc.initializeV2();
+        zkc.initializeV3();
         EPOCH_DURATION = zkc.EPOCH_DURATION();
 
         veZKC veImpl = new veZKC();

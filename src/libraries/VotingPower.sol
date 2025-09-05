@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {Checkpoints} from "./Checkpoints.sol";
 import {Constants} from "./Constants.sol";
@@ -47,21 +47,6 @@ library VotingPower {
 
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
         return getVotesFromPoint(point);
-    }
-
-    /// @notice Calculate total voting power at current timestamp
-    /// @param globalStorage Global checkpoint storage
-    /// @return Current total voting power
-    function getTotalSupply(Checkpoints.GlobalCheckpointStorage storage globalStorage)
-        internal
-        view
-        returns (uint256)
-    {
-        uint256 globalEpoch = globalStorage.globalPointEpoch;
-        if (globalEpoch == 0) return 0;
-
-        Checkpoints.Point memory lastPoint = globalStorage.globalPointHistory[globalEpoch];
-        return getVotesFromPoint(lastPoint);
     }
 
     /// @notice Calculate total voting power at a specific timestamp

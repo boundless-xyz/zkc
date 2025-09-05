@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import "../ZKC.t.sol";
 import "../../src/libraries/Supply.sol";
@@ -91,7 +91,7 @@ contract ZKCEpochsTest is ZKCTest {
         assertEq(stakingEmission, expectedStaking);
     }
 
-    function testGetTotalPoVWEmissionsAtEpochStart() public {
+    function testGetTotalPoVWEmissionsAtEpochStart() public view {
         uint256 epoch = 10;
 
         // getTotalPoVWEmissionsAtEpochStart returns emissions up to START of epoch (not end)
@@ -101,7 +101,7 @@ contract ZKCEpochsTest is ZKCTest {
         assertEq(zkc.getTotalPoVWEmissionsAtEpochStart(epoch), expectedPoVW);
     }
 
-    function testGetTotalStakingEmissionsAtEpochStart() public {
+    function testGetTotalStakingEmissionsAtEpochStart() public view {
         uint256 epoch = 10;
 
         // getTotalStakingEmissionsAtEpochStart returns emissions up to START of epoch (not end)
@@ -111,7 +111,7 @@ contract ZKCEpochsTest is ZKCTest {
         assertEq(zkc.getTotalStakingEmissionsAtEpochStart(epoch), expectedStaking);
     }
 
-    function testEpochProgressionAffectsAllocations() public {
+    function testEpochProgressionAffectsAllocations() public view {
         uint256 epoch0 = 0;
         uint256 epoch10 = 10;
         uint256 epoch100 = 100;
@@ -139,5 +139,21 @@ contract ZKCEpochsTest is ZKCTest {
 
         assertGt(supplyAfter1Year, initialSupply);
         assertGt(supplyAfter2Years, supplyAfter1Year);
+    }
+
+    function testGetCurrentEpochEndTime() public {
+        vm.warp(epoch0StartTime + 1 days);
+        assertEq(zkc.getCurrentEpochEndTime(), epoch0StartTime + zkc.EPOCH_DURATION() - 1);
+
+        vm.warp(epoch0StartTime + 2 days - 1 seconds);
+        assertEq(zkc.getCurrentEpochEndTime(), epoch0StartTime + zkc.EPOCH_DURATION() - 1);
+
+        vm.warp(epoch0StartTime + 2 days);
+        assertEq(zkc.getCurrentEpochEndTime(), epoch0StartTime + 2 * zkc.EPOCH_DURATION() - 1);
+
+        vm.warp(epoch0StartTime + 365 days);
+        uint256 currentEpoch = zkc.getCurrentEpoch();
+        uint256 expectedEndTime = epoch0StartTime + (currentEpoch + 1) * zkc.EPOCH_DURATION() - 1;
+        assertEq(zkc.getCurrentEpochEndTime(), expectedEndTime);
     }
 }

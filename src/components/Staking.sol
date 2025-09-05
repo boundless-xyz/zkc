@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -36,6 +36,10 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         return super._update(to, tokenId, auth);
     }
 
+    /// @notice Check if contract supports a given interface
+    /// @dev Implements ERC165 interface detection for IERC721 and inherited interfaces
+    /// @param interfaceId The interface identifier to check
+    /// @return bool True if the interface is supported
     function supportsInterface(bytes4 interfaceId)
         public
         view
@@ -43,7 +47,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         override(ERC721Upgradeable, IERC165)
         returns (bool)
     {
-        return interfaceId == type(IERC721).interfaceId || super.supportsInterface(interfaceId);
+        return interfaceId == type(IERC721).interfaceId || interfaceId == type(IStaking).interfaceId
+            || super.supportsInterface(interfaceId);
     }
 
     /// @inheritdoc IStaking
@@ -124,9 +129,6 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
         // Mark as withdrawing and checkpoint (powers drop to 0)
         _initiateUnstakeAndCheckpoint(tokenId);
-
-        uint256 withdrawableAt = block.timestamp + Constants.WITHDRAWAL_PERIOD;
-        emit UnstakeInitiated(tokenId, msg.sender, withdrawableAt);
     }
 
     /// @inheritdoc IStaking
@@ -155,7 +157,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         if (tokenId == 0) return (0, 0);
 
         Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
-        uint256 withdrawableAt = 0;
+        uint256 withdrawableAt;
         if (stakeInfo.withdrawalRequestedAt > 0) {
             withdrawableAt = stakeInfo.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
         }
@@ -241,16 +243,18 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // so oldStake.amount represents their own stake contribution
         int256 votingDelta = -int256(oldStake.amount);
         int256 rewardDelta = -int256(oldStake.amount);
-        
+
         // Update user checkpoint by removing their own stake power
         // The user may still have delegated power from others
-        Checkpoints.checkpointDelta(
-            _userCheckpoints,
-            _globalCheckpoints,
-            owner,
-            votingDelta,
-            rewardDelta
-        );
+        Checkpoints.checkpointDelta(_userCheckpoints, _globalCheckpoints, owner, votingDelta, rewardDelta);
+
+        // Get voting and reward power after unstaking for event emission
+        uint256 votesAfter = VotingPower.getVotes(_userCheckpoints, owner);
+        uint256 rewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, owner);
+
+        // Emit events showing power reduction
+        emit OZIVotes.DelegateVotesChanged(owner, votesBefore, votesAfter);
+        emit IRewards.DelegateRewardsChanged(owner, rewardsBefore, rewardsAfter);
 
         // Get voting and reward power after unstaking for event emission
         uint256 votesAfter = VotingPower.getVotes(_userCheckpoints, owner);
@@ -284,10 +288,6 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
         // Add to existing veZKC position
         _addStakeAndCheckpoint(tokenId, amount);
-
-        // Get the new total amount after adding
-        Checkpoints.StakeInfo memory updatedStake = _stakes[tokenId];
-        emit StakeAdded(tokenId, ownerOf(tokenId), amount, updatedStake.amount);
     }
 
     /// @dev Handle delegation-aware checkpointing
@@ -317,13 +317,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
         // Use the library to handle checkpointing with delegation awareness
         (int256 votingDelta, int256 rewardDelta) = Checkpoints.checkpointWithDelegation(
-            _userCheckpoints,
-            _globalCheckpoints,
-            account,
-            oldStake,
-            newStake,
-            isVoteDelegated,
-            isRewardDelegated
+            _userCheckpoints, _globalCheckpoints, account, oldStake, newStake, isVoteDelegated, isRewardDelegated
         );
 
         // Handle delegation updates if needed

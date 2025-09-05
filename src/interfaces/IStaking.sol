@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {IERC721} from "@openzeppelin/contracts/interfaces/IERC721.sol";
 
@@ -19,10 +19,33 @@ interface IStaking is IERC721 {
     error MustUndelegateVotesFirst();
     error MustUndelegateRewardsFirst();
 
+    /// @notice Emitted when a new stake position is created
+    /// @param tokenId The ID of the newly minted veZKC NFT
+    /// @param owner The address that owns the new stake position
+    /// @param amount The amount of ZKC tokens staked
     event StakeCreated(uint256 indexed tokenId, address indexed owner, uint256 amount);
+
+    /// @notice Emitted when additional tokens are added to an existing stake
+    /// @param tokenId The ID of the veZKC NFT that was increased
+    /// @param owner The address that owns the stake position
+    /// @param addedAmount The amount of ZKC tokens added to the stake
+    /// @param newTotal The new total amount of ZKC tokens in the stake
     event StakeAdded(uint256 indexed tokenId, address indexed owner, uint256 addedAmount, uint256 newTotal);
+
+    /// @notice Emitted when a veZKC NFT is burned after unstaking is completed
+    /// @param tokenId The ID of the burned veZKC NFT
     event StakeBurned(uint256 indexed tokenId);
+
+    /// @notice Emitted when a user initiates the unstaking process
+    /// @param tokenId The ID of the veZKC NFT being unstaked
+    /// @param owner The address that owns the stake position
+    /// @param withdrawableAt The timestamp when the unstake can be completed
     event UnstakeInitiated(uint256 indexed tokenId, address indexed owner, uint256 withdrawableAt);
+
+    /// @notice Emitted when unstaking is completed and tokens are returned to the owner
+    /// @param tokenId The ID of the veZKC NFT that was unstaked
+    /// @param owner The address that received the unstaked tokens
+    /// @param amount The amount of ZKC tokens that were returned
     event UnstakeCompleted(uint256 indexed tokenId, address indexed owner, uint256 amount);
 
     /// @notice Stake ZKC tokens to mint veZKC NFT

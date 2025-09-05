@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {RewardPower} from "../../src/libraries/RewardPower.sol";
@@ -22,20 +22,14 @@ contract RewardPowerTest is Test {
 
     function setUp() public {
         // Initialize with a user point (active stake)
-        userStorage.userPointHistory[alice][1] = Checkpoints.Point({
-            votingAmount: AMOUNT,
-            rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp()
-        });
+        userStorage.userPointHistory[alice][1] =
+            Checkpoints.Point({votingAmount: AMOUNT, rewardAmount: AMOUNT, updatedAt: vm.getBlockTimestamp()});
         userStorage.userPointEpoch[alice] = 1;
 
         // Initialize global
         Checkpoints.initializeGlobalPoint(globalStorage);
-        globalStorage.globalPointHistory[1] = Checkpoints.Point({
-            votingAmount: AMOUNT,
-            rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp()
-        });
+        globalStorage.globalPointHistory[1] =
+            Checkpoints.Point({votingAmount: AMOUNT, rewardAmount: AMOUNT, updatedAt: vm.getBlockTimestamp()});
         globalStorage.globalPointEpoch = 1;
     }
 
@@ -77,11 +71,8 @@ contract RewardPowerTest is Test {
 
     function testZeroStakingRewardsAfterWithdrawal() public {
         // Create a point with zero amounts (user has withdrawn)
-        userStorage.userPointHistory[alice][2] = Checkpoints.Point({
-            votingAmount: 0,
-            rewardAmount: 0,
-            updatedAt: vm.getBlockTimestamp()
-        });
+        userStorage.userPointHistory[alice][2] =
+            Checkpoints.Point({votingAmount: 0, rewardAmount: 0, updatedAt: vm.getBlockTimestamp()});
         userStorage.userPointEpoch[alice] = 2;
 
         // Staking rewards should be 0 after withdrawal
@@ -95,7 +86,7 @@ contract RewardPowerTest is Test {
         assertEq(rewards, 0);
     }
 
-    function testStakingRewardsScalarDivision() public {
+    function testStakingRewardsScalarDivision() public view {
         // Test that staking rewards are correctly divided by REWARD_POWER_SCALAR
         uint256 expectedRewards = AMOUNT / Constants.REWARD_POWER_SCALAR;
         uint256 actualRewards = RewardPower.getStakingRewards(userStorage, alice);
@@ -127,11 +118,8 @@ contract RewardPowerTest is Test {
 
     function testZeroPoVWRewardCapAfterWithdrawal() public {
         // Create a point with zero amounts (user has withdrawn)
-        userStorage.userPointHistory[alice][2] = Checkpoints.Point({
-            votingAmount: 0,
-            rewardAmount: 0,
-            updatedAt: vm.getBlockTimestamp()
-        });
+        userStorage.userPointHistory[alice][2] =
+            Checkpoints.Point({votingAmount: 0, rewardAmount: 0, updatedAt: vm.getBlockTimestamp()});
         userStorage.userPointEpoch[alice] = 2;
 
         // PoVW reward cap should be 0 after withdrawal
@@ -145,14 +133,14 @@ contract RewardPowerTest is Test {
         assertEq(cap, 0);
     }
 
-    function testPoVWRewardCapScalarDivision() public {
+    function testPoVWRewardCapScalarDivision() public view {
         // Test that PoVW reward cap is correctly divided by POVW_REWARD_CAP_SCALAR
         uint256 expectedCap = AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
         uint256 actualCap = RewardPower.getPoVWRewardCap(userStorage, alice);
         assertEq(actualCap, expectedCap, "PoVW cap should equal amount divided by POVW_REWARD_CAP_SCALAR");
     }
 
-    function testCompareStakingRewardsVsPoVWCap() public {
+    function testCompareStakingRewardsVsPoVWCap() public view {
         // Compare staking rewards vs PoVW cap for same user
         uint256 stakingRewards = RewardPower.getStakingRewards(userStorage, alice);
         uint256 povwCap = RewardPower.getPoVWRewardCap(userStorage, alice);

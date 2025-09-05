@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {Clock} from "./Clock.sol";
 import {Storage} from "./Storage.sol";
@@ -18,6 +18,7 @@ abstract contract Rewards is Storage, Clock, IRewards {
     bytes32 private constant REWARD_DELEGATION_TYPEHASH =
         keccak256("RewardDelegation(address delegatee,uint256 nonce,uint256 expiry)");
     /// @inheritdoc IRewards
+
     function getStakingRewards(address account) external view override returns (uint256) {
         return RewardPower.getStakingRewards(_userCheckpoints, account);
     }
@@ -63,28 +64,24 @@ abstract contract Rewards is Storage, Clock, IRewards {
     }
 
     /// @inheritdoc IRewards
-    function delegateRewardsBySig(
-        address delegatee,
-        uint256 nonce,
-        uint256 expiry,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) public override {
+    function delegateRewardsBySig(address delegatee, uint256 nonce, uint256 expiry, uint8 v, bytes32 r, bytes32 s)
+        public
+        override
+    {
         if (block.timestamp > expiry) {
             revert RewardsExpiredSignature(expiry);
         }
-        
+
         // Create the digest for the signature
         bytes32 structHash = keccak256(abi.encode(REWARD_DELEGATION_TYPEHASH, delegatee, nonce, expiry));
         bytes32 digest = _hashTypedDataV4(structHash);
-        
+
         // Recover the signer from the signature
         address signer = ECDSA.recover(digest, v, r, s);
-        
+
         // Verify and consume the nonce (shared with vote delegation)
         _useNonce(signer, nonce);
-        
+
         // Delegate rewards on behalf of the signer
         _delegateRewards(signer, delegatee);
     }
@@ -105,7 +102,7 @@ abstract contract Rewards is Storage, Clock, IRewards {
         }
 
         address oldDelegate = rewardDelegates(account);
-        
+
         // Skip if delegating to same address
         if (oldDelegate == delegatee) return;
         
@@ -122,6 +119,10 @@ abstract contract Rewards is Storage, Clock, IRewards {
         uint256 oldDelegateRewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, oldDelegate);
         uint256 newDelegateRewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, delegatee);
 
+        // Capture reward power after the change
+        uint256 oldDelegateRewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, oldDelegate);
+        uint256 newDelegateRewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, delegatee);
+
         emit RewardDelegateChanged(account, oldDelegate, delegatee);
         
         // Emit DelegateRewardsChanged for both old and new delegates
@@ -130,7 +131,9 @@ abstract contract Rewards is Storage, Clock, IRewards {
     }
 
     /// @dev Handle reward delegation checkpointing
-    function _checkpointRewardDelegation(Checkpoints.StakeInfo memory stake, address oldDelegatee, address newDelegatee) internal {
+    function _checkpointRewardDelegation(Checkpoints.StakeInfo memory stake, address oldDelegatee, address newDelegatee)
+        internal
+    {
         // Skip if delegating to same address (this should already be checked by caller)
         if (oldDelegatee == newDelegatee) return;
 

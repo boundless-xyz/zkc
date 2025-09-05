@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {Checkpoints} from "../libraries/Checkpoints.sol";
 
@@ -31,24 +31,19 @@ abstract contract Storage {
     /// @notice Counter for generating unique NFT token IDs
     uint256 internal _currentTokenId;
 
-    /// @notice Array of token IDs owned by each account (for enumeration)
-    mapping(address account => uint256[]) internal _ownedTokens;
-
-    /// @notice Mapping from token ID to its index in the owner's token list
-    mapping(uint256 tokenId => uint256) internal _ownedTokensIndex;
-
     /// @notice Nonces for EIP-712 signatures (shared between vote and reward delegation)
     mapping(address owner => uint256) internal _nonces;
 
-    /// @notice Gap for future extensions
-    /// @dev TODO: Is this needed?
+    /// @notice Gap for future extensions in upgradeable contracts
     uint256[50] private __gap;
-    
+
     /// @notice Get the current nonce for an account (for EIP-712 signatures)
+    /// @param owner The address of the account to get the nonce for
+    /// @return The current nonce value for the specified account
     function nonces(address owner) public view returns (uint256) {
         return _nonces[owner];
     }
-    
+
     /// @notice Internal function to validate and consume a nonce
     function _useNonce(address owner, uint256 nonce) internal {
         uint256 currentNonce = _nonces[owner]++;

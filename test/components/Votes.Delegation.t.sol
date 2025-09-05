@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import "../veZKC.t.sol";
 import "../../src/interfaces/IVotes.sol";
@@ -10,20 +10,20 @@ import {console2} from "forge-std/Test.sol";
 
 contract VotesDelegationTest is veZKCTest {
     using MessageHashUtils for bytes32;
-    
+
     address public constant CHARLIE = address(3);
     address public constant DAVE = address(4);
-    
+
     // Test accounts with known private keys for signature tests
     uint256 constant ALICE_PK = 0xA11CE;
     uint256 constant BOB_PK = 0xB0B;
     address aliceSigner;
     address bobSigner;
-    
+
     // EIP-712 constants
     bytes32 private constant VOTE_DELEGATION_TYPEHASH =
         keccak256("VoteDelegation(address delegatee,uint256 nonce,uint256 expiry)");
-    bytes32 private constant DOMAIN_TYPEHASH = 
+    bytes32 private constant DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     function setUp() public override {
@@ -37,28 +37,28 @@ contract VotesDelegationTest is veZKCTest {
         zkc.approve(address(veToken), type(uint256).max);
         vm.prank(DAVE);
         zkc.approve(address(veToken), type(uint256).max);
-        
+
         // Set up signers with known private keys for signature tests
         aliceSigner = vm.addr(ALICE_PK);
         bobSigner = vm.addr(BOB_PK);
-        
+
         // Fund the signers
         deal(address(zkc), aliceSigner, AMOUNT * 10);
         deal(address(zkc), bobSigner, AMOUNT * 10);
-        
+
         // Approve veToken to spend ZKC
         vm.prank(aliceSigner);
         zkc.approve(address(veToken), type(uint256).max);
         vm.prank(bobSigner);
         zkc.approve(address(veToken), type(uint256).max);
     }
-    
+
     // Helper function to create EIP-712 digest for vote delegation
-    function _createVoteDelegationDigest(
-        address delegatee,
-        uint256 nonce,
-        uint256 expiry
-    ) internal view returns (bytes32) {
+    function _createVoteDelegationDigest(address delegatee, uint256 nonce, uint256 expiry)
+        internal
+        view
+        returns (bytes32)
+    {
         bytes32 structHash = keccak256(abi.encode(VOTE_DELEGATION_TYPEHASH, delegatee, nonce, expiry));
         bytes32 domainSeparator = keccak256(
             abi.encode(
@@ -207,7 +207,6 @@ contract VotesDelegationTest is veZKCTest {
         uint256 aliceStake = 1000 ether;
         uint256 bobStake = 500 ether;
         uint256 charlieStake = 200 ether;
-        
         // All three users stake
         vm.prank(alice);
         veToken.stake(aliceStake);
@@ -215,33 +214,29 @@ contract VotesDelegationTest is veZKCTest {
         veToken.stake(bobStake);
         vm.prank(CHARLIE);
         veToken.stake(charlieStake);
-        
         // Initial state - everyone self-delegates
         assertEq(veToken.getVotes(alice), aliceStake, "Alice should have her own voting power");
         assertEq(veToken.getVotes(bob), bobStake, "Bob should have his own voting power");
         assertEq(veToken.getVotes(CHARLIE), charlieStake, "Charlie should have his own voting power");
-        
+
         // Alice delegates her voting power to Bob
         vm.prank(alice);
         veToken.delegate(bob);
-        
+
         // Bob now has his own stake + Alice's delegated stake
         assertEq(veToken.getVotes(alice), 0, "Alice should have no voting power after delegating");
         assertEq(veToken.getVotes(bob), bobStake + aliceStake, "Bob should have his own + Alice's voting power");
         assertEq(veToken.getVotes(CHARLIE), charlieStake, "Charlie's voting power unchanged");
-        
         // Bob delegates his voting power to Charlie
         // IMPORTANT: Only Bob's own stake moves to Charlie, Alice's delegation stays with Bob
         vm.prank(bob);
         veToken.delegate(CHARLIE);
-        
         // Final distribution demonstrates non-transitivity:
         // - Alice's delegation stays with Bob (doesn't transfer to Charlie)
         // - Only Bob's own stake goes to Charlie
         assertEq(veToken.getVotes(alice), 0, "Alice still has no voting power");
         assertEq(veToken.getVotes(bob), aliceStake, "Bob retains Alice's delegated power");
         assertEq(veToken.getVotes(CHARLIE), charlieStake + bobStake, "Charlie has his own + Bob's stake only");
-        
         // Verify the total is conserved
         uint256 totalVotes = veToken.getVotes(alice) + veToken.getVotes(bob) + veToken.getVotes(CHARLIE);
         assertEq(totalVotes, aliceStake + bobStake + charlieStake, "Total voting power is conserved");
@@ -399,11 +394,11 @@ contract VotesDelegationTest is veZKCTest {
         // Test delegation event - Alice delegates to Bob
         vm.expectEmit(true, true, true, true);
         emit OZIVotes.DelegateChanged(alice, alice, bob);
-        
+
         // Alice loses voting power
         vm.expectEmit(true, true, true, true);
         emit OZIVotes.DelegateVotesChanged(alice, AMOUNT, 0);
-        
+
         // Bob gains voting power
         vm.expectEmit(true, true, true, true);
         emit OZIVotes.DelegateVotesChanged(bob, 0, AMOUNT);
@@ -470,7 +465,7 @@ contract VotesDelegationTest is veZKCTest {
         vm.recordLogs();
         vm.prank(alice);
         veToken.delegate(alice);
-        
+
         // Check no events were emitted
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 0, "No events should be emitted when delegating to same address");
@@ -483,7 +478,7 @@ contract VotesDelegationTest is veZKCTest {
         vm.recordLogs();
         vm.prank(alice);
         veToken.delegate(bob);
-        
+
         entries = vm.getRecordedLogs();
         assertEq(entries.length, 0, "No events should be emitted when delegating to same address");
     }
@@ -533,7 +528,7 @@ contract VotesDelegationTest is veZKCTest {
         uint256 nonce = veToken.nonces(aliceSigner);
         uint256 expiry = block.timestamp + 1 hours;
         bytes32 digest = _createVoteDelegationDigest(bobSigner, nonce, expiry);
-        
+
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PK, digest);
 
         // Execute delegation by signature
@@ -641,14 +636,14 @@ contract VotesDelegationTest is veZKCTest {
         uint256 expiry = block.timestamp + 1 hours;
         bytes32 aliceDigest = _createVoteDelegationDigest(CHARLIE, aliceNonce, expiry);
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(ALICE_PK, aliceDigest);
-        
+
         veToken.delegateBySig(CHARLIE, aliceNonce, expiry, v1, r1, s1);
 
         // Bob also delegates votes to Charlie by signature
         uint256 bobNonce = veToken.nonces(bobSigner);
         bytes32 bobDigest = _createVoteDelegationDigest(CHARLIE, bobNonce, expiry);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(BOB_PK, bobDigest);
-        
+
         veToken.delegateBySig(CHARLIE, bobNonce, expiry, v2, r2, s2);
 
         // Verify Charlie has combined voting power

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import "forge-std/Test.sol";
 import "../src/ZKC.sol";
@@ -45,9 +45,13 @@ contract ZKCTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         zkc = ZKC(address(proxy));
 
-        // Initialize V2 to set epoch 0 start time
+        // Initialize V2 to set epoch 0 start time to max
         vm.prank(owner);
         zkc.initializeV2();
+
+        // Initialize V3 to actually start epochs
+        vm.prank(owner);
+        zkc.initializeV3();
         epoch0StartTime = vm.getBlockTimestamp();
 
         // Grant roles

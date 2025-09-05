@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
@@ -11,7 +11,7 @@ contract PrecomputeSupply is Script {
     uint256 constant EPOCHS_PER_YEAR = 182;
     uint256 constant INITIAL_SUPPLY = 1_000_000_000 * 1e18;
 
-    function run() external {
+    function run() external pure {
         console.log("============================================================");
         console.log("Precomputing ZKC Supply Constants with PRBMath UD60x18");
         console.log("============================================================");
