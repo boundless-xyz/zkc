@@ -14,6 +14,7 @@ import {UD60x18, ud, unwrap, pow, convert} from "lib/prb-math/src/UD60x18.sol";
 library Supply {
     uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 10 ** 18; // 1 billion ZKC
     uint256 public constant EPOCHS_PER_YEAR = 182;
+    uint256 public constant EPOCH_DURATION = 2 days;
 
     /// @notice Precomputed per-epoch growth factors (1e18 scaled)
     /// @dev Calculated with PRBMath UD60x18: r = (1 + annual_rate)^(1/182)
