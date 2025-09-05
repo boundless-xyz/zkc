@@ -147,7 +147,7 @@ library Supply {
 
     /// @notice Returns the amount of ZKC that will be emitted at the end of the provided epoch.
     /// @param epoch The epoch number
-    /// @dev Caches supply calculations to save gas for batch mint scenarios. 
+    /// @dev Caches supply calculations to save gas for batch mint scenarios.
     ///      There is possible repeated work, between the two getSupplyAtEpoch calls as they
     ///      one does exp(_, epoch) and the other does exp(_, epoch+1).
     /// @return The amount of new tokens to be emitted at the end of this epoch

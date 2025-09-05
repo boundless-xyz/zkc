@@ -45,7 +45,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         require(_zkc != address(0), "ZKC cannot be zero address");
         require(_veZKC != address(0), "veZKC cannot be zero address");
         require(_admin != address(0), "Admin cannot be zero address");
-        
+
         zkc = ZKC(_zkc);
         veZKC = IRewards(_veZKC);
 
@@ -103,7 +103,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     function _calculate(address user, uint256[] calldata epochs) internal returns (uint256[] memory) {
         ZKC zkcMemory = zkc;
         IRewards veZKCMemory = veZKC;
-        
+
         uint256 currentEpoch = zkcMemory.getCurrentEpoch();
         uint256[] memory rewards = new uint256[](epochs.length);
         for (uint256 i; i < epochs.length; ++i) {

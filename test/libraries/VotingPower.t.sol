@@ -22,20 +22,14 @@ contract VotingPowerTest is Test {
 
     function setUp() public {
         // Initialize with a user point (active stake)
-        userStorage.userPointHistory[alice][1] = Checkpoints.Point({
-            votingAmount: AMOUNT,
-            rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp()
-        });
+        userStorage.userPointHistory[alice][1] =
+            Checkpoints.Point({votingAmount: AMOUNT, rewardAmount: AMOUNT, updatedAt: vm.getBlockTimestamp()});
         userStorage.userPointEpoch[alice] = 1;
 
         // Initialize global
         Checkpoints.initializeGlobalPoint(globalStorage);
-        globalStorage.globalPointHistory[1] = Checkpoints.Point({
-            votingAmount: AMOUNT,
-            rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp()
-        });
+        globalStorage.globalPointHistory[1] =
+            Checkpoints.Point({votingAmount: AMOUNT, rewardAmount: AMOUNT, updatedAt: vm.getBlockTimestamp()});
         globalStorage.globalPointEpoch = 1;
     }
 
@@ -57,7 +51,6 @@ contract VotingPowerTest is Test {
         assertEq(pastVotes, AMOUNT / Constants.VOTING_POWER_SCALAR);
     }
 
-
     function testGetPastTotalSupply() public {
         uint256 t0 = vm.getBlockTimestamp();
 
@@ -66,23 +59,17 @@ contract VotingPowerTest is Test {
         assertEq(pastTotalSupply, AMOUNT / Constants.VOTING_POWER_SCALAR);
     }
 
-    function testGetVotesFromPoint() public {
+    function testGetVotesFromPoint() public view {
         // Active point
-        Checkpoints.Point memory activePoint = Checkpoints.Point({
-            votingAmount: AMOUNT,
-            rewardAmount: AMOUNT,
-            updatedAt: vm.getBlockTimestamp()
-        });
+        Checkpoints.Point memory activePoint =
+            Checkpoints.Point({votingAmount: AMOUNT, rewardAmount: AMOUNT, updatedAt: vm.getBlockTimestamp()});
 
         uint256 votes = VotingPower.getVotesFromPoint(activePoint);
         assertEq(votes, AMOUNT / Constants.VOTING_POWER_SCALAR);
-        
+
         // Zero point (user has withdrawn)
-        Checkpoints.Point memory zeroPoint = Checkpoints.Point({
-            votingAmount: 0,
-            rewardAmount: 0,
-            updatedAt: vm.getBlockTimestamp()
-        });
+        Checkpoints.Point memory zeroPoint =
+            Checkpoints.Point({votingAmount: 0, rewardAmount: 0, updatedAt: vm.getBlockTimestamp()});
 
         uint256 zeroVotes = VotingPower.getVotesFromPoint(zeroPoint);
         assertEq(zeroVotes, 0);
@@ -90,11 +77,8 @@ contract VotingPowerTest is Test {
 
     function testZeroVotingPowerAfterWithdrawal() public {
         // Create a point with zero amounts (user has withdrawn)
-        userStorage.userPointHistory[alice][2] = Checkpoints.Point({
-            votingAmount: 0,
-            rewardAmount: 0,
-            updatedAt: vm.getBlockTimestamp()
-        });
+        userStorage.userPointHistory[alice][2] =
+            Checkpoints.Point({votingAmount: 0, rewardAmount: 0, updatedAt: vm.getBlockTimestamp()});
         userStorage.userPointEpoch[alice] = 2;
 
         // Voting power should be 0 after withdrawal
@@ -108,7 +92,7 @@ contract VotingPowerTest is Test {
         assertEq(votes, 0);
     }
 
-    function testScalarDivision() public {
+    function testScalarDivision() public view {
         // Test that voting power is correctly divided by scalar
         uint256 expectedVotes = AMOUNT / Constants.VOTING_POWER_SCALAR;
         uint256 actualVotes = VotingPower.getVotes(userStorage, alice);

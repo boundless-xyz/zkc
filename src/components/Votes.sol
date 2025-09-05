@@ -17,7 +17,7 @@ abstract contract Votes is Storage, Clock, IVotes {
     /// @dev EIP-712 type hash for vote delegation
     bytes32 private constant VOTE_DELEGATION_TYPEHASH =
         keccak256("VoteDelegation(address delegatee,uint256 nonce,uint256 expiry)");
-    
+
     /// @inheritdoc OZIVotes
     function getVotes(address account) public view override returns (uint256) {
         return VotingPower.getVotes(_userCheckpoints, account);
@@ -48,28 +48,24 @@ abstract contract Votes is Storage, Clock, IVotes {
     }
 
     /// @inheritdoc OZIVotes
-    function delegateBySig(
-        address delegatee,
-        uint256 nonce,
-        uint256 expiry,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) public override {
+    function delegateBySig(address delegatee, uint256 nonce, uint256 expiry, uint8 v, bytes32 r, bytes32 s)
+        public
+        override
+    {
         if (block.timestamp > expiry) {
             revert OZIVotes.VotesExpiredSignature(expiry);
         }
-        
+
         // Create the digest for the signature
         bytes32 structHash = keccak256(abi.encode(VOTE_DELEGATION_TYPEHASH, delegatee, nonce, expiry));
         bytes32 digest = _hashTypedDataV4(structHash);
-        
+
         // Recover the signer from the signature
         address signer = ECDSA.recover(digest, v, r, s);
-        
+
         // Verify and consume the nonce
         _useNonce(signer, nonce);
-        
+
         // Delegate on behalf of the signer
         _delegate(signer, delegatee);
     }
@@ -89,10 +85,10 @@ abstract contract Votes is Storage, Clock, IVotes {
         }
 
         address oldDelegate = delegates(account);
-        
+
         // Skip if delegating to same address
         if (oldDelegate == delegatee) return;
-        
+
         _voteDelegatee[account] = delegatee;
 
         // Get votes before changes for event emission
@@ -107,13 +103,15 @@ abstract contract Votes is Storage, Clock, IVotes {
         uint256 newDelegateVotesAfter = getVotes(delegatee);
 
         emit DelegateChanged(account, oldDelegate, delegatee);
-        
+
         // Emit DelegateVotesChanged for both old and new delegates
         emit DelegateVotesChanged(oldDelegate, oldDelegateVotesBefore, oldDelegateVotesAfter);
         emit DelegateVotesChanged(delegatee, newDelegateVotesBefore, newDelegateVotesAfter);
     }
 
-    function _checkpointDelegation(Checkpoints.StakeInfo memory stake, address oldDelegatee, address newDelegatee) internal {
+    function _checkpointDelegation(Checkpoints.StakeInfo memory stake, address oldDelegatee, address newDelegatee)
+        internal
+    {
         // Skip if delegating to same address (this should already be checked by caller)
         if (oldDelegatee == newDelegatee) return;
 

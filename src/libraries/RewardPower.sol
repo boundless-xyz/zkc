@@ -26,6 +26,7 @@ library RewardPower {
     /// @param userStorage User checkpoint storage
     /// @param account Address to query
     /// @return Current reward power
+
     function getStakingRewards(Checkpoints.UserCheckpointStorage storage userStorage, address account)
         internal
         view

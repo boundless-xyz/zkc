@@ -11,20 +11,20 @@ import {console2} from "forge-std/Test.sol";
 
 contract RewardsDelegationTest is veZKCTest {
     using MessageHashUtils for bytes32;
-    
+
     address public constant CHARLIE = address(3);
     address public constant DAVE = address(4);
-    
+
     // Test accounts with known private keys for signature tests
     uint256 constant ALICE_PK = 0xA11CE;
     uint256 constant BOB_PK = 0xB0B;
     address aliceSigner;
     address bobSigner;
-    
+
     // EIP-712 constants
     bytes32 private constant REWARD_DELEGATION_TYPEHASH =
         keccak256("RewardDelegation(address delegatee,uint256 nonce,uint256 expiry)");
-    bytes32 private constant DOMAIN_TYPEHASH = 
+    bytes32 private constant DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     function setUp() public override {
@@ -38,28 +38,28 @@ contract RewardsDelegationTest is veZKCTest {
         zkc.approve(address(veToken), type(uint256).max);
         vm.prank(DAVE);
         zkc.approve(address(veToken), type(uint256).max);
-        
+
         // Set up signers with known private keys for signature tests
         aliceSigner = vm.addr(ALICE_PK);
         bobSigner = vm.addr(BOB_PK);
-        
+
         // Fund the signers
         deal(address(zkc), aliceSigner, AMOUNT * 10);
         deal(address(zkc), bobSigner, AMOUNT * 10);
-        
+
         // Approve veToken to spend ZKC
         vm.prank(aliceSigner);
         zkc.approve(address(veToken), type(uint256).max);
         vm.prank(bobSigner);
         zkc.approve(address(veToken), type(uint256).max);
     }
-    
+
     // Helper function to create EIP-712 digest for reward delegation
-    function _createRewardDelegationDigest(
-        address delegatee,
-        uint256 nonce,
-        uint256 expiry
-    ) internal view returns (bytes32) {
+    function _createRewardDelegationDigest(address delegatee, uint256 nonce, uint256 expiry)
+        internal
+        view
+        returns (bytes32)
+    {
         bytes32 structHash = keccak256(abi.encode(REWARD_DELEGATION_TYPEHASH, delegatee, nonce, expiry));
         bytes32 domainSeparator = keccak256(
             abi.encode(
@@ -290,7 +290,9 @@ contract RewardsDelegationTest is veZKCTest {
         assertEq(veToken.getPoVWRewardCap(alice), 0, "Alice should still have no PoVW cap");
         assertEq(veToken.getPoVWRewardCap(CHARLIE), 0, "Charlie should have no PoVW cap");
         // Rounding error due to integer division by 3
-        assertApproxEqAbs(veToken.getPoVWRewardCap(bob), aliceCap + charlieCap, 1, "Bob should have sum of both PoVW caps");
+        assertApproxEqAbs(
+            veToken.getPoVWRewardCap(bob), aliceCap + charlieCap, 1, "Bob should have sum of both PoVW caps"
+        );
     }
 
     function testHistoricalRewardPowerAfterDelegation() public {
@@ -396,13 +398,13 @@ contract RewardsDelegationTest is veZKCTest {
     }
 
     // Non-transitivity test for reward delegation
-    
+
     function testRewardDelegationIsNonTransitive() public {
         // Setup: Three users with different stake amounts
         uint256 aliceStake = 1000 ether;
         uint256 bobStake = 500 ether;
         uint256 charlieStake = 200 ether;
-        
+
         // All three users stake
         vm.prank(alice);
         veToken.stake(aliceStake);
@@ -410,35 +412,38 @@ contract RewardsDelegationTest is veZKCTest {
         veToken.stake(bobStake);
         vm.prank(CHARLIE);
         veToken.stake(charlieStake);
-        
+
         // Initial state - everyone self-delegates rewards
         assertEq(veToken.getStakingRewards(alice), aliceStake, "Alice should have her own reward power");
         assertEq(veToken.getStakingRewards(bob), bobStake, "Bob should have his own reward power");
         assertEq(veToken.getStakingRewards(CHARLIE), charlieStake, "Charlie should have his own reward power");
-        
+
         // Alice delegates her reward power to Bob
         vm.prank(alice);
         veToken.delegateRewards(bob);
-        
+
         // Bob now has his own stake + Alice's delegated stake for rewards
         assertEq(veToken.getStakingRewards(alice), 0, "Alice should have no reward power after delegating");
-        assertEq(veToken.getStakingRewards(bob), bobStake + aliceStake, "Bob should have his own + Alice's reward power");
+        assertEq(
+            veToken.getStakingRewards(bob), bobStake + aliceStake, "Bob should have his own + Alice's reward power"
+        );
         assertEq(veToken.getStakingRewards(CHARLIE), charlieStake, "Charlie's reward power unchanged");
-        
+
         // Bob delegates his reward power to Charlie
         // IMPORTANT: Only Bob's own stake moves to Charlie, Alice's delegation stays with Bob
         vm.prank(bob);
         veToken.delegateRewards(CHARLIE);
-        
+
         // Final distribution demonstrates non-transitivity:
         // - Alice's delegation stays with Bob (doesn't transfer to Charlie)
         // - Only Bob's own stake goes to Charlie
         assertEq(veToken.getStakingRewards(alice), 0, "Alice still has no reward power");
         assertEq(veToken.getStakingRewards(bob), aliceStake, "Bob retains Alice's delegated reward power");
         assertEq(veToken.getStakingRewards(CHARLIE), charlieStake + bobStake, "Charlie has his own + Bob's stake only");
-        
+
         // Verify the total is conserved
-        uint256 totalRewards = veToken.getStakingRewards(alice) + veToken.getStakingRewards(bob) + veToken.getStakingRewards(CHARLIE);
+        uint256 totalRewards =
+            veToken.getStakingRewards(alice) + veToken.getStakingRewards(bob) + veToken.getStakingRewards(CHARLIE);
         assertEq(totalRewards, aliceStake + bobStake + charlieStake, "Total reward power is conserved");
     }
 
@@ -526,17 +531,17 @@ contract RewardsDelegationTest is veZKCTest {
         // Alice stakes
         vm.prank(alice);
         veToken.stake(AMOUNT);
-        
+
         uint256 aliceInitialRewards = veToken.getStakingRewards(alice);
 
         // Test reward delegation events - Alice delegates to Bob
         vm.expectEmit(true, true, true, true);
         emit IRewards.RewardDelegateChanged(alice, alice, bob);
-        
+
         // Alice loses reward power
         vm.expectEmit(true, true, true, true);
         emit IRewards.DelegateRewardsChanged(alice, aliceInitialRewards, 0);
-        
+
         // Bob gains reward power
         vm.expectEmit(true, true, true, true);
         emit IRewards.DelegateRewardsChanged(bob, 0, aliceInitialRewards);
@@ -554,7 +559,7 @@ contract RewardsDelegationTest is veZKCTest {
         vm.recordLogs();
         vm.prank(alice);
         veToken.delegateRewards(alice);
-        
+
         // Check no events were emitted
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 0, "No events should be emitted when delegating rewards to same address");
@@ -567,7 +572,7 @@ contract RewardsDelegationTest is veZKCTest {
         vm.recordLogs();
         vm.prank(alice);
         veToken.delegateRewards(bob);
-        
+
         entries = vm.getRecordedLogs();
         assertEq(entries.length, 0, "No events should be emitted when delegating rewards to same address");
     }
@@ -576,7 +581,7 @@ contract RewardsDelegationTest is veZKCTest {
         // Alice stakes
         vm.prank(alice);
         veToken.stake(AMOUNT);
-        
+
         uint256 aliceRewards = veToken.getStakingRewards(alice);
 
         // First delegation: Alice -> Bob
@@ -606,7 +611,7 @@ contract RewardsDelegationTest is veZKCTest {
         // Alice stakes
         vm.prank(alice);
         veToken.stake(AMOUNT);
-        
+
         uint256 aliceRewards = veToken.getStakingRewards(alice);
 
         // Delegate rewards to Bob first
@@ -667,13 +672,17 @@ contract RewardsDelegationTest is veZKCTest {
 
         // Check initial state
         assertEq(veToken.rewardDelegates(aliceSigner), aliceSigner, "Should self-delegate rewards initially");
-        assertEq(veToken.getStakingRewards(aliceSigner), AMOUNT / Constants.REWARD_POWER_SCALAR, "Alice should have reward power");
+        assertEq(
+            veToken.getStakingRewards(aliceSigner),
+            AMOUNT / Constants.REWARD_POWER_SCALAR,
+            "Alice should have reward power"
+        );
 
         // Create signature for delegating rewards to Bob
         uint256 nonce = veToken.nonces(aliceSigner);
         uint256 expiry = block.timestamp + 1 hours;
         bytes32 digest = _createRewardDelegationDigest(bobSigner, nonce, expiry);
-        
+
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PK, digest);
 
         // Execute reward delegation by signature
@@ -682,7 +691,11 @@ contract RewardsDelegationTest is veZKCTest {
         // Verify delegation
         assertEq(veToken.rewardDelegates(aliceSigner), bobSigner, "Alice should delegate rewards to Bob");
         assertEq(veToken.getStakingRewards(aliceSigner), 0, "Alice should have no reward power");
-        assertEq(veToken.getStakingRewards(bobSigner), AMOUNT / Constants.REWARD_POWER_SCALAR, "Bob should have Alice's reward power");
+        assertEq(
+            veToken.getStakingRewards(bobSigner),
+            AMOUNT / Constants.REWARD_POWER_SCALAR,
+            "Bob should have Alice's reward power"
+        );
         assertEq(veToken.nonces(aliceSigner), nonce + 1, "Nonce should be incremented");
     }
 
@@ -761,10 +774,11 @@ contract RewardsDelegationTest is veZKCTest {
         // First: delegate votes by signature
         uint256 nonce1 = veToken.nonces(aliceSigner);
         uint256 expiry1 = block.timestamp + 1 hours;
-        bytes32 voteStructHash = keccak256(abi.encode(
-            keccak256("VoteDelegation(address delegatee,uint256 nonce,uint256 expiry)"),
-            bobSigner, nonce1, expiry1
-        ));
+        bytes32 voteStructHash = keccak256(
+            abi.encode(
+                keccak256("VoteDelegation(address delegatee,uint256 nonce,uint256 expiry)"), bobSigner, nonce1, expiry1
+            )
+        );
         bytes32 domainSeparator = keccak256(
             abi.encode(
                 DOMAIN_TYPEHASH,
@@ -776,9 +790,9 @@ contract RewardsDelegationTest is veZKCTest {
         );
         bytes32 finalVoteDigest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, voteStructHash));
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(ALICE_PK, finalVoteDigest);
-        
+
         veToken.delegateBySig(bobSigner, nonce1, expiry1, v1, r1, s1);
-        
+
         // Verify nonce was incremented
         assertEq(veToken.nonces(aliceSigner), nonce1 + 1, "Nonce should be incremented after vote delegation");
 
@@ -787,9 +801,9 @@ contract RewardsDelegationTest is veZKCTest {
         uint256 expiry2 = block.timestamp + 1 hours;
         bytes32 rewardDigest = _createRewardDelegationDigest(CHARLIE, nonce2, expiry2);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(ALICE_PK, rewardDigest);
-        
+
         veToken.delegateRewardsBySig(CHARLIE, nonce2, expiry2, v2, r2, s2);
-        
+
         // Verify both delegations and nonce
         assertEq(veToken.delegates(aliceSigner), bobSigner, "Votes should be delegated to Bob");
         assertEq(veToken.rewardDelegates(aliceSigner), CHARLIE, "Rewards should be delegated to Charlie");

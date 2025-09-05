@@ -30,20 +30,20 @@ abstract contract Storage {
 
     /// @notice Counter for generating unique NFT token IDs
     uint256 internal _currentTokenId;
-    
+
     /// @notice Nonces for EIP-712 signatures (shared between vote and reward delegation)
     mapping(address owner => uint256) internal _nonces;
 
     /// @notice Gap for future extensions in upgradeable contracts
     uint256[50] private __gap;
-    
+
     /// @notice Get the current nonce for an account (for EIP-712 signatures)
     /// @param owner The address of the account to get the nonce for
     /// @return The current nonce value for the specified account
     function nonces(address owner) public view returns (uint256) {
         return _nonces[owner];
     }
-    
+
     /// @notice Internal function to validate and consume a nonce
     function _useNonce(address owner, uint256 nonce) internal {
         uint256 currentNonce = _nonces[owner]++;

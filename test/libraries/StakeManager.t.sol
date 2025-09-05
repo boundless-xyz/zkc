@@ -24,14 +24,14 @@ contract StakeManagerTest is Test {
         mockToken.mint(user, AMOUNT * 10);
     }
 
-    function testCreateStake() public view {
+    function testCreateStake() public pure {
         // Create stake
         Checkpoints.StakeInfo memory stake = StakeManager.createStake(AMOUNT);
         assertEq(stake.amount, AMOUNT);
         assertEq(stake.withdrawalRequestedAt, 0);
     }
 
-    function testAddToStake() public view {
+    function testAddToStake() public pure {
         // Create initial stake
         Checkpoints.StakeInfo memory stake = StakeManager.createStake(AMOUNT);
 
@@ -41,7 +41,7 @@ contract StakeManagerTest is Test {
         assertEq(newStake.withdrawalRequestedAt, 0);
     }
 
-    function testInitiateWithdrawal() public {
+    function testInitiateWithdrawal() public view {
         // Create stake
         Checkpoints.StakeInfo memory stake = StakeManager.createStake(AMOUNT);
 

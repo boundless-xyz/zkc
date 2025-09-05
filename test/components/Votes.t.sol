@@ -31,7 +31,7 @@ contract veZKCVotesTest is veZKCTest {
 
     function testGetPastVotesHistoricalAccuracy() public {
         // Record initial timestamp
-        uint256 t0 = vm.getBlockTimestamp();
+        vm.getBlockTimestamp();
 
         // Alice stakes at t0
         vm.startPrank(alice);
