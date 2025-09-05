@@ -3,8 +3,10 @@ pragma solidity ^0.8.20;
 
 import "../veZKC.t.sol";
 import "../../src/interfaces/IStaking.sol";
+import "../../src/interfaces/IRewards.sol";
 import "../../src/libraries/Constants.sol";
 import "../../src/libraries/StakeManager.sol";
+import {IVotes as OZIVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 
 contract veZKCStakeTest is veZKCTest {
     uint256 constant STAKE_AMOUNT = 10_000 * 10 ** 18;
@@ -49,6 +51,15 @@ contract veZKCStakeTest is veZKCTest {
 
         // Now approve and stake (should succeed)
         zkc.approve(address(veToken), STAKE_AMOUNT);
+        
+        // Expect DelegateVotesChanged event (alice gets voting power)
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(alice, 0, STAKE_AMOUNT);
+        
+        // Expect DelegateRewardsChanged event (alice gets reward power)
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(alice, 0, STAKE_AMOUNT);
+        
         uint256 tokenId = veToken.stake(STAKE_AMOUNT);
         vm.snapshotGasLastCall("stake: Basic staking with approval");
         vm.stopPrank();
@@ -93,6 +104,13 @@ contract veZKCStakeTest is veZKCTest {
         // Initial stake
         vm.startPrank(alice);
         zkc.approve(address(veToken), STAKE_AMOUNT);
+        
+        // Expect events for initial stake
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(alice, 0, STAKE_AMOUNT);
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(alice, 0, STAKE_AMOUNT);
+        
         uint256 tokenId = veToken.stake(STAKE_AMOUNT);
 
         // Try to add without approval (should fail with ERC20 error)
@@ -105,6 +123,13 @@ contract veZKCStakeTest is veZKCTest {
 
         // Approve and add to stake
         zkc.approve(address(veToken), ADD_AMOUNT);
+        
+        // Expect events for addToStake (power increases from STAKE_AMOUNT to STAKE_AMOUNT + ADD_AMOUNT)
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(alice, STAKE_AMOUNT, STAKE_AMOUNT + ADD_AMOUNT);
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(alice, STAKE_AMOUNT, STAKE_AMOUNT + ADD_AMOUNT);
+        
         veToken.addToStake(ADD_AMOUNT);
         vm.snapshotGasLastCall("addToStake: Adding to existing stake");
         vm.stopPrank();
@@ -180,13 +205,25 @@ contract veZKCStakeTest is veZKCTest {
         // Alice stakes
         vm.startPrank(alice);
         zkc.approve(address(veToken), STAKE_AMOUNT);
+        
+        // Expect events for initial stake
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(alice, 0, STAKE_AMOUNT);
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(alice, 0, STAKE_AMOUNT);
+        
         uint256 tokenId = veToken.stake(STAKE_AMOUNT);
 
         // Check initial voting power
         uint256 initialVotingPower = veToken.getVotes(alice);
         assertEq(initialVotingPower, STAKE_AMOUNT); // 1:1 ratio with scalar = 1
 
-        // Initiate withdrawal
+        // Initiate withdrawal - expect events showing power reduction to 0
+        vm.expectEmit(true, true, true, true);
+        emit OZIVotes.DelegateVotesChanged(alice, STAKE_AMOUNT, 0);
+        vm.expectEmit(true, true, true, true);
+        emit IRewards.DelegateRewardsChanged(alice, STAKE_AMOUNT, 0);
+        
         veToken.initiateUnstake();
         vm.snapshotGasLastCall("initiateUnstake: Starting withdrawal process");
 
