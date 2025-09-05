@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -11,7 +11,11 @@ import {IStaking} from "../interfaces/IStaking.sol";
 import {Checkpoints} from "../libraries/Checkpoints.sol";
 import {StakeManager} from "../libraries/StakeManager.sol";
 import {Constants} from "../libraries/Constants.sol";
+import {VotingPower} from "../libraries/VotingPower.sol";
+import {RewardPower} from "../libraries/RewardPower.sol";
 import {ZKC} from "../ZKC.sol";
+import {IVotes as OZIVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
+import {IRewards} from "../interfaces/IRewards.sol";
 
 /// @title Staking Component
 /// @notice Staking functionality for veZKC including full NFT implementation
@@ -43,7 +47,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         override(ERC721Upgradeable, IERC165)
         returns (bool)
     {
-        return interfaceId == type(IERC721).interfaceId || super.supportsInterface(interfaceId);
+        return interfaceId == type(IERC721).interfaceId || interfaceId == type(IStaking).interfaceId || super.supportsInterface(interfaceId);
     }
 
     /// @inheritdoc IStaking
@@ -124,9 +128,6 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
         // Mark as withdrawing and checkpoint (powers drop to 0)
         _initiateUnstakeAndCheckpoint(tokenId);
-
-        uint256 withdrawableAt = block.timestamp + Constants.WITHDRAWAL_PERIOD;
-        emit UnstakeInitiated(tokenId, msg.sender, withdrawableAt);
     }
 
     /// @inheritdoc IStaking
@@ -155,7 +156,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         if (tokenId == 0) return (0, 0);
 
         Checkpoints.StakeInfo memory stakeInfo = _stakes[tokenId];
-        uint256 withdrawableAt = 0;
+        uint256 withdrawableAt;
         if (stakeInfo.withdrawalRequestedAt > 0) {
             withdrawableAt = stakeInfo.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
         }
@@ -231,6 +232,10 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
         address owner = ownerOf(tokenId);
 
+        // Get voting and reward power before unstaking for event emission
+        uint256 votesBefore = VotingPower.getVotes(_userCheckpoints, owner);
+        uint256 rewardsBefore = RewardPower.getStakingRewards(_userCheckpoints, owner);
+
         // When initiating unstake, reduce the user's checkpoint by their OWN stake amount
         // This preserves any delegated power they've received from others
         // The user cannot have outgoing delegations at this point (checked in initiateUnstake)
@@ -247,6 +252,14 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
             votingDelta,
             rewardDelta
         );
+
+        // Get voting and reward power after unstaking for event emission
+        uint256 votesAfter = VotingPower.getVotes(_userCheckpoints, owner);
+        uint256 rewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, owner);
+
+        // Emit events showing power reduction
+        emit OZIVotes.DelegateVotesChanged(owner, votesBefore, votesAfter);
+        emit IRewards.DelegateRewardsChanged(owner, rewardsBefore, rewardsAfter);
 
         uint256 withdrawableAt = newStake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
         emit UnstakeInitiated(tokenId, owner, withdrawableAt);
@@ -273,9 +286,6 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // Add to existing veZKC position
         _addStakeAndCheckpoint(tokenId, amount);
 
-        // Get the new total amount after adding
-        Checkpoints.StakeInfo memory updatedStake = _stakes[tokenId];
-        emit StakeAdded(tokenId, ownerOf(tokenId), amount, updatedStake.amount);
     }
 
     /// @dev Handle delegation-aware checkpointing
@@ -295,6 +305,14 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         bool isVoteDelegated = voteDelegatee != address(0) && voteDelegatee != account;
         bool isRewardDelegated = rewardDelegatee != address(0) && rewardDelegatee != account;
 
+        // Determine the effective delegates (self if not delegated)
+        address effectiveVoteDelegate = isVoteDelegated ? voteDelegatee : account;
+        address effectiveRewardDelegate = isRewardDelegated ? rewardDelegatee : account;
+
+        // Get voting and reward power before changes for event emission
+        uint256 votesBefore = VotingPower.getVotes(_userCheckpoints, effectiveVoteDelegate);
+        uint256 rewardsBefore = RewardPower.getStakingRewards(_userCheckpoints, effectiveRewardDelegate);
+
         // Use the library to handle checkpointing with delegation awareness
         (int256 votingDelta, int256 rewardDelta) = Checkpoints.checkpointWithDelegation(
             _userCheckpoints,
@@ -312,6 +330,19 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         }
         if (isRewardDelegated && rewardDelta != 0) {
             Checkpoints.checkpointRewardDelegation(_userCheckpoints, rewardDelegatee, rewardDelta);
+        }
+
+        // Get voting and reward power after changes for event emission
+        uint256 votesAfter = VotingPower.getVotes(_userCheckpoints, effectiveVoteDelegate);
+        uint256 rewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, effectiveRewardDelegate);
+
+        // Emit events if power actually changed (don't rely on returned deltas)
+        if (votesBefore != votesAfter) {
+            emit OZIVotes.DelegateVotesChanged(effectiveVoteDelegate, votesBefore, votesAfter);
+        }
+
+        if (rewardsBefore != rewardsAfter) {
+            emit IRewards.DelegateRewardsChanged(effectiveRewardDelegate, rewardsBefore, rewardsAfter);
         }
     }
 }

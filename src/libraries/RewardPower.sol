@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {Checkpoints} from "./Checkpoints.sol";
 import {Constants} from "./Constants.sol";
@@ -8,6 +8,19 @@ import {Constants} from "./Constants.sol";
 /// @notice Reward power calculation logic for IRewards interface implementation
 /// @dev Provides both staking rewards (REWARD_POWER_SCALAR) and PoVW reward cap (POVW_REWARD_CAP_SCALAR) calculations
 library RewardPower {
+    /// @notice Compute staking rewards from a checkpoint point
+    /// @param point The checkpoint point to compute from
+    /// @return The staking reward power
+    function _computeStakingRewardsFromPoint(Checkpoints.Point memory point) internal pure returns (uint256) {
+        return point.rewardAmount / Constants.REWARD_POWER_SCALAR;
+    }
+
+    /// @notice Compute PoVW reward cap from a checkpoint point
+    /// @param point The checkpoint point to compute from
+    /// @return The PoVW reward cap
+    function _computePoVWCapFromPoint(Checkpoints.Point memory point) internal pure returns (uint256) {
+        return point.rewardAmount / Constants.POVW_REWARD_CAP_SCALAR;
+    }
     /// @notice Get current staking rewards for an account
     /// @dev Returns rewardAmount / REWARD_POWER_SCALAR
     /// @param userStorage User checkpoint storage
@@ -22,7 +35,7 @@ library RewardPower {
         if (epoch == 0) return 0;
 
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
-        return point.rewardAmount / Constants.REWARD_POWER_SCALAR;
+        return _computeStakingRewardsFromPoint(point);
     }
 
     /// @notice Get historical staking rewards for an account at a specific timestamp
@@ -39,7 +52,7 @@ library RewardPower {
         if (epoch == 0) return 0;
 
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
-        return point.rewardAmount / Constants.REWARD_POWER_SCALAR;
+        return _computeStakingRewardsFromPoint(point);
     }
 
     /// @notice Get current total staking rewards across all users
@@ -54,7 +67,7 @@ library RewardPower {
         if (globalEpoch == 0) return 0;
 
         Checkpoints.Point memory point = globalStorage.globalPointHistory[globalEpoch];
-        return point.rewardAmount / Constants.REWARD_POWER_SCALAR;
+        return _computeStakingRewardsFromPoint(point);
     }
 
     /// @notice Get historical total staking rewards at a specific timestamp
@@ -70,7 +83,7 @@ library RewardPower {
         if (epoch == 0) return 0;
 
         Checkpoints.Point memory point = globalStorage.globalPointHistory[epoch];
-        return point.rewardAmount / Constants.REWARD_POWER_SCALAR;
+        return _computeStakingRewardsFromPoint(point);
     }
 
     /// @notice Get current PoVW reward cap for an account
@@ -87,7 +100,7 @@ library RewardPower {
         if (epoch == 0) return 0;
 
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
-        return point.rewardAmount / Constants.POVW_REWARD_CAP_SCALAR;
+        return _computePoVWCapFromPoint(point);
     }
 
     /// @notice Get historical PoVW reward cap for an account at a specific timestamp
@@ -104,6 +117,6 @@ library RewardPower {
         if (epoch == 0) return 0;
 
         Checkpoints.Point memory point = userStorage.userPointHistory[account][epoch];
-        return point.rewardAmount / Constants.POVW_REWARD_CAP_SCALAR;
+        return _computePoVWCapFromPoint(point);
     }
 }

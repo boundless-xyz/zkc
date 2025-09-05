@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -47,8 +47,11 @@ contract veZKC is
         __ReentrancyGuard_init();
         __EIP712_init("Vote Escrowed ZK Coin", "1");
 
+        require(zkcTokenAddress != address(0), "ZKC token address cannot be zero address");
+        require(_admin != address(0), "Admin cannot be zero address");
+        
         _zkcToken = ZKC(zkcTokenAddress);
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(ADMIN_ROLE, _admin);
 
         // Initialize checkpoint system
         Checkpoints.initializeGlobalPoint(_globalCheckpoints);
