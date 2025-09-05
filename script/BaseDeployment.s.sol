@@ -9,7 +9,6 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
  * @notice Base contract for deployment and upgrade scripts with shared functionality
  */
 abstract contract BaseDeployment is Script {
-    
     /**
      * @notice Updates a specific field in deployment.toml via FFI
      * @param deploymentKey The chain key (e.g., "anvil", "ethereum-mainnet")
@@ -24,10 +23,9 @@ abstract contract BaseDeployment is Script {
         args[3] = deploymentKey;
         args[4] = string.concat("--", key);
         args[5] = Strings.toHexString(value);
-        
+
         vm.ffi(args);
     }
-
 
     /**
      * @notice Updates the ZKC contract commit hash in deployment.toml via FFI
@@ -39,10 +37,10 @@ abstract contract BaseDeployment is Script {
         args[1] = "rev-parse";
         args[2] = "--short";
         args[3] = "HEAD";
-        
+
         bytes memory result = vm.ffi(args);
         string memory commit = string(result);
-        
+
         // Update deployment.toml with ZKC commit
         string[] memory updateArgs = new string[](6);
         updateArgs[0] = "python3";
@@ -51,7 +49,7 @@ abstract contract BaseDeployment is Script {
         updateArgs[3] = deploymentKey;
         updateArgs[4] = "--zkc-commit";
         updateArgs[5] = commit;
-        
+
         vm.ffi(updateArgs);
     }
 
@@ -65,10 +63,10 @@ abstract contract BaseDeployment is Script {
         args[1] = "rev-parse";
         args[2] = "--short";
         args[3] = "HEAD";
-        
+
         bytes memory result = vm.ffi(args);
         string memory commit = string(result);
-        
+
         // Update deployment.toml with veZKC commit
         string[] memory updateArgs = new string[](6);
         updateArgs[0] = "python3";
@@ -77,7 +75,7 @@ abstract contract BaseDeployment is Script {
         updateArgs[3] = deploymentKey;
         updateArgs[4] = "--vezkc-commit";
         updateArgs[5] = commit;
-        
+
         vm.ffi(updateArgs);
     }
 
@@ -91,10 +89,10 @@ abstract contract BaseDeployment is Script {
         args[1] = "rev-parse";
         args[2] = "--short";
         args[3] = "HEAD";
-        
+
         bytes memory result = vm.ffi(args);
         string memory commit = string(result);
-        
+
         // Update deployment.toml with StakingRewards commit
         string[] memory updateArgs = new string[](6);
         updateArgs[0] = "python3";
@@ -103,7 +101,7 @@ abstract contract BaseDeployment is Script {
         updateArgs[3] = deploymentKey;
         updateArgs[4] = "--staking-rewards-commit";
         updateArgs[5] = commit;
-        
+
         vm.ffi(updateArgs);
     }
 
@@ -114,7 +112,7 @@ abstract contract BaseDeployment is Script {
         // ERC1967 implementation storage slot
         // bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
         bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-        
+
         // Read from the proxy contract's storage
         bytes32 result = vm.load(proxy, slot);
         impl = address(uint160(uint256(result)));

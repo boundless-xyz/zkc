@@ -105,11 +105,11 @@ abstract contract Rewards is Storage, Clock, IRewards {
 
         // Skip if delegating to same address
         if (oldDelegate == delegatee) return;
-        
+
         // Capture reward power before the change
         uint256 oldDelegateRewardsBefore = RewardPower.getStakingRewards(_userCheckpoints, oldDelegate);
         uint256 newDelegateRewardsBefore = RewardPower.getStakingRewards(_userCheckpoints, delegatee);
-        
+
         _rewardDelegatee[account] = delegatee;
 
         // Checkpoint delegation change for rewards
@@ -120,7 +120,7 @@ abstract contract Rewards is Storage, Clock, IRewards {
         uint256 newDelegateRewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, delegatee);
 
         emit RewardDelegateChanged(account, oldDelegate, delegatee);
-        
+
         // Emit DelegateRewardsChanged for both old and new delegates
         emit DelegateRewardsChanged(oldDelegate, oldDelegateRewardsBefore, oldDelegateRewardsAfter);
         emit DelegateRewardsChanged(delegatee, newDelegateRewardsBefore, newDelegateRewardsAfter);

@@ -20,7 +20,6 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
  *     --rpc-url http://127.0.0.1:8545
  */
 contract RollbackZKC is BaseDeployment {
-    
     function run() public {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.zkc != address(0), "ZKC not deployed");
@@ -32,14 +31,13 @@ contract RollbackZKC is BaseDeployment {
         console2.log("Rolling back ZKC at: ", config.zkc);
         console2.log("Current implementation: ", currentImpl);
         console2.log("Previous implementation: ", config.zkcImplPrev);
-        
+
         // Verify previous implementation has code
         require(_getCodeSize(config.zkcImplPrev) > 0, "Previous implementation has no code");
 
         // Perform rollback by directly upgrading to previous implementation (unsafe)
-        (bool success,) = config.zkc.call(
-            abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.zkcImplPrev, "")
-        );
+        (bool success,) =
+            config.zkc.call(abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.zkcImplPrev, ""));
         require(success, "Failed to rollback ZKC implementation");
 
         address rolledBackImpl = _getImplementationAddress(config.zkc);
@@ -74,7 +72,6 @@ contract RollbackZKC is BaseDeployment {
  *     --rpc-url http://127.0.0.1:8545
  */
 contract RollbackVeZKC is BaseDeployment {
-    
     function run() public {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.veZKC != address(0), "veZKC not deployed");
@@ -86,14 +83,13 @@ contract RollbackVeZKC is BaseDeployment {
         console2.log("Rolling back veZKC at: ", config.veZKC);
         console2.log("Current implementation: ", currentImpl);
         console2.log("Previous implementation: ", config.veZKCImplPrev);
-        
+
         // Verify previous implementation has code
         require(_getCodeSize(config.veZKCImplPrev) > 0, "Previous implementation has no code");
 
         // Perform rollback by directly upgrading to previous implementation (unsafe)
-        (bool success,) = config.veZKC.call(
-            abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.veZKCImplPrev, "")
-        );
+        (bool success,) =
+            config.veZKC.call(abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.veZKCImplPrev, ""));
         require(success, "Failed to rollback veZKC implementation");
 
         address rolledBackImpl = _getImplementationAddress(config.veZKC);
@@ -110,7 +106,9 @@ contract RollbackVeZKC is BaseDeployment {
         veZKC veZKCContract = veZKC(config.veZKC);
         IAccessControl accessControl = IAccessControl(config.veZKC);
         console2.log("Proxy still points to veZKC: ", address(veZKCContract) == config.veZKC);
-        console2.log("Admin role still assigned: ", accessControl.hasRole(veZKCContract.ADMIN_ROLE(), config.veZKCAdmin));
+        console2.log(
+            "Admin role still assigned: ", accessControl.hasRole(veZKCContract.ADMIN_ROLE(), config.veZKCAdmin)
+        );
         console2.log("ZKC token still configured: ", address(veZKCContract.zkcToken()) == config.zkc);
         console2.log("Rollback verification successful");
         console2.log("================================================");
@@ -129,11 +127,12 @@ contract RollbackVeZKC is BaseDeployment {
  *     --rpc-url http://127.0.0.1:8545
  */
 contract RollbackStakingRewards is BaseDeployment {
-    
     function run() public {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.stakingRewards != address(0), "StakingRewards not deployed");
-        require(config.stakingRewardsImplPrev != address(0), "No previous StakingRewards implementation found for rollback");
+        require(
+            config.stakingRewardsImplPrev != address(0), "No previous StakingRewards implementation found for rollback"
+        );
 
         vm.startBroadcast();
 
@@ -141,7 +140,7 @@ contract RollbackStakingRewards is BaseDeployment {
         console2.log("Rolling back StakingRewards at: ", config.stakingRewards);
         console2.log("Current implementation: ", currentImpl);
         console2.log("Previous implementation: ", config.stakingRewardsImplPrev);
-        
+
         // Verify previous implementation has code
         require(_getCodeSize(config.stakingRewardsImplPrev) > 0, "Previous implementation has no code");
 
@@ -165,7 +164,10 @@ contract RollbackStakingRewards is BaseDeployment {
         StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);
         IAccessControl accessControl = IAccessControl(config.stakingRewards);
         console2.log("Proxy still points to StakingRewards: ", address(stakingRewardsContract) == config.stakingRewards);
-        console2.log("Admin role still assigned: ", accessControl.hasRole(stakingRewardsContract.ADMIN_ROLE(), config.stakingRewardsAdmin));
+        console2.log(
+            "Admin role still assigned: ",
+            accessControl.hasRole(stakingRewardsContract.ADMIN_ROLE(), config.stakingRewardsAdmin)
+        );
         console2.log("ZKC token still configured: ", address(stakingRewardsContract.zkc()) == config.zkc);
         console2.log("veZKC still configured: ", address(stakingRewardsContract.veZKC()) == config.veZKC);
         console2.log("Rollback verification successful");

@@ -8,7 +8,7 @@ import {ZKC} from "../src/ZKC.sol";
 
 /**
  * Development script to mint initial ZKC tokens to the caller
- * 
+ *
  * Sample Usage:
  *
  * export CHAIN_KEY="anvil"
@@ -37,15 +37,12 @@ contract Dev_InitialMintToSelf is BaseDeployment {
 
         // Get caller address
         address caller = msg.sender;
-        
+
         // Check if caller is an initial minter
         address initialMinter1 = zkcContract.initialMinter1();
         address initialMinter2 = zkcContract.initialMinter2();
-        
-        require(
-            caller == initialMinter1 || caller == initialMinter2, 
-            "Caller must be initialMinter1 or initialMinter2"
-        );
+
+        require(caller == initialMinter1 || caller == initialMinter2, "Caller must be initialMinter1 or initialMinter2");
 
         // Get remaining amounts before minting
         uint256 minter1Remaining = zkcContract.initialMinter1Remaining();
@@ -74,20 +71,20 @@ contract Dev_InitialMintToSelf is BaseDeployment {
         console2.log("ZKC Contract: ", config.zkc);
         console2.log("Caller: ", caller);
         console2.log("Mint Amount: ", mintAmount);
-        console2.log("Mint Amount (in ZKC): ", mintAmount / 10**18);
+        console2.log("Mint Amount (in ZKC): ", mintAmount / 10 ** 18);
         console2.log("Caller Balance After: ", callerBalance);
-        console2.log("Caller Balance After (in ZKC): ", callerBalance / 10**18);
-        
+        console2.log("Caller Balance After (in ZKC): ", callerBalance / 10 ** 18);
+
         if (caller == initialMinter1) {
             uint256 newRemaining = zkcContract.initialMinter1Remaining();
-            console2.log("InitialMinter1 Remaining Before: ", minter1Remaining / 10**18, "ZKC");
-            console2.log("InitialMinter1 Remaining After: ", newRemaining / 10**18, "ZKC");
+            console2.log("InitialMinter1 Remaining Before: ", minter1Remaining / 10 ** 18, "ZKC");
+            console2.log("InitialMinter1 Remaining After: ", newRemaining / 10 ** 18, "ZKC");
         } else {
             uint256 newRemaining = zkcContract.initialMinter2Remaining();
-            console2.log("InitialMinter2 Remaining Before: ", minter2Remaining / 10**18, "ZKC");
-            console2.log("InitialMinter2 Remaining After: ", newRemaining / 10**18, "ZKC");
+            console2.log("InitialMinter2 Remaining Before: ", minter2Remaining / 10 ** 18, "ZKC");
+            console2.log("InitialMinter2 Remaining After: ", newRemaining / 10 ** 18, "ZKC");
         }
-        
+
         console2.log("================================================");
         console2.log("Initial Mint to Self Completed Successfully");
     }

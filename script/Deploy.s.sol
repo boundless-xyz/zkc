@@ -98,7 +98,6 @@ contract DeployZKC is BaseDeployment {
         console2.log("================================================");
         console2.log("Deployed ZKC to: ", zkc);
     }
-
 }
 
 /**
@@ -129,10 +128,8 @@ contract DeployVeZKC is BaseDeployment {
         console2.log("Deployed veZKC implementation to: ", veZKCImpl);
 
         // Deploy proxy with initialization
-        ERC1967Proxy proxy = new ERC1967Proxy{salt: salt}(
-            veZKCImpl,
-            abi.encodeCall(veZKC.initialize, (config.zkc, config.veZKCAdmin))
-        );
+        ERC1967Proxy proxy =
+            new ERC1967Proxy{salt: salt}(veZKCImpl, abi.encodeCall(veZKC.initialize, (config.zkc, config.veZKCAdmin)));
         address veZKCAddress = address(proxy);
 
         vm.stopBroadcast();
@@ -153,7 +150,6 @@ contract DeployVeZKC is BaseDeployment {
         console2.log("================================================");
         console2.log("Deployed veZKC to: ", veZKCAddress);
     }
-
 }
 
 /**
@@ -204,7 +200,10 @@ contract DeployStakingRewards is BaseDeployment {
         IAccessControl accessControl = IAccessControl(stakingRewardsAddress);
         console2.log("Deployer address: ", msg.sender);
         console2.log("Admin address: ", config.stakingRewardsAdmin);
-        console2.log("Admin role assigned: ", accessControl.hasRole(stakingRewardsContract.ADMIN_ROLE(), config.stakingRewardsAdmin));
+        console2.log(
+            "Admin role assigned: ",
+            accessControl.hasRole(stakingRewardsContract.ADMIN_ROLE(), config.stakingRewardsAdmin)
+        );
         console2.log("ZKC token address: ", address(stakingRewardsContract.zkc()));
         console2.log("veZKC token address: ", address(stakingRewardsContract.veZKC()));
         console2.log("================================================");

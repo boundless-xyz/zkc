@@ -39,7 +39,6 @@ import {StakingRewards} from "../src/rewards/StakingRewards.sol";
  */
 // Base contract with common upgrade logic
 abstract contract BaseZKCUpgrade is BaseDeployment {
-    
     /// @notice Common upgrade logic for ZKC contracts
     /// @param proxyAddress The proxy contract address to upgrade
     /// @param initializerData The initializer call data (empty for no initializer)
@@ -50,7 +49,7 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
 
         // Prepare upgrade options
         Options memory opts;
-        
+
         if (skipSafetyChecks) {
             console2.log("WARNING: Skipping all upgrade safety checks and reference build!");
             opts.unsafeSkipAllChecks = true;
@@ -66,27 +65,17 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
 
         // Perform upgrade with optional initializer
         if (initializerData.length > 0) {
-            Upgrades.upgradeProxy(
-                proxyAddress,
-                "ZKC.sol:ZKC",
-                initializerData,
-                opts
-            );
+            Upgrades.upgradeProxy(proxyAddress, "ZKC.sol:ZKC", initializerData, opts);
         } else {
-            Upgrades.upgradeProxy(
-                proxyAddress,
-                "ZKC.sol:ZKC",
-                "",
-                opts
-            );
+            Upgrades.upgradeProxy(proxyAddress, "ZKC.sol:ZKC", "", opts);
         }
 
         newImpl = Upgrades.getImplementationAddress(proxyAddress);
         console2.log("Upgraded ZKC implementation to: ", newImpl);
-        
+
         return newImpl;
     }
-    
+
     /// @notice Print Gnosis Safe transaction information for manual upgrades
     /// @param proxyAddress The proxy contract address (target for Gnosis Safe)
     /// @param newImpl The new implementation address
@@ -94,7 +83,7 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
     function _printGnosisSafeInfo(address proxyAddress, address newImpl, bytes memory initializerData) internal pure {
         console2.log("=== GNOSIS SAFE UPGRADE INFO ===");
         console2.log("Target Address (To): ", proxyAddress);
-        
+
         if (initializerData.length > 0) {
             // For upgradeToAndCall
             bytes memory callData = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", newImpl, initializerData);
@@ -103,7 +92,7 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
             console2.log("Calldata:");
             console2.logBytes(callData);
         } else {
-            // For upgradeTo  
+            // For upgradeTo
             bytes memory callData = abi.encodeWithSignature("upgradeTo(address)", newImpl);
             console2.log("Function: upgradeTo(address)");
             console2.log("New Implementation: ", newImpl);
@@ -142,7 +131,6 @@ contract UpgradeZKC is BaseZKCUpgrade {
         console2.log("ZKC Upgrade Complete");
         console2.log("New Implementation: ", newImpl);
     }
-
 }
 
 /**
@@ -216,14 +204,14 @@ contract ZKCStartEpochs is BaseDeployment {
         vm.startBroadcast();
 
         ZKC zkcContract = ZKC(config.zkc);
-        
+
         console2.log("Starting ZKC epochs by calling initializeV3...");
         console2.log("ZKC Contract: ", config.zkc);
         console2.log("Current epoch0StartTime: ", zkcContract.epoch0StartTime());
-        
+
         // Call initializeV3 to start epochs
         zkcContract.initializeV3();
-        
+
         vm.stopBroadcast();
 
         // Print Gnosis Safe transaction info for initializeV3
@@ -285,7 +273,7 @@ contract UpgradeVeZKC is BaseDeployment {
         Upgrades.upgradeProxy(
             config.veZKC,
             "veZKC.sol:veZKC",
-            "",  // No reinitializer
+            "", // No reinitializer
             opts
         );
 
@@ -308,7 +296,6 @@ contract UpgradeVeZKC is BaseDeployment {
         console2.log("veZKC Upgrade Complete");
         console2.log("New Implementation: ", newImpl);
     }
-
 }
 
 /**
@@ -350,7 +337,7 @@ contract UpgradeStakingRewards is BaseDeployment {
         Upgrades.upgradeProxy(
             config.stakingRewards,
             "StakingRewards.sol:StakingRewards",
-            "",  // No reinitializer
+            "", // No reinitializer
             opts
         );
 
@@ -374,6 +361,4 @@ contract UpgradeStakingRewards is BaseDeployment {
         console2.log("StakingRewards Upgrade Complete");
         console2.log("New Implementation: ", newImpl);
     }
-
-
 }
