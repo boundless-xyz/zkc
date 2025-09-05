@@ -1,6 +1,6 @@
 {
-  "calculateRewards: calculate 5 epochs": "98489",
-  "claimRewards: batch claim 15 epochs": "697661",
-  "claimRewards: batch claim 30 epochs": "1322057",
-  "claimRewards: single epoch claim": "107339"
+  "calculateRewards: calculate 5 epochs": "98501",
+  "claimRewards: batch claim 15 epochs": "697761",
+  "claimRewards: batch claim 30 epochs": "1322127",
+  "claimRewards: single epoch claim": "107467"
 }
