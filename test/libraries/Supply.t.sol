@@ -32,12 +32,12 @@ contract SupplyTest is Test {
         wrapper = new SupplyWrapper();
     }
 
-    function testInitialSupply() public {
+    function testInitialSupply() public pure {
         assertEq(Supply.getSupplyAtEpoch(0), INITIAL_SUPPLY);
         assertEq(Supply.SUPPLY_YEAR_0, INITIAL_SUPPLY);
     }
 
-    function testYearBoundarySupplyYear1() public {
+    function testYearBoundarySupplyYear1() public pure {
         // Compute supply at year 1 boundary (epoch 182) manually
         UD60x18 supplyUD = ud(INITIAL_SUPPLY);
         UD60x18 factorUD = ud(Supply.Y0_R_PER_EPOCH);
@@ -50,7 +50,7 @@ contract SupplyTest is Test {
         assertEq(Supply.getSupplyAtEpoch(182), Supply.SUPPLY_YEAR_1);
     }
 
-    function testYearBoundarySupplyYear9() public {
+    function testYearBoundarySupplyYear9() public pure {
         // Start from Year 8 and apply Year 8 growth using PRBMath
         UD60x18 supplyUD = ud(Supply.SUPPLY_YEAR_8);
         UD60x18 factorUD = ud(Supply.Y8_R_PER_EPOCH);
@@ -63,7 +63,7 @@ contract SupplyTest is Test {
         assertEq(Supply.getSupplyAtEpoch(1638), Supply.SUPPLY_YEAR_9);
     }
 
-    function testMidYearSupplyCalculations() public {
+    function testMidYearSupplyCalculations() public pure {
         // Test supply at various mid-year points using PRBMath for expected values
 
         // Epoch 91 (middle of Year 0)
@@ -97,7 +97,7 @@ contract SupplyTest is Test {
         assertEq(Supply.getSupplyAtEpoch(455), expectedSupply);
     }
 
-    function testGetYearForEpoch() public {
+    function testGetYearForEpoch() public pure {
         assertEq(Supply.getYearForEpoch(0), 0, "Epoch 0 should be Year 0");
         assertEq(Supply.getYearForEpoch(181), 0, "Epoch 181 should be Year 0");
         assertEq(Supply.getYearForEpoch(182), 1, "Epoch 182 should be Year 1");
@@ -123,7 +123,7 @@ contract SupplyTest is Test {
     }
 
     /// @dev TODO: Is the precision difference expected
-    function testConsistencyAcrossYearBoundaries() public {
+    function testConsistencyAcrossYearBoundaries() public pure {
         // Verify supply calculation is as expected across year boundaries
 
         // Test around Year 0/1 boundary
@@ -138,10 +138,10 @@ contract SupplyTest is Test {
         UD60x18 expectedUD = supply181UD * multiplierUD / ud(SCALE);
         uint256 expectedSupply182 = unwrap(expectedUD);
 
-        // Allow small precision difference. Likely due to PRBMath's Taylor series approximation 
+        // Allow small precision difference. Likely due to PRBMath's Taylor series approximation
         // vs exact hardcoded values (??)
         // supply182 = hardcoded constant (generated using PRBMath exponentiation in script)
-        // expectedSupply182 = PRBMath calculation from supply181 
+        // expectedSupply182 = PRBMath calculation from supply181
         uint256 diff = supply182 > expectedSupply182 ? supply182 - expectedSupply182 : expectedSupply182 - supply182;
         uint256 tolerance = supply182 / 1000000; // 0.0001% tolerance for PRBMath precision
         assertLt(diff, tolerance, "Supply should be continuous at year boundary within PRBMath precision");
@@ -164,7 +164,7 @@ contract SupplyTest is Test {
         assertLt(diff1, tolerance1, "Supply should be continuous at year 1/2 boundary within PRBMath precision");
     }
 
-    function testManualGrowthFactorApplication() public {
+    function testManualGrowthFactorApplication() public pure {
         // Verify that PRBMath growth factor application gives us the hardcoded yearly values
         uint256 supply = INITIAL_SUPPLY;
 
@@ -240,7 +240,7 @@ contract SupplyTest is Test {
         }
     }
 
-    function testManualLoopsVsLibrary() public {
+    function testManualLoopsVsLibrary() public pure {
         // Compare manual loop calculations with library function to ensure consistency
         uint256[] memory testEpochs = new uint256[](4);
         testEpochs[0] = 50; // Mid Year 0
@@ -279,7 +279,7 @@ contract SupplyTest is Test {
         }
     }
 
-    function testSupplyYear15() public {
+    function testSupplyYear15() public pure {
         // Test year 15 boundary (epoch 2730 = 15 * 182)
         uint256 epochYear15 = 15 * EPOCHS_PER_YEAR;
         uint256 supplyYear15 = Supply.getSupplyAtEpoch(epochYear15);

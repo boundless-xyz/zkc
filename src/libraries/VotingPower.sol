@@ -49,7 +49,6 @@ library VotingPower {
         return getVotesFromPoint(point);
     }
 
-
     /// @notice Calculate total voting power at a specific timestamp
     /// @param globalStorage Global checkpoint storage
     /// @param timepoint Historical timestamp

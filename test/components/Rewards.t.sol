@@ -12,7 +12,7 @@ contract veZKCRewardsTest is veZKCTest {
     function testBasicRewardPower() public {
         // Alice stakes
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // Reward power should equal staked amount divided by scalar
         uint256 rewardPower = veToken.getStakingRewards(alice);
@@ -32,7 +32,7 @@ contract veZKCRewardsTest is veZKCTest {
     function testRewardPowerDoesNotDecay() public {
         // Alice stakes
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // Initial reward power
         uint256 initialRewardPower = veToken.getStakingRewards(alice);
@@ -59,7 +59,7 @@ contract veZKCRewardsTest is veZKCTest {
     function testRewardPowerWithWithdrawal() public {
         // Alice stakes
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // Reward power before withdrawal
         uint256 rewardPowerBeforeWithdrawal = veToken.getStakingRewards(alice);
@@ -90,7 +90,7 @@ contract veZKCRewardsTest is veZKCTest {
         // Initial stake
         vm.startPrank(alice);
         zkc.approve(address(veToken), AMOUNT + ADD_AMOUNT);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // Initial reward power
         uint256 initialRewardPower = veToken.getStakingRewards(alice);
@@ -113,7 +113,7 @@ contract veZKCRewardsTest is veZKCTest {
         // Initial stake
         vm.startPrank(alice);
         zkc.approve(address(veToken), AMOUNT + ADD_AMOUNT);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // Initiate withdrawal
         veToken.initiateUnstake();
@@ -131,7 +131,7 @@ contract veZKCRewardsTest is veZKCTest {
     function testRewardPowerAfterCompleteUnstake() public {
         // Stake
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // Reward power before unstaking
         uint256 rewardPowerBeforeUnstake = veToken.getStakingRewards(alice);
@@ -226,7 +226,7 @@ contract veZKCRewardsTest is veZKCTest {
 
         // Alice stakes at t0
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // Move forward in time
         vm.warp(t0 + 1000);
@@ -238,7 +238,6 @@ contract veZKCRewardsTest is veZKCTest {
 
         // Move forward again
         vm.warp(t1 + 1000);
-        uint256 t2 = vm.getBlockTimestamp();
 
         // Current reward power should be full amount
         uint256 currentRewardPower = veToken.getStakingRewards(alice);
@@ -275,7 +274,6 @@ contract veZKCRewardsTest is veZKCTest {
         vm.stopPrank();
 
         vm.warp(t1 + 1000);
-        uint256 t2 = vm.getBlockTimestamp();
 
         // Current total should be both stakes
         uint256 currentTotalRewards = veToken.getTotalStakingRewards();
@@ -316,7 +314,7 @@ contract veZKCRewardsTest is veZKCTest {
 
         // Now do some activity and test again
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // Move forward in time
         vm.warp(vm.getBlockTimestamp() + 1000);
@@ -332,7 +330,7 @@ contract veZKCRewardsTest is veZKCTest {
     function testRewardPowerWithComplexWithdrawalFlow() public {
         // 1. Alice stakes
         vm.startPrank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
         vm.stopPrank();
 
         uint256 expectedInitial = AMOUNT / Constants.REWARD_POWER_SCALAR;
@@ -362,7 +360,7 @@ contract veZKCRewardsTest is veZKCTest {
 
         // 5. Alice can stake again with a new position (she still has ADD_AMOUNT allowance remaining)
         vm.prank(alice);
-        uint256 newTokenId = veToken.stake(ADD_AMOUNT);
+        veToken.stake(ADD_AMOUNT);
 
         // Should get reward power based on new stake amount
         uint256 expectedNew = ADD_AMOUNT / Constants.REWARD_POWER_SCALAR;
@@ -487,7 +485,7 @@ contract veZKCRewardsTest is veZKCTest {
     function testBasicPoVWRewardCap() public {
         // Alice stakes
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // PoVW cap should equal staked amount divided by POVW_REWARD_CAP_SCALAR
         uint256 povwCap = veToken.getPoVWRewardCap(alice);
@@ -515,7 +513,7 @@ contract veZKCRewardsTest is veZKCTest {
     function testPoVWRewardCapDoesNotDecay() public {
         // Alice stakes
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // Initial PoVW cap
         uint256 initialCap = veToken.getPoVWRewardCap(alice);
@@ -534,7 +532,7 @@ contract veZKCRewardsTest is veZKCTest {
     function testPoVWRewardCapWithWithdrawal() public {
         // Alice stakes
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // PoVW cap before withdrawal
         uint256 capBeforeWithdrawal = veToken.getPoVWRewardCap(alice);
@@ -559,7 +557,7 @@ contract veZKCRewardsTest is veZKCTest {
         // Initial stake
         vm.startPrank(alice);
         zkc.approve(address(veToken), AMOUNT + ADD_AMOUNT);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // Initial PoVW cap
         uint256 initialCap = veToken.getPoVWRewardCap(alice);
@@ -581,7 +579,7 @@ contract veZKCRewardsTest is veZKCTest {
 
         // Alice stakes at t0
         vm.prank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
 
         // Move forward in time
         vm.warp(t0 + 1000);
@@ -682,7 +680,7 @@ contract veZKCRewardsTest is veZKCTest {
     function testPoVWCapComplexWithdrawalFlow() public {
         // 1. Alice stakes
         vm.startPrank(alice);
-        uint256 tokenId = veToken.stake(AMOUNT);
+        veToken.stake(AMOUNT);
         vm.stopPrank();
 
         uint256 expectedInitial = AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;
@@ -705,7 +703,7 @@ contract veZKCRewardsTest is veZKCTest {
 
         // 4. Alice can stake again with a new position
         vm.prank(alice);
-        uint256 newTokenId = veToken.stake(ADD_AMOUNT);
+        veToken.stake(ADD_AMOUNT);
 
         // Should get PoVW cap based on new stake amount
         uint256 expectedNew = ADD_AMOUNT / Constants.POVW_REWARD_CAP_SCALAR;

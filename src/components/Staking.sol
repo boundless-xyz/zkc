@@ -47,7 +47,8 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         override(ERC721Upgradeable, IERC165)
         returns (bool)
     {
-        return interfaceId == type(IERC721).interfaceId || interfaceId == type(IStaking).interfaceId || super.supportsInterface(interfaceId);
+        return interfaceId == type(IERC721).interfaceId || interfaceId == type(IStaking).interfaceId
+            || super.supportsInterface(interfaceId);
     }
 
     /// @inheritdoc IStaking
@@ -242,16 +243,10 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         // so oldStake.amount represents their own stake contribution
         int256 votingDelta = -int256(oldStake.amount);
         int256 rewardDelta = -int256(oldStake.amount);
-        
+
         // Update user checkpoint by removing their own stake power
         // The user may still have delegated power from others
-        Checkpoints.checkpointDelta(
-            _userCheckpoints,
-            _globalCheckpoints,
-            owner,
-            votingDelta,
-            rewardDelta
-        );
+        Checkpoints.checkpointDelta(_userCheckpoints, _globalCheckpoints, owner, votingDelta, rewardDelta);
 
         // Get voting and reward power after unstaking for event emission
         uint256 votesAfter = VotingPower.getVotes(_userCheckpoints, owner);
@@ -285,7 +280,6 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
         // Add to existing veZKC position
         _addStakeAndCheckpoint(tokenId, amount);
-
     }
 
     /// @dev Handle delegation-aware checkpointing
@@ -315,13 +309,7 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
 
         // Use the library to handle checkpointing with delegation awareness
         (int256 votingDelta, int256 rewardDelta) = Checkpoints.checkpointWithDelegation(
-            _userCheckpoints,
-            _globalCheckpoints,
-            account,
-            oldStake,
-            newStake,
-            isVoteDelegated,
-            isRewardDelegated
+            _userCheckpoints, _globalCheckpoints, account, oldStake, newStake, isVoteDelegated, isRewardDelegated
         );
 
         // Handle delegation updates if needed

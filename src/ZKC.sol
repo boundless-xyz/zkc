@@ -106,7 +106,10 @@ contract ZKC is
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
-        require(_initialMinter1Amount + _initialMinter2Amount == INITIAL_SUPPLY, "Initial minter amounts must equal initial supply");
+        require(
+            _initialMinter1Amount + _initialMinter2Amount == INITIAL_SUPPLY,
+            "Initial minter amounts must equal initial supply"
+        );
         require(_initialMinter1 != address(0) || _initialMinter2 != address(0), "An initialMinter must be defined");
         require(_owner != address(0), "Owner cannot be zero address");
 
@@ -134,7 +137,9 @@ contract ZKC is
     /// @inheritdoc IZKC
     function initialMint(address[] calldata recipients, uint256[] calldata amounts) public {
         require(recipients.length == amounts.length, "Recipients and amounts arrays must have equal length");
-        require(msg.sender == initialMinter1 || msg.sender == initialMinter2, "Caller must be authorized initial minter");
+        require(
+            msg.sender == initialMinter1 || msg.sender == initialMinter2, "Caller must be authorized initial minter"
+        );
 
         uint256 minted;
         for (uint256 i; i < recipients.length; ++i) {

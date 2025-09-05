@@ -48,8 +48,7 @@ library Checkpoints {
     /// @notice Initialize the first global point at index 0
     /// @param self Global checkpoint storage to initialize
     function initializeGlobalPoint(GlobalCheckpointStorage storage self) internal {
-        self.globalPointHistory[0] =
-            Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
+        self.globalPointHistory[0] = Point({votingAmount: 0, rewardAmount: 0, updatedAt: block.timestamp});
     }
 
     /// @notice Binary search to find user's point at a specific timestamp
@@ -114,8 +113,6 @@ library Checkpoints {
         return min;
     }
 
-
-
     /// @notice Checkpoint function for applying deltas to both voting and reward power
     /// @dev Updates user and global checkpoints with the specified deltas
     /// @param userStorage User checkpoint storage to update
@@ -136,11 +133,11 @@ library Checkpoints {
         // Create new user point with deltas applied
         int256 newVotingAmount = int256(lastUserPoint.votingAmount) + votingDelta;
         int256 newRewardAmount = int256(lastUserPoint.rewardAmount) + rewardDelta;
-        
+
         // Sanity check for underflow, which would inflate power on cast to uint256
         require(newVotingAmount >= 0, "Checkpoints: voting amount underflow");
         require(newRewardAmount >= 0, "Checkpoints: reward amount underflow");
-        
+
         Point memory newUserPoint = Point({
             votingAmount: uint256(newVotingAmount),
             rewardAmount: uint256(newRewardAmount),
@@ -158,11 +155,11 @@ library Checkpoints {
 
         int256 newGlobalVotingAmount = int256(lastGlobalPoint.votingAmount) + votingDelta;
         int256 newGlobalRewardAmount = int256(lastGlobalPoint.rewardAmount) + rewardDelta;
-        
+
         // Sanity check for underflow, which would inflate power on cast to uint256
         require(newGlobalVotingAmount >= 0, "Checkpoints: global voting amount underflow");
         require(newGlobalRewardAmount >= 0, "Checkpoints: global reward amount underflow");
-        
+
         Point memory newGlobalPoint = Point({
             votingAmount: uint256(newGlobalVotingAmount),
             rewardAmount: uint256(newGlobalRewardAmount),
@@ -186,10 +183,10 @@ library Checkpoints {
 
         // Create new point with updated voting amount
         int256 newVotingAmount = int256(lastPoint.votingAmount) + votingDelta;
-        
+
         // Sanity check for underflow, which would inflate power on cast to uint256
         require(newVotingAmount >= 0, "Checkpoints: voting amount underflow");
-        
+
         Point memory newPoint = Point({
             votingAmount: uint256(newVotingAmount),
             rewardAmount: lastPoint.rewardAmount, // Keep reward amount unchanged
@@ -213,10 +210,10 @@ library Checkpoints {
 
         // Create new point with updated reward amount
         int256 newRewardAmount = int256(lastPoint.rewardAmount) + rewardDelta;
-        
+
         // Sanity check for underflow, which would inflate power on cast to uint256
         require(newRewardAmount >= 0, "Checkpoints: reward amount underflow");
-        
+
         Point memory newPoint = Point({
             votingAmount: lastPoint.votingAmount, // Keep voting amount unchanged
             rewardAmount: uint256(newRewardAmount),
@@ -262,11 +259,11 @@ library Checkpoints {
             // Create new user point with deltas applied
             int256 newVotingAmount = int256(lastUserPoint.votingAmount) + userVotingDelta;
             int256 newRewardAmount = int256(lastUserPoint.rewardAmount) + userRewardDelta;
-            
+
             // Sanity check for underflow, which would inflate power on cast to uint256
             require(newVotingAmount >= 0, "Checkpoints: voting amount underflow");
             require(newRewardAmount >= 0, "Checkpoints: reward amount underflow");
-            
+
             Point memory newUserPoint = Point({
                 votingAmount: uint256(newVotingAmount),
                 rewardAmount: uint256(newRewardAmount),
@@ -321,10 +318,11 @@ library Checkpoints {
     /// @param account Address of the user
     /// @return lastPoint The user's last checkpoint point or a default zero point
     /// @return userEpoch The current user epoch
-    function _getUserLastPoint(
-        UserCheckpointStorage storage userStorage,
-        address account
-    ) internal view returns (Point memory lastPoint, uint256 userEpoch) {
+    function _getUserLastPoint(UserCheckpointStorage storage userStorage, address account)
+        internal
+        view
+        returns (Point memory lastPoint, uint256 userEpoch)
+    {
         userEpoch = userStorage.userPointEpoch[account];
         lastPoint = userEpoch > 0
             ? userStorage.userPointHistory[account][userEpoch]
@@ -335,11 +333,9 @@ library Checkpoints {
     /// @param userStorage User checkpoint storage to update
     /// @param account Address of the user
     /// @param newPoint New point to store
-    function _updateUserCheckpoint(
-        UserCheckpointStorage storage userStorage,
-        address account,
-        Point memory newPoint
-    ) internal {
+    function _updateUserCheckpoint(UserCheckpointStorage storage userStorage, address account, Point memory newPoint)
+        internal
+    {
         uint256 userEpoch = userStorage.userPointEpoch[account] + 1;
         userStorage.userPointEpoch[account] = userEpoch;
         userStorage.userPointHistory[account][userEpoch] = newPoint;
@@ -348,15 +344,14 @@ library Checkpoints {
     /// @notice Helper function to update global checkpoint history with proper timestamp handling
     /// @param globalStorage Global checkpoint storage to update
     /// @param newGlobalPoint New global point to store
-    function _updateGlobalCheckpointHistory(
-        GlobalCheckpointStorage storage globalStorage,
-        Point memory newGlobalPoint
-    ) internal {
+    function _updateGlobalCheckpointHistory(GlobalCheckpointStorage storage globalStorage, Point memory newGlobalPoint)
+        internal
+    {
         uint256 globalEpoch = globalStorage.globalPointEpoch;
-        Point memory lastGlobalPoint = globalEpoch > 0 
+        Point memory lastGlobalPoint = globalEpoch > 0
             ? globalStorage.globalPointHistory[globalEpoch]
             : Point({votingAmount: 0, rewardAmount: 0, updatedAt: 0});
-        
+
         if (globalEpoch > 0 && lastGlobalPoint.updatedAt == block.timestamp) {
             // Update existing point at this timestamp
             globalStorage.globalPointHistory[globalEpoch] = newGlobalPoint;

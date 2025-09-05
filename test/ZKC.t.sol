@@ -48,7 +48,7 @@ contract ZKCTest is Test {
         // Initialize V2 to set epoch 0 start time to max
         vm.prank(owner);
         zkc.initializeV2();
-        
+
         // Initialize V3 to actually start epochs
         vm.prank(owner);
         zkc.initializeV3();

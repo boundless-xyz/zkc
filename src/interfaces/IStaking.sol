@@ -24,24 +24,24 @@ interface IStaking is IERC721 {
     /// @param owner The address that owns the new stake position
     /// @param amount The amount of ZKC tokens staked
     event StakeCreated(uint256 indexed tokenId, address indexed owner, uint256 amount);
-    
+
     /// @notice Emitted when additional tokens are added to an existing stake
     /// @param tokenId The ID of the veZKC NFT that was increased
     /// @param owner The address that owns the stake position
     /// @param addedAmount The amount of ZKC tokens added to the stake
     /// @param newTotal The new total amount of ZKC tokens in the stake
     event StakeAdded(uint256 indexed tokenId, address indexed owner, uint256 addedAmount, uint256 newTotal);
-    
+
     /// @notice Emitted when a veZKC NFT is burned after unstaking is completed
     /// @param tokenId The ID of the burned veZKC NFT
     event StakeBurned(uint256 indexed tokenId);
-    
+
     /// @notice Emitted when a user initiates the unstaking process
     /// @param tokenId The ID of the veZKC NFT being unstaked
     /// @param owner The address that owns the stake position
     /// @param withdrawableAt The timestamp when the unstake can be completed
     event UnstakeInitiated(uint256 indexed tokenId, address indexed owner, uint256 withdrawableAt);
-    
+
     /// @notice Emitted when unstaking is completed and tokens are returned to the owner
     /// @param tokenId The ID of the veZKC NFT that was unstaked
     /// @param owner The address that received the unstaked tokens

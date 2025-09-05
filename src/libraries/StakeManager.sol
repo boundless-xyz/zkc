@@ -31,10 +31,7 @@ library StakeManager {
         pure
         returns (Checkpoints.StakeInfo memory)
     {
-        return Checkpoints.StakeInfo({
-            amount: currentStake.amount + additionalAmount,
-            withdrawalRequestedAt: 0
-        });
+        return Checkpoints.StakeInfo({amount: currentStake.amount + additionalAmount, withdrawalRequestedAt: 0});
     }
 
     /// @notice Initiate withdrawal for a stake
@@ -71,9 +68,9 @@ library StakeManager {
     /// @notice Validate that withdrawal can be completed, reverting with appropriate error
     /// @param stake Stake information to check
     function validateWithdrawalCompletion(Checkpoints.StakeInfo memory stake) internal view {
-        if (!isWithdrawing(stake)) revert WithdrawalNotInitiated();
+        if (!isWithdrawing(stake)) revert IStaking.WithdrawalNotInitiated();
         if (block.timestamp < stake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD) {
-            revert WithdrawalPeriodNotComplete();
+            revert IStaking.WithdrawalPeriodNotComplete();
         }
     }
 
@@ -105,7 +102,7 @@ library StakeManager {
     /// @param tokenId Token ID being unstaked
     /// @param stake Current stake information
     function validateUnstakeCompletion(uint256 tokenId, Checkpoints.StakeInfo memory stake) internal view {
-        if (tokenId == 0) revert NoActivePosition();
+        if (tokenId == 0) revert IStaking.NoActivePosition();
         validateWithdrawalCompletion(stake);
     }
 

@@ -69,7 +69,7 @@ interface IZKC {
     function getStakingEmissionsForEpoch(uint256 epoch) external returns (uint256);
 
     /// @notice Get the current epoch number
-    /// @dev Calculated based on time elapsed since deployment. 
+    /// @dev Calculated based on time elapsed since deployment.
     /// @dev Reverts if epochs have not started yet.
     /// @return The current epoch number (0-indexed)
     function getCurrentEpoch() external view returns (uint256);

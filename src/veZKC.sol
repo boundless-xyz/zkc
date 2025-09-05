@@ -20,14 +20,14 @@ import {ZKC} from "./ZKC.sol";
 
 /// @title veZKC - Vote Escrowed ZK Coin
 /// @notice Staking contracts for ZKC, granting voting and reward power.
-contract veZKC is 
-    Initializable, 
-    AccessControlUpgradeable, 
-    UUPSUpgradeable, 
+contract veZKC is
+    Initializable,
+    AccessControlUpgradeable,
+    UUPSUpgradeable,
     EIP712Upgradeable,
-    Votes, 
-    Rewards, 
-    Staking 
+    Votes,
+    Rewards,
+    Staking
 {
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
 
@@ -49,7 +49,7 @@ contract veZKC is
 
         require(zkcTokenAddress != address(0), "ZKC token address cannot be zero address");
         require(_admin != address(0), "Admin cannot be zero address");
-        
+
         _zkcToken = ZKC(zkcTokenAddress);
         _grantRole(ADMIN_ROLE, _admin);
 
@@ -66,7 +66,12 @@ contract veZKC is
     /// @notice Hash typed data for EIP-712 signatures
     /// @param structHash The struct hash to be processed
     /// @return The final hash for signature verification
-    function _hashTypedDataV4(bytes32 structHash) internal view override(EIP712Upgradeable, Votes, Rewards) returns (bytes32) {
+    function _hashTypedDataV4(bytes32 structHash)
+        internal
+        view
+        override(EIP712Upgradeable, Votes, Rewards)
+        returns (bytes32)
+    {
         return EIP712Upgradeable._hashTypedDataV4(structHash);
     }
 

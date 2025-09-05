@@ -91,7 +91,7 @@ contract ZKCEpochsTest is ZKCTest {
         assertEq(stakingEmission, expectedStaking);
     }
 
-    function testGetTotalPoVWEmissionsAtEpochStart() public {
+    function testGetTotalPoVWEmissionsAtEpochStart() public view {
         uint256 epoch = 10;
 
         // getTotalPoVWEmissionsAtEpochStart returns emissions up to START of epoch (not end)
@@ -101,7 +101,7 @@ contract ZKCEpochsTest is ZKCTest {
         assertEq(zkc.getTotalPoVWEmissionsAtEpochStart(epoch), expectedPoVW);
     }
 
-    function testGetTotalStakingEmissionsAtEpochStart() public {
+    function testGetTotalStakingEmissionsAtEpochStart() public view {
         uint256 epoch = 10;
 
         // getTotalStakingEmissionsAtEpochStart returns emissions up to START of epoch (not end)
@@ -111,7 +111,7 @@ contract ZKCEpochsTest is ZKCTest {
         assertEq(zkc.getTotalStakingEmissionsAtEpochStart(epoch), expectedStaking);
     }
 
-    function testEpochProgressionAffectsAllocations() public {
+    function testEpochProgressionAffectsAllocations() public view {
         uint256 epoch0 = 0;
         uint256 epoch10 = 10;
         uint256 epoch100 = 100;

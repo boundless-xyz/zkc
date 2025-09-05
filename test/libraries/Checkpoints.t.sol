@@ -32,14 +32,14 @@ contract CheckpointsTest is Test {
         Checkpoints.initializeGlobalPoint(globalStorage);
     }
 
-    function testInitializeGlobalPoint() public {
+    function testInitializeGlobalPoint() public view {
         Checkpoints.Point memory point = globalStorage.globalPointHistory[0];
         assertEq(point.votingAmount, 0, "Initial global voting amount should be 0");
         assertEq(point.rewardAmount, 0, "Initial global reward amount should be 0");
         assertEq(point.updatedAt, block.timestamp, "Initial timestamp should be block.timestamp");
     }
 
-    function testFindUserTimestampEpochEmptyHistory() public {
+    function testFindUserTimestampEpochEmptyHistory() public view {
         uint256 epoch = Checkpoints.findUserTimestampEpoch(userStorage, alice, vm.getBlockTimestamp());
         assertEq(epoch, 0, "Empty history should return epoch 0");
     }
@@ -47,7 +47,7 @@ contract CheckpointsTest is Test {
     function testFindUserTimestampEpochSinglePoint() public {
         // Add a single point for Alice
         uint256 testTime = vm.getBlockTimestamp();
-        userStorage.userPointHistory[alice][1] = 
+        userStorage.userPointHistory[alice][1] =
             Checkpoints.Point({votingAmount: 1000e18, rewardAmount: 1000e18, updatedAt: testTime});
         userStorage.userPointEpoch[alice] = 1;
 
@@ -141,7 +141,7 @@ contract CheckpointsTest is Test {
     function testCheckpointVoteDelegation() public {
         // Give alice some initial power
         Checkpoints.checkpointDelta(userStorage, globalStorage, alice, int256(AMOUNT), int256(AMOUNT));
-        
+
         // Test vote delegation - should only affect voting power
         Checkpoints.checkpointVoteDelegation(userStorage, alice, int256(AMOUNT / 2));
 
@@ -165,7 +165,7 @@ contract CheckpointsTest is Test {
     function testCheckpointRewardDelegation() public {
         // Give alice some initial power
         Checkpoints.checkpointDelta(userStorage, globalStorage, alice, int256(AMOUNT), int256(AMOUNT));
-        
+
         // Test reward delegation - should only affect reward power
         Checkpoints.checkpointRewardDelegation(userStorage, alice, int256(AMOUNT / 3));
 
@@ -191,9 +191,8 @@ contract CheckpointsTest is Test {
         Checkpoints.StakeInfo memory newStake = Checkpoints.StakeInfo({amount: AMOUNT, withdrawalRequestedAt: 0});
 
         // Test with no delegation
-        (int256 votingDelta, int256 rewardDelta) = Checkpoints.checkpointWithDelegation(
-            userStorage, globalStorage, alice, emptyStake, newStake, false, false
-        );
+        (int256 votingDelta, int256 rewardDelta) =
+            Checkpoints.checkpointWithDelegation(userStorage, globalStorage, alice, emptyStake, newStake, false, false);
 
         assertEq(votingDelta, 0, "No voting delta should be returned when not delegated");
         assertEq(rewardDelta, 0, "No reward delta should be returned when not delegated");
@@ -206,9 +205,8 @@ contract CheckpointsTest is Test {
 
         // Test with vote delegation
         Checkpoints.StakeInfo memory addedStake = Checkpoints.StakeInfo({amount: AMOUNT * 2, withdrawalRequestedAt: 0});
-        (int256 votingDelta2, int256 rewardDelta2) = Checkpoints.checkpointWithDelegation(
-            userStorage, globalStorage, alice, newStake, addedStake, true, false
-        );
+        (int256 votingDelta2, int256 rewardDelta2) =
+            Checkpoints.checkpointWithDelegation(userStorage, globalStorage, alice, newStake, addedStake, true, false);
 
         // Votes are delegated, so we should receive a voting delta for us to apply to the delegatee
         assertEq(votingDelta2, int256(AMOUNT), "Voting delta should be returned for delegation");
@@ -222,9 +220,8 @@ contract CheckpointsTest is Test {
 
         // Test with both delegations
         Checkpoints.StakeInfo memory finalStake = Checkpoints.StakeInfo({amount: AMOUNT * 3, withdrawalRequestedAt: 0});
-        (int256 votingDelta3, int256 rewardDelta3) = Checkpoints.checkpointWithDelegation(
-            userStorage, globalStorage, alice, addedStake, finalStake, true, true
-        );
+        (int256 votingDelta3, int256 rewardDelta3) =
+            Checkpoints.checkpointWithDelegation(userStorage, globalStorage, alice, addedStake, finalStake, true, true);
 
         assertEq(votingDelta3, int256(AMOUNT), "Voting delta should be returned for delegation");
         assertEq(rewardDelta3, int256(AMOUNT), "Reward delta should be returned for delegation");
@@ -247,10 +244,8 @@ contract CheckpointsTest is Test {
         assertEq(globalPoint.rewardAmount, AMOUNT, "Global reward amount should equal stake");
 
         // Test with withdrawing stake (should have 0 effective amount)
-        Checkpoints.StakeInfo memory withdrawingStake = Checkpoints.StakeInfo({
-            amount: AMOUNT, 
-            withdrawalRequestedAt: block.timestamp
-        });
+        Checkpoints.StakeInfo memory withdrawingStake =
+            Checkpoints.StakeInfo({amount: AMOUNT, withdrawalRequestedAt: block.timestamp});
 
         Checkpoints.updateGlobalCheckpoint(globalStorage, activeStake, withdrawingStake);
 
@@ -275,7 +270,7 @@ contract CheckpointsTest is Test {
         // Test that checkpoints in the same block update existing global points
         Checkpoints.checkpointDelta(userStorage, globalStorage, alice, int256(AMOUNT), int256(AMOUNT));
         uint256 globalEpochAfterFirst = globalStorage.globalPointEpoch;
-        
+
         // Add another user in the same block
         Checkpoints.checkpointDelta(userStorage, globalStorage, bob, int256(AMOUNT * 2), int256(AMOUNT * 2));
         uint256 globalEpochAfterSecond = globalStorage.globalPointEpoch;

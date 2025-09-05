@@ -13,13 +13,13 @@ contract ZKCTotalSupplyTest is ZKCTest {
         address[] memory recipients = new address[](1);
         recipients[0] = user;
         uint256[] memory amounts = new uint256[](1);
-        amounts[0] = zkc.INITIAL_SUPPLY() / 2;        
+        amounts[0] = zkc.INITIAL_SUPPLY() / 2;
         vm.prank(minter1);
         zkc.initialMint(recipients, amounts);
         address[] memory recipients2 = new address[](1);
         recipients2[0] = user;
         uint256[] memory amounts2 = new uint256[](1);
-        amounts2[0] = zkc.INITIAL_SUPPLY() / 2;        
+        amounts2[0] = zkc.INITIAL_SUPPLY() / 2;
         vm.prank(minter2);
         zkc.initialMint(recipients2, amounts2);
     }
@@ -88,9 +88,15 @@ contract ZKCTotalSupplyTest is ZKCTest {
         zkc.mintStakingRewardsForRecipient(user, stakingAmount);
 
         uint256 expectedClaimed = zkc.INITIAL_SUPPLY() + povwAmount + stakingAmount;
-        assertEq(zkc.claimedTotalSupply(), expectedClaimed, "Claimed total supply should be the initial supply plus the minted amounts");
+        assertEq(
+            zkc.claimedTotalSupply(),
+            expectedClaimed,
+            "Claimed total supply should be the initial supply plus the minted amounts"
+        );
         assertEq(zkc.totalSupply(), Supply.getSupplyAtEpoch(3), "Total supply should be the supply at epoch 3");
-        assertGt(zkc.totalSupply(), zkc.claimedTotalSupply(), "Total supply should be greater than claimed total supply");
+        assertGt(
+            zkc.totalSupply(), zkc.claimedTotalSupply(), "Total supply should be greater than claimed total supply"
+        );
     }
 
     function testTheoreticalSupplyGrowsWithTime() public {
@@ -125,7 +131,7 @@ contract ZKCTotalSupplyTest is ZKCTest {
         // Move to epoch 2 to allow minting
         vm.warp(vm.getBlockTimestamp() + 2 * zkc.EPOCH_DURATION());
         uint256 totalSupplyBeforeBurn = zkc.totalSupply();
-        
+
         uint256 mintAmount = 1000 * 10 ** 18;
 
         // burn the full balance
@@ -146,7 +152,7 @@ contract ZKCTotalSupplyTest is ZKCTest {
         zkc.mintPoVWRewardsForRecipient(user, mintAmount);
 
         assertEq(zkc.claimedTotalSupply(), zkc.INITIAL_SUPPLY() + mintAmount - burnedAmount);
-        assertEq(zkc.totalSupply(), Supply.getSupplyAtEpoch(2));       
+        assertEq(zkc.totalSupply(), Supply.getSupplyAtEpoch(2));
 
         // burn the newly minted PoVW rewards
         vm.expectEmit(true, true, true, true);
@@ -156,6 +162,8 @@ contract ZKCTotalSupplyTest is ZKCTest {
         uint256 totalSupplyAfterBurn = zkc.totalSupply();
 
         assertEq(zkc.claimedTotalSupply(), zkc.INITIAL_SUPPLY() - burnedAmount);
-        assertEq(totalSupplyBeforeBurn, totalSupplyAfterBurn, "Theoretical total supply should remain the same after burning");
+        assertEq(
+            totalSupplyBeforeBurn, totalSupplyAfterBurn, "Theoretical total supply should remain the same after burning"
+        );
     }
 }
