@@ -1,8 +1,8 @@
 {
-  "getEmissionsForEpoch: Year 1 mid": "20281",
-  "getEmissionsForEpoch: Year 15 mid": "40714",
-  "getSupplyAtEpoch: Year 1 mid": "9898",
-  "getSupplyAtEpoch: Year 1 start": "529",
-  "getSupplyAtEpoch: Year 15 mid": "20243",
-  "getSupplyAtEpoch: Year 15 start": "10519"
+  "getEmissionsForEpoch: Year 1 mid": "20061",
+  "getEmissionsForEpoch: Year 15 mid": "40238",
+  "getSupplyAtEpoch: Year 1 mid": "9788",
+  "getSupplyAtEpoch: Year 1 start": "526",
+  "getSupplyAtEpoch: Year 15 mid": "20005",
+  "getSupplyAtEpoch: Year 15 start": "10388"
 }

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20BurnableUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+
 import {ERC20PermitUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -15,6 +18,7 @@ import {IZKC} from "./interfaces/IZKC.sol";
 contract ZKC is
     Initializable,
     ERC20Upgradeable,
+    ERC20BurnableUpgradeable,
     ERC20PermitUpgradeable,
     AccessControlUpgradeable,
     UUPSUpgradeable,
@@ -54,10 +58,10 @@ contract ZKC is
     uint256 public constant STAKING_ALLOCATION_BPS = 2500;
 
     /// @notice Role identifier for PoVW reward minter
-    bytes32 public immutable POVW_MINTER_ROLE = keccak256("POVW_MINTER_ROLE");
+    bytes32 public constant POVW_MINTER_ROLE = keccak256("POVW_MINTER_ROLE");
 
     /// @notice Role identifier for staking reward minter
-    bytes32 public immutable STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
+    bytes32 public constant STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
 
     /// @notice Timestamp when epoch 0 started
     /// @dev Initially set to max uint256 to indicate that epoch 0 has not started yet.
@@ -83,6 +87,13 @@ contract ZKC is
         return epoch0StartTime != 0 && epoch0StartTime != type(uint256).max;
     }
 
+    /// @notice Initialize the ZKC token contract with initial minting parameters
+    /// @dev Sets up initial minters and their allocations. Can only be called once during deployment.
+    /// @param _initialMinter1 Address of the first initial minter
+    /// @param _initialMinter2 Address of the second initial minter
+    /// @param _initialMinter1Amount Amount that the first minter is allowed to mint
+    /// @param _initialMinter2Amount Amount that the second minter is allowed to mint
+    /// @param _owner Address that will be granted the admin role
     function initialize(
         address _initialMinter1,
         address _initialMinter2,
@@ -95,19 +106,22 @@ contract ZKC is
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
-        require(_initialMinter1Amount + _initialMinter2Amount == INITIAL_SUPPLY);
+        require(_initialMinter1Amount + _initialMinter2Amount == INITIAL_SUPPLY, "Initial minter amounts must equal initial supply");
+        require(_initialMinter1 != address(0) || _initialMinter2 != address(0), "An initialMinter must be defined");
+        require(_owner != address(0), "Owner cannot be zero address");
 
         initialMinter1 = _initialMinter1;
         initialMinter2 = _initialMinter2;
         initialMinter1Remaining = _initialMinter1Amount;
         initialMinter2Remaining = _initialMinter2Amount;
-        _grantRole(DEFAULT_ADMIN_ROLE, _owner);
+        _grantRole(ADMIN_ROLE, _owner);
     }
 
     /// @dev Must be called atomically during upgrade.
     /// @dev On upgrade, initialize epoch0StartTime to max value to indicate epoch 0 has not started.
     /// @notice Callable by anyone to initialize the contract to version 2
     function initializeV2() public reinitializer(2) {
+        __ERC20Burnable_init();
         epoch0StartTime = type(uint256).max;
     }
 
@@ -119,11 +133,11 @@ contract ZKC is
 
     /// @inheritdoc IZKC
     function initialMint(address[] calldata recipients, uint256[] calldata amounts) public {
-        require(recipients.length == amounts.length);
-        require(msg.sender == initialMinter1 || msg.sender == initialMinter2);
+        require(recipients.length == amounts.length, "Recipients and amounts arrays must have equal length");
+        require(msg.sender == initialMinter1 || msg.sender == initialMinter2, "Caller must be authorized initial minter");
 
-        uint256 minted = 0;
-        for (uint256 i = 0; i < recipients.length; i++) {
+        uint256 minted;
+        for (uint256 i; i < recipients.length; ++i) {
             uint256 amount = amounts[i];
             _mint(recipients[i], amount);
             minted += amount;
@@ -178,7 +192,7 @@ contract ZKC is
     /// @inheritdoc IZKC
     function getTotalPoVWEmissionsAtEpochStart(uint256 epoch) public pure returns (uint256) {
         uint256 totalEmissions = getSupplyAtEpochStart(epoch) - INITIAL_SUPPLY;
-        return (totalEmissions * POVW_ALLOCATION_BPS) / BASIS_POINTS;
+        return (totalEmissions * POVW_ALLOCATION_BPS + BASIS_POINTS - 1) / BASIS_POINTS;
     }
 
     /// @inheritdoc IZKC
@@ -195,12 +209,16 @@ contract ZKC is
     /// @inheritdoc IZKC
     function getPoVWEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
-        return (totalEmission * POVW_ALLOCATION_BPS) / BASIS_POINTS;
+        // Round up povw emissions. Combined with staking emissions rounding down,
+        // this ensures we don't leave any dust.
+        return (totalEmission * POVW_ALLOCATION_BPS + BASIS_POINTS - 1) / BASIS_POINTS;
     }
 
     /// @inheritdoc IZKC
     function getStakingEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
+        // Round down staking emissions. Combined with povw emissions rounding up,
+        // this ensures we don't leave any dust.
         return (totalEmission * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
@@ -208,6 +226,11 @@ contract ZKC is
     function getCurrentEpoch() public view returns (uint256) {
         if (!_epochsStarted()) revert EpochsNotStarted();
         return (block.timestamp - epoch0StartTime) / EPOCH_DURATION;
+    }
+
+    /// @inheritdoc IZKC
+    function getCurrentEpochEndTime() public view returns (uint256) {
+        return getEpochEndTime(getCurrentEpoch());
     }
 
     /// @inheritdoc IZKC
@@ -226,6 +249,7 @@ contract ZKC is
     /// @dev Does not include rewards that will be emitted at the end of the current epoch.
     /// @dev Overrides ERC20 totalSupply to return epoch-based theoretical supply, however
     ///      not all tokens may have been claimed (and thus minted) by recipients yet.
+    /// @return The theoretical total supply of ZKC tokens at the current epoch
     function totalSupply() public view override returns (uint256) {
         if (!_epochsStarted()) {
             return INITIAL_SUPPLY;
@@ -238,5 +262,8 @@ contract ZKC is
         return super.totalSupply();
     }
 
+    /// @notice Authorize contract upgrades (UUPS pattern)
+    /// @dev Only accounts with ADMIN_ROLE can authorize upgrades
+    /// @param newImplementation Address of the new implementation contract
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
 }

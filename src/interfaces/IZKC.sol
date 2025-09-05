@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 /// @title IZKC
 /// @notice Interface for the ZKC token with epoch-based emissions
@@ -73,6 +73,12 @@ interface IZKC {
     /// @dev Reverts if epochs have not started yet.
     /// @return The current epoch number (0-indexed)
     function getCurrentEpoch() external view returns (uint256);
+
+    /// @notice Get the current epoch end time
+    /// @dev Returns the final timestamp at which the current epoch is active.
+    ///      After this time, rewards will be emitted.
+    /// @return The timestamp when the current epoch ends
+    function getCurrentEpochEndTime() external view returns (uint256);
 
     /// @notice Get the start timestamp of a specific epoch
     /// @dev Reverts if epochs have not started yet.

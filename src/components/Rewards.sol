@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {Clock} from "./Clock.sol";
 import {Storage} from "./Storage.sol";
@@ -109,12 +109,24 @@ abstract contract Rewards is Storage, Clock, IRewards {
         // Skip if delegating to same address
         if (oldDelegate == delegatee) return;
         
+        // Capture reward power before the change
+        uint256 oldDelegateRewardsBefore = RewardPower.getStakingRewards(_userCheckpoints, oldDelegate);
+        uint256 newDelegateRewardsBefore = RewardPower.getStakingRewards(_userCheckpoints, delegatee);
+        
         _rewardDelegatee[account] = delegatee;
 
         // Checkpoint delegation change for rewards
         _checkpointRewardDelegation(stake, oldDelegate, delegatee);
+        
+        // Capture reward power after the change
+        uint256 oldDelegateRewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, oldDelegate);
+        uint256 newDelegateRewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, delegatee);
 
         emit RewardDelegateChanged(account, oldDelegate, delegatee);
+        
+        // Emit DelegateRewardsChanged for both old and new delegates
+        emit DelegateRewardsChanged(oldDelegate, oldDelegateRewardsBefore, oldDelegateRewardsAfter);
+        emit DelegateRewardsChanged(delegatee, newDelegateRewardsBefore, newDelegateRewardsAfter);
     }
 
     /// @dev Handle reward delegation checkpointing

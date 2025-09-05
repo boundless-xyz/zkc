@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 /// @title IRewards
 /// @notice Interface for reward distribution calculations
@@ -9,8 +9,12 @@ interface IRewards {
     error CannotDelegateRewardsWhileWithdrawing();
     error RewardsExpiredSignature(uint256 expiry);
     
-    // Events
+    /// @notice Emitted when an account changes their reward delegation
+    /// @param delegator The account that changed their delegation
+    /// @param fromDelegate The previous delegate (or the delegator if they were self-delegated)
+    /// @param toDelegate The new delegate (or the delegator if they are self-delegating)
     event RewardDelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate);
+    event DelegateRewardsChanged(address indexed delegate, uint256 previousRewards, uint256 newRewards);
 
     /// @notice Get current staking rewards power for an account
     /// @param account Account to query

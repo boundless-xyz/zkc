@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
@@ -7,6 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {StakeManager} from "../../src/libraries/StakeManager.sol";
 import {Checkpoints} from "../../src/libraries/Checkpoints.sol";
 import {Constants} from "../../src/libraries/Constants.sol";
+import {IStaking} from "../../src/interfaces/IStaking.sol";
 import {console} from "forge-std/console.sol";
 
 /**
@@ -66,11 +67,11 @@ contract StakeManagerTest is Test {
     /// forge-config: default.allow_internal_expect_revert = true
     function testValidateStake() public {
         // Zero amount validation
-        vm.expectRevert(StakeManager.ZeroAmount.selector);
+        vm.expectRevert(IStaking.ZeroAmount.selector);
         StakeManager.validateStake(0, 0);
 
         // User already has active position
-        vm.expectRevert(StakeManager.UserAlreadyHasActivePosition.selector);
+        vm.expectRevert(IStaking.UserAlreadyHasActivePosition.selector);
         StakeManager.validateStake(AMOUNT, 123);
 
         // Valid stake
@@ -82,14 +83,14 @@ contract StakeManagerTest is Test {
         // Zero amount validation
         Checkpoints.StakeInfo memory activeStake = Checkpoints.StakeInfo({amount: AMOUNT, withdrawalRequestedAt: 0});
 
-        vm.expectRevert(StakeManager.ZeroAmount.selector);
+        vm.expectRevert(IStaking.ZeroAmount.selector);
         StakeManager.validateAddToStake(0, activeStake);
 
         // Cannot add to withdrawing position
         Checkpoints.StakeInfo memory withdrawingStake =
             Checkpoints.StakeInfo({amount: AMOUNT, withdrawalRequestedAt: vm.getBlockTimestamp()});
 
-        vm.expectRevert(StakeManager.CannotAddToWithdrawingPosition.selector);
+        vm.expectRevert(IStaking.CannotAddToWithdrawingPosition.selector);
         StakeManager.validateAddToStake(AMOUNT, withdrawingStake);
 
         // Valid add to stake
@@ -102,7 +103,7 @@ contract StakeManagerTest is Test {
         Checkpoints.StakeInfo memory withdrawingStake =
             Checkpoints.StakeInfo({amount: AMOUNT, withdrawalRequestedAt: vm.getBlockTimestamp()});
 
-        vm.expectRevert(StakeManager.WithdrawalAlreadyInitiated.selector);
+        vm.expectRevert(IStaking.WithdrawalAlreadyInitiated.selector);
         StakeManager.validateWithdrawalInitiation(withdrawingStake);
 
         // Valid withdrawal initiation (zero amount is OK for this function)
@@ -120,20 +121,20 @@ contract StakeManagerTest is Test {
         Checkpoints.StakeInfo memory stake =
             Checkpoints.StakeInfo({amount: AMOUNT, withdrawalRequestedAt: vm.getBlockTimestamp()});
 
-        vm.expectRevert(StakeManager.NoActivePosition.selector);
+        vm.expectRevert(IStaking.NoActivePosition.selector);
         StakeManager.validateUnstakeCompletion(0, stake);
 
         // Not withdrawing validation
         Checkpoints.StakeInfo memory activeStake = Checkpoints.StakeInfo({amount: AMOUNT, withdrawalRequestedAt: 0});
 
-        vm.expectRevert(StakeManager.WithdrawalNotInitiated.selector);
+        vm.expectRevert(IStaking.WithdrawalNotInitiated.selector);
         StakeManager.validateUnstakeCompletion(123, activeStake);
 
         // Withdrawal period not elapsed
         Checkpoints.StakeInfo memory recentWithdrawal =
             Checkpoints.StakeInfo({amount: AMOUNT, withdrawalRequestedAt: vm.getBlockTimestamp()});
 
-        vm.expectRevert(StakeManager.WithdrawalPeriodNotComplete.selector);
+        vm.expectRevert(IStaking.WithdrawalPeriodNotComplete.selector);
         StakeManager.validateUnstakeCompletion(123, recentWithdrawal);
 
         // Valid unstake completion

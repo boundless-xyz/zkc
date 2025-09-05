@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.26;
 
 import "../veZKC.t.sol";
 import "../../src/interfaces/IStaking.sol";
@@ -119,7 +119,7 @@ contract veZKCRewardsTest is veZKCTest {
         veToken.initiateUnstake();
 
         // Try to add to withdrawing stake - should fail
-        vm.expectRevert(StakeManager.CannotAddToWithdrawingPosition.selector);
+        vm.expectRevert(IStaking.CannotAddToWithdrawingPosition.selector);
         veToken.addToStake(ADD_AMOUNT);
         vm.stopPrank();
 
@@ -348,7 +348,7 @@ contract veZKCRewardsTest is veZKCTest {
 
         // 3. Try to add to withdrawing stake (should fail)
         vm.prank(alice);
-        vm.expectRevert(StakeManager.CannotAddToWithdrawingPosition.selector);
+        vm.expectRevert(IStaking.CannotAddToWithdrawingPosition.selector);
         veToken.addToStake(ADD_AMOUNT);
 
         // 4. Complete withdrawal after waiting period
