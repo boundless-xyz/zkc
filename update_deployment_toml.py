@@ -29,17 +29,22 @@ def main():
     parser.add_argument('--zkc', help='ZKC proxy address')
     parser.add_argument('--zkc-impl', help='ZKC implementation address')
     parser.add_argument('--zkc-impl-prev', help='Previous ZKC implementation address')
+    parser.add_argument('--zkc-deployer', help='ZKC deployer address')
     parser.add_argument('--vezkc', help='veZKC proxy address')
     parser.add_argument('--vezkc-impl', help='veZKC implementation address')
     parser.add_argument('--vezkc-impl-prev', help='Previous veZKC implementation address')
+    parser.add_argument('--vezkc-deployer', help='veZKC deployer address')
     parser.add_argument('--staking-rewards', help='StakingRewards proxy address')
     parser.add_argument('--staking-rewards-impl', help='StakingRewards implementation address')
     parser.add_argument('--staking-rewards-impl-prev', help='Previous StakingRewards implementation address')
+    parser.add_argument('--staking-rewards-deployer', help='StakingRewards deployer address')
     parser.add_argument('--povw-minter', help='POVW minter address')
     parser.add_argument('--staking-minter', help='Staking minter address')
     
     # Deployment metadata
-    parser.add_argument('--deployment-commit', help='Git commit hash of deployment')
+    parser.add_argument('--zkc-commit', help='Git commit hash for ZKC deployment')
+    parser.add_argument('--vezkc-commit', help='Git commit hash for veZKC deployment')
+    parser.add_argument('--staking-rewards-commit', help='Git commit hash for StakingRewards deployment')
     parser.add_argument('--rpc-url', help='RPC URL for the network')
     parser.add_argument('--etherscan-api-key', help='Etherscan API key')
     
@@ -81,15 +86,20 @@ def main():
             'zkc': args.zkc,
             'zkc_impl': args.zkc_impl,
             'zkc_impl_prev': args.zkc_impl_prev,
+            'zkc_deployer': args.zkc_deployer,
             'vezkc': args.vezkc,
             'vezkc_impl': args.vezkc_impl,
             'vezkc_impl_prev': args.vezkc_impl_prev,
+            'vezkc_deployer': args.vezkc_deployer,
             'staking_rewards': args.staking_rewards,
             'staking_rewards_impl': args.staking_rewards_impl,
             'staking_rewards_impl_prev': args.staking_rewards_impl_prev,
+            'staking_rewards_deployer': args.staking_rewards_deployer,
             'povw_minter': args.povw_minter,
             'staking_minter': args.staking_minter,
-            'deployment_commit': args.deployment_commit,
+            'zkc_commit': args.zkc_commit,
+            'vezkc_commit': args.vezkc_commit,
+            'staking_rewards_commit': args.staking_rewards_commit,
             'rpc_url': args.rpc_url,
             'etherscan_api_key': args.etherscan_api_key,
         }

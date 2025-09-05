@@ -66,17 +66,36 @@ check_prerequisites() {
 
 # Create reference build for upgrades
 create_reference_build() {
+    local contract_type="$1"
     local deployed_commit
+    local commit_field
     
-    echo "Creating reference build for upgrade safety checks..."
+    # Determine which commit field to use based on contract type
+    case "$contract_type" in
+        zkc)
+            commit_field="zkc-commit"
+            ;;
+        vezkc)
+            commit_field="vezkc-commit"
+            ;;
+        staking)
+            commit_field="staking-rewards-commit"
+            ;;
+        *)
+            echo "❌ Unknown contract type: $contract_type"
+            exit 1
+            ;;
+    esac
+    
+    echo "Creating reference build for $contract_type upgrade safety checks..."
     
     # Get deployed commit from deployment.toml
     deployed_commit=$(python3 -c "
 import tomlkit
 doc = tomlkit.load(open('deployment.toml'))
-commit = doc['deployment']['$CHAIN_KEY'].get('deployment-commit', '')
+commit = doc['deployment']['$CHAIN_KEY'].get('$commit_field', '')
 if not commit:
-    raise Exception('No deployment commit found for $CHAIN_KEY')
+    raise Exception('No $commit_field found for $CHAIN_KEY')
 print(commit.strip())
 ")
     
@@ -89,7 +108,7 @@ print(commit.strip())
     echo "📦 Creating reference build from commit: $deployed_commit"
     
     # Create worktree for reference build
-    local worktree_path="../zkc-reference-${deployed_commit}"
+    local worktree_path="../${contract_type}-reference-${deployed_commit}"
     
     # Clean up existing worktree if it exists
     if [[ -d "$worktree_path" ]]; then
@@ -156,6 +175,8 @@ forge_script() {
         script_file="Deploy.s.sol"
     elif [[ "$script_name" == Upgrade* ]]; then
         script_file="Upgrade.s.sol"
+    elif [[ "$script_name" == Rollback* ]]; then
+        script_file="Rollback.s.sol"
     elif [[ "$script_name" == Update* ]]; then
         script_file="Update.s.sol"
     elif [[ "$script_name" == Dev_* ]]; then
@@ -221,6 +242,9 @@ Commands:
   upgrade-zkc            Upgrade ZKC implementation
   upgrade-vezkc          Upgrade veZKC implementation  
   upgrade-staking        Upgrade StakingRewards implementation
+  rollback-zkc           Rollback ZKC to previous implementation
+  rollback-vezkc         Rollback veZKC to previous implementation
+  rollback-staking       Rollback StakingRewards to previous implementation
   update-povw-minter     Set POVW_MINTER_ROLE in ZKC contract
   update-staking-minter  Set STAKING_MINTER_ROLE in ZKC contract
   dev-mint-to-self       Development: mint initial tokens to caller
@@ -232,22 +256,36 @@ Options:
   -h, --help             Show this help message
 
 Environment Variables:
-  CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia)
+  CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia, ethereum-sepolia-staging)
   PRIVATE_KEY            Required. Private key for transaction signing (0x...)
-  STACK_TAG              Optional. Stack tag for environment variants (e.g., 'staging')
   
 Examples:
   # Deploy ZKC to anvil
-  PRIVATE_KEY=0xac0974bec... CHAIN_KEY=anvil ./script/manage deploy-zkc --broadcast
+  CHAIN_KEY=anvil \
+  PRIVATE_KEY=0x... \
+  INITIAL_MINTER_1="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" \
+  INITIAL_MINTER_2="0x0000000000000000000000000000000000000000" \
+  TOTAL_INITIAL_SUPPLY="1000000000000000000000000000" \
+  INITIAL_MINTER_1_AMOUNT="1000000000000000000000000000" \
+  INITIAL_MINTER_2_AMOUNT="0" \
+  SALT="0x0000000000000000000000000000000000000000000000000000000000000001" \
+  ADMIN="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" \
+  script/manage deploy-zkc --broadcast
   
   # Deploy veZKC to sepolia with Fireblocks (requires ZKC already deployed)
   PRIVATE_KEY=0x... CHAIN_KEY=ethereum-sepolia ./script/manage deploy-vezkc --fireblocks --broadcast --verify
+  
+  # Deploy to staging environment
+  PRIVATE_KEY=0x... CHAIN_KEY=ethereum-sepolia-staging ./script/manage deploy-zkc --broadcast
   
   # Deploy StakingRewards to anvil (requires ZKC and veZKC already deployed)
   PRIVATE_KEY=0x... CHAIN_KEY=anvil ./script/manage deploy-staking --broadcast
   
   # Upgrade ZKC on mainnet with verification
   PRIVATE_KEY=0x... CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc --broadcast --verify
+  
+  # Rollback ZKC to previous implementation
+  PRIVATE_KEY=0x... CHAIN_KEY=anvil ./script/manage rollback-zkc --broadcast
   
   # Set POVW minter role (requires POVW_MINTER env var)
   PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage update-povw-minter --broadcast
@@ -283,7 +321,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            deploy-*|upgrade-*|update-*|dev-*)
+            deploy-*|upgrade-*|rollback-*|update-*|dev-*)
                 COMMAND="$1"
                 shift
                 ;;
@@ -312,9 +350,6 @@ main() {
     fi
     
     echo "🌐 Chain: $CHAIN_KEY"
-    if [[ -n "${STACK_TAG:-}" ]]; then
-        echo "🏷️  Stack: $STACK_TAG"
-    fi
     
     # Load configuration from TOML files
     echo "📋 Loading configuration..."
@@ -358,7 +393,25 @@ main() {
     
     # Create reference build for upgrade commands
     if [[ "$COMMAND" == upgrade-* ]]; then
-        create_reference_build
+        # Extract contract type from command
+        local contract_type=""
+        case "$COMMAND" in
+            upgrade-zkc)
+                contract_type="zkc"
+                ;;
+            upgrade-vezkc)
+                contract_type="vezkc"
+                ;;
+            upgrade-staking)
+                contract_type="staking"
+                ;;
+            *)
+                echo "❌ Unknown upgrade command: $COMMAND"
+                exit 1
+                ;;
+        esac
+        
+        create_reference_build "$contract_type"
         
         # Also ensure current build is clean and complete
         echo "🔨 Ensuring current build is complete..."
@@ -386,6 +439,15 @@ main() {
             ;;
         upgrade-staking)
             forge_script "UpgradeStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        rollback-zkc)
+            forge_script "RollbackZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        rollback-vezkc)
+            forge_script "RollbackVeZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        rollback-staking)
+            forge_script "RollbackStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         update-povw-minter)
             forge_script "UpdatePOVWMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"

@@ -44,7 +44,6 @@ contract UpdatePOVWMinter is BaseDeployment {
 
         // Update deployment.toml with the new minter
         _updateDeploymentConfig(deploymentKey, "povw-minter", povwMinter);
-        _updateDeploymentCommit(deploymentKey);
 
         // Sanity checks
         console2.log("ZKC Contract: ", config.zkc);
@@ -92,7 +91,6 @@ contract UpdateStakingMinter is BaseDeployment {
 
         // Update deployment.toml with the new minter
         _updateDeploymentConfig(deploymentKey, "staking-minter", stakingMinter);
-        _updateDeploymentCommit(deploymentKey);
 
         // Sanity checks
         console2.log("ZKC Contract: ", config.zkc);

@@ -28,11 +28,12 @@ abstract contract BaseDeployment is Script {
         vm.ffi(args);
     }
 
+
     /**
-     * @notice Updates the deployment commit hash in deployment.toml via FFI
+     * @notice Updates the ZKC contract commit hash in deployment.toml via FFI
      * @param deploymentKey The chain key (e.g., "anvil", "ethereum-mainnet")
      */
-    function _updateDeploymentCommit(string memory deploymentKey) internal {
+    function _updateZKCCommit(string memory deploymentKey) internal {
         string[] memory args = new string[](4);
         args[0] = "git";
         args[1] = "rev-parse";
@@ -42,13 +43,65 @@ abstract contract BaseDeployment is Script {
         bytes memory result = vm.ffi(args);
         string memory commit = string(result);
         
-        // Update deployment.toml with commit
+        // Update deployment.toml with ZKC commit
         string[] memory updateArgs = new string[](6);
         updateArgs[0] = "python3";
         updateArgs[1] = "update_deployment_toml.py";
         updateArgs[2] = "--chain-key";
         updateArgs[3] = deploymentKey;
-        updateArgs[4] = "--deployment-commit";
+        updateArgs[4] = "--zkc-commit";
+        updateArgs[5] = commit;
+        
+        vm.ffi(updateArgs);
+    }
+
+    /**
+     * @notice Updates the veZKC contract commit hash in deployment.toml via FFI
+     * @param deploymentKey The chain key (e.g., "anvil", "ethereum-mainnet")
+     */
+    function _updateVeZKCCommit(string memory deploymentKey) internal {
+        string[] memory args = new string[](4);
+        args[0] = "git";
+        args[1] = "rev-parse";
+        args[2] = "--short";
+        args[3] = "HEAD";
+        
+        bytes memory result = vm.ffi(args);
+        string memory commit = string(result);
+        
+        // Update deployment.toml with veZKC commit
+        string[] memory updateArgs = new string[](6);
+        updateArgs[0] = "python3";
+        updateArgs[1] = "update_deployment_toml.py";
+        updateArgs[2] = "--chain-key";
+        updateArgs[3] = deploymentKey;
+        updateArgs[4] = "--vezkc-commit";
+        updateArgs[5] = commit;
+        
+        vm.ffi(updateArgs);
+    }
+
+    /**
+     * @notice Updates the StakingRewards contract commit hash in deployment.toml via FFI
+     * @param deploymentKey The chain key (e.g., "anvil", "ethereum-mainnet")
+     */
+    function _updateStakingRewardsCommit(string memory deploymentKey) internal {
+        string[] memory args = new string[](4);
+        args[0] = "git";
+        args[1] = "rev-parse";
+        args[2] = "--short";
+        args[3] = "HEAD";
+        
+        bytes memory result = vm.ffi(args);
+        string memory commit = string(result);
+        
+        // Update deployment.toml with StakingRewards commit
+        string[] memory updateArgs = new string[](6);
+        updateArgs[0] = "python3";
+        updateArgs[1] = "update_deployment_toml.py";
+        updateArgs[2] = "--chain-key";
+        updateArgs[3] = deploymentKey;
+        updateArgs[4] = "--staking-rewards-commit";
         updateArgs[5] = commit;
         
         vm.ffi(updateArgs);
@@ -65,5 +118,12 @@ abstract contract BaseDeployment is Script {
         // Read from the proxy contract's storage
         bytes32 result = vm.load(proxy, slot);
         impl = address(uint160(uint256(result)));
+    }
+
+    /// @notice Get the size of contract code at an address
+    function _getCodeSize(address addr) internal view returns (uint256 size) {
+        assembly {
+            size := extcodesize(addr)
+        }
     }
 }

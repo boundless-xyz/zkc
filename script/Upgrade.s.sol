@@ -12,8 +12,8 @@ import {StakingRewards} from "../src/rewards/StakingRewards.sol";
 /**
  * Sample Usage for ZKC upgrade:
  *
- * # First, create reference build from deployed commit:
- * export DEPLOYED_COMMIT=$(python3 -c "import tomlkit; print(tomlkit.load(open('deployment.toml'))['deployment']['$CHAIN_KEY']['deployment-commit'])")
+ * # First, create reference build from deployed ZKC commit:
+ * export DEPLOYED_COMMIT=$(python3 -c "import tomlkit; print(tomlkit.load(open('deployment.toml'))['deployment']['$CHAIN_KEY']['zkc-commit'])")
  * WORKTREE_PATH="../zkc-reference-${DEPLOYED_COMMIT}"
  * git worktree add "$WORKTREE_PATH" "$DEPLOYED_COMMIT"
  * cd "$WORKTREE_PATH"
@@ -60,7 +60,7 @@ contract UpgradeZKC is BaseDeployment {
         // Update deployment.toml with new implementation and store previous
         _updateDeploymentConfig(deploymentKey, "zkc-impl-prev", currentImpl);
         _updateDeploymentConfig(deploymentKey, "zkc-impl", newImpl);
-        _updateDeploymentCommit(deploymentKey);
+        _updateZKCCommit(deploymentKey);
 
         // Verify upgrade
         ZKC zkcContract = ZKC(config.zkc);
@@ -76,7 +76,14 @@ contract UpgradeZKC is BaseDeployment {
 /**
  * Sample Usage for veZKC upgrade:
  *
- * # First, create reference build from deployed commit (same as above)
+ * # First, create reference build from deployed veZKC commit:
+ * export DEPLOYED_COMMIT=$(python3 -c "import tomlkit; print(tomlkit.load(open('deployment.toml'))['deployment']['$CHAIN_KEY']['vezkc-commit'])")
+ * WORKTREE_PATH="../vezkc-reference-${DEPLOYED_COMMIT}"
+ * git worktree add "$WORKTREE_PATH" "$DEPLOYED_COMMIT"
+ * cd "$WORKTREE_PATH"
+ * forge build --profile reference
+ * cp -R out-reference/build-info "$OLDPWD/build-info-reference"
+ * cd "$OLDPWD"
  *
  * # Then run upgrade:
  * export CHAIN_KEY="anvil"
@@ -117,7 +124,7 @@ contract UpgradeVeZKC is BaseDeployment {
         // Update deployment.toml with new implementation and store previous
         _updateDeploymentConfig(deploymentKey, "vezkc-impl-prev", currentImpl);
         _updateDeploymentConfig(deploymentKey, "vezkc-impl", newImpl);
-        _updateDeploymentCommit(deploymentKey);
+        _updateVeZKCCommit(deploymentKey);
 
         // Verify upgrade
         veZKC veZKCContract = veZKC(config.veZKC);
@@ -134,6 +141,16 @@ contract UpgradeVeZKC is BaseDeployment {
 /**
  * Sample Usage for StakingRewards upgrade:
  *
+ * # First, create reference build from deployed StakingRewards commit:
+ * export DEPLOYED_COMMIT=$(python3 -c "import tomlkit; print(tomlkit.load(open('deployment.toml'))['deployment']['$CHAIN_KEY']['staking-rewards-commit'])")
+ * WORKTREE_PATH="../staking-rewards-reference-${DEPLOYED_COMMIT}"
+ * git worktree add "$WORKTREE_PATH" "$DEPLOYED_COMMIT"
+ * cd "$WORKTREE_PATH"
+ * forge build --profile reference
+ * cp -R out-reference/build-info "$OLDPWD/build-info-reference"
+ * cd "$OLDPWD"
+ *
+ * # Then run upgrade:
  * export CHAIN_KEY="anvil"
  * forge script script/Upgrade.s.sol:UpgradeStakingRewards \
  *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
@@ -172,7 +189,7 @@ contract UpgradeStakingRewards is BaseDeployment {
         // Update deployment.toml with new implementation and store previous
         _updateDeploymentConfig(deploymentKey, "staking-rewards-impl-prev", currentImpl);
         _updateDeploymentConfig(deploymentKey, "staking-rewards-impl", newImpl);
-        _updateDeploymentCommit(deploymentKey);
+        _updateStakingRewardsCommit(deploymentKey);
 
         // Verify upgrade
         StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);

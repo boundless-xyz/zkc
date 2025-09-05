@@ -8,19 +8,26 @@ import {Vm} from "forge-std/Vm.sol";
 struct DeploymentConfig {
     string name;
     uint256 id;
-    address admin;
+    address zkcAdmin;
+    address veZKCAdmin;
+    address stakingRewardsAdmin;
     address zkc;
     address zkcImpl;
     address zkcImplPrev;
+    address zkcDeployer;
     address veZKC;
     address veZKCImpl;
     address veZKCImplPrev;
+    address veZKCDeployer;
     address stakingRewards;
     address stakingRewardsImpl;
     address stakingRewardsImplPrev;
+    address stakingRewardsDeployer;
     address povwMinter;
     address stakingMinter;
-    string deploymentCommit;
+    string zkcCommit;
+    string veZKCCommit;
+    string stakingRewardsCommit;
 }
 
 library ConfigLoader {
@@ -36,22 +43,33 @@ library ConfigLoader {
         
         config.name = toml.readString(string.concat(keyPrefix, ".name"));
         config.id = toml.readUint(string.concat(keyPrefix, ".id"));
-        config.admin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".admin"));
+        config.zkcAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-admin"));
+        config.veZKCAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".vezkc-admin"));
+        config.stakingRewardsAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards-admin"));
         config.zkc = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc"));
         config.zkcImpl = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-impl"));
         config.zkcImplPrev = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-impl-prev"));
+        config.zkcDeployer = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-deployer"));
         config.veZKC = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".vezkc"));
         config.veZKCImpl = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".vezkc-impl"));
         config.veZKCImplPrev = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".vezkc-impl-prev"));
+        config.veZKCDeployer = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".vezkc-deployer"));
         config.stakingRewards = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards"));
         config.stakingRewardsImpl = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards-impl"));
         config.stakingRewardsImplPrev = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards-impl-prev"));
+        config.stakingRewardsDeployer = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards-deployer"));
         config.povwMinter = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".povw-minter"));
         config.stakingMinter = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-minter"));
         
-        // Read deployment commit, default to empty string if not found
-        string memory commitKey = string.concat(keyPrefix, ".deployment-commit");
-        config.deploymentCommit = _readStringOrEmpty(toml, commitKey);
+        // Read per-contract deployment commits, default to empty string if not found
+        string memory zkcCommitKey = string.concat(keyPrefix, ".zkc-commit");
+        config.zkcCommit = _readStringOrEmpty(toml, zkcCommitKey);
+        
+        string memory veZKCCommitKey = string.concat(keyPrefix, ".vezkc-commit");
+        config.veZKCCommit = _readStringOrEmpty(toml, veZKCCommitKey);
+        
+        string memory stakingRewardsCommitKey = string.concat(keyPrefix, ".staking-rewards-commit");
+        config.stakingRewardsCommit = _readStringOrEmpty(toml, stakingRewardsCommitKey);
         
         return (config, deploymentKey);
     }
@@ -60,11 +78,6 @@ library ConfigLoader {
         // Check CHAIN_KEY env var first
         string memory key = _getEnvStringOrEmpty(vm, "CHAIN_KEY");
         if (bytes(key).length > 0) {
-            // Check for STACK_TAG to modify key
-            string memory stackTag = _getEnvStringOrEmpty(vm, "STACK_TAG");
-            if (bytes(stackTag).length > 0) {
-                return string.concat(key, "-", stackTag);
-            }
             return key;
         }
         
