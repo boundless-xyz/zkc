@@ -140,4 +140,20 @@ contract ZKCEpochsTest is ZKCTest {
         assertGt(supplyAfter1Year, initialSupply);
         assertGt(supplyAfter2Years, supplyAfter1Year);
     }
+
+    function testGetCurrentEpochEndTime() public {
+        vm.warp(epoch0StartTime + 1 days);
+        assertEq(zkc.getCurrentEpochEndTime(), epoch0StartTime + zkc.EPOCH_DURATION() - 1);
+
+        vm.warp(epoch0StartTime + 2 days - 1 seconds);
+        assertEq(zkc.getCurrentEpochEndTime(), epoch0StartTime + zkc.EPOCH_DURATION() - 1);
+
+        vm.warp(epoch0StartTime + 2 days);
+        assertEq(zkc.getCurrentEpochEndTime(), epoch0StartTime + 2 * zkc.EPOCH_DURATION() - 1);
+
+        vm.warp(epoch0StartTime + 365 days);
+        uint256 currentEpoch = zkc.getCurrentEpoch();
+        uint256 expectedEndTime = epoch0StartTime + (currentEpoch + 1) * zkc.EPOCH_DURATION() - 1;
+        assertEq(zkc.getCurrentEpochEndTime(), expectedEndTime);
+    }
 }

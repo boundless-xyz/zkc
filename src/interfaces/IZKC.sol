@@ -72,6 +72,12 @@ interface IZKC {
     /// @return The current epoch number (0-indexed)
     function getCurrentEpoch() external view returns (uint256);
 
+    /// @notice Get the current epoch end time
+    /// @dev Returns the final timestamp at which the current epoch is active.
+    ///      After this time, rewards will be emitted.
+    /// @return The timestamp when the current epoch ends
+    function getCurrentEpochEndTime() external view returns (uint256);
+
     /// @notice Get the start timestamp of a specific epoch
     /// @param epoch The epoch number
     /// @return The timestamp when the epoch starts
