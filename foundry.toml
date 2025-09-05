@@ -5,6 +5,23 @@ libs = ["lib"]
 via_ir = true
 optimizer = true
 optimizer_runs = 200
+build_info = true
+build_info_path = "out/build-info"
+extra_output = ["storageLayout"]
+ffi = true
+fs_permissions = [
+  { access = "read", path = "out" },
+  { access = "read-write", path = "deployment.toml" },
+  { access = "read", path = "build-info-reference" }
+]
+
+# Profile for building reference contracts
+[profile.reference]
+out = "out-reference"
+cache_path = "cache-reference"
+build_info = true
+build_info_path = "out-reference/build-info"
+extra_output = ["storageLayout"]
 
 # Invariant testing configuration
 [invariant]

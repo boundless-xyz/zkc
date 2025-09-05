@@ -31,6 +31,11 @@ contract veZKC is
 {
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
 
+    /// @notice Returns the ZKC token address
+    function zkcToken() external view returns (address) {
+        return address(_zkcToken);
+    }
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();

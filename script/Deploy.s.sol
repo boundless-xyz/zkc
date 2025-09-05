@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Script, console2} from "forge-std/Script.sol";
+import {console2} from "forge-std/Script.sol";
 import {ZKC} from "../src/ZKC.sol";
+import {veZKC} from "../src/veZKC.sol";
+import {StakingRewards} from "../src/rewards/StakingRewards.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {ConfigLoader, DeploymentConfig} from "./Config.s.sol";
+import {BaseDeployment} from "./BaseDeployment.s.sol";
 
 /**
  * Sample Usage (addresses are Anvil default accounts):
@@ -23,7 +27,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
  *     --broadcast \
  *     --rpc-url http://127.0.0.1:8545
  */
-contract DeployZKC is Script {
+contract DeployZKC is BaseDeployment {
     function setUp() public {}
 
     function run() public {
@@ -65,7 +69,15 @@ contract DeployZKC is Script {
         );
         address zkc = address(proxy);
 
+        proxy.call(abi.encodeCall(ZKC.initializeV2, ()));
+
         vm.stopBroadcast();
+
+        // Update deployment.toml with deployed addresses
+        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        _updateDeploymentConfig(deploymentKey, "zkc", zkc);
+        _updateDeploymentConfig(deploymentKey, "zkc-impl", implementation);
+        _updateDeploymentCommit(deploymentKey);
 
         // Sanity checks.
         ZKC zkcContract = ZKC(zkc);
@@ -80,5 +92,111 @@ contract DeployZKC is Script {
         console2.log("Initial Minter 2 Amount Value: ", zkcContract.initialMinter2Remaining() / 10 ** 18);
         console2.log("================================================");
         console2.log("Deployed ZKC to: ", zkc);
+    }
+
+}
+
+/**
+ * Sample Usage for veZKC deployment:
+ *
+ * export CHAIN_KEY="anvil"
+ * export SALT="0x0000000000000000000000000000000000000000000000000000000000000001"
+ *
+ * forge script script/Deploy.s.sol:DeployVeZKC \
+ *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *     --broadcast \
+ *     --rpc-url http://127.0.0.1:8545
+ */
+contract DeployVeZKC is BaseDeployment {
+    function setUp() public {}
+
+    function run() public {
+        vm.startBroadcast();
+
+        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        require(config.zkc != address(0), "ZKC address not set in deployment.toml");
+
+        bytes32 salt = vm.envOr("SALT", bytes32(0));
+
+        // Deploy veZKC implementation
+        address veZKCImpl = address(new veZKC{salt: salt}());
+        console2.log("Deployed veZKC implementation to: ", veZKCImpl);
+
+        // Deploy proxy with initialization
+        ERC1967Proxy proxy = new ERC1967Proxy{salt: salt}(
+            veZKCImpl,
+            abi.encodeCall(veZKC.initialize, (config.zkc, config.admin))
+        );
+        address veZKCAddress = address(proxy);
+
+        vm.stopBroadcast();
+
+        // Update deployment.toml
+        _updateDeploymentConfig(deploymentKey, "vezkc", veZKCAddress);
+        _updateDeploymentConfig(deploymentKey, "vezkc-impl", veZKCImpl);
+        _updateDeploymentCommit(deploymentKey);
+
+        // Sanity checks
+        veZKC veZKCContract = veZKC(veZKCAddress);
+        IAccessControl accessControl = IAccessControl(veZKCAddress);
+        console2.log("Admin address: ", config.admin);
+        console2.log("Admin role assigned: ", accessControl.hasRole(veZKCContract.ADMIN_ROLE(), config.admin));
+        console2.log("ZKC token address: ", address(veZKCContract.zkcToken()));
+        console2.log("================================================");
+        console2.log("Deployed veZKC to: ", veZKCAddress);
+    }
+
+}
+
+/**
+ * Sample Usage for StakingRewards deployment:
+ *
+ * export CHAIN_KEY="anvil"
+ * export SALT="0x0000000000000000000000000000000000000000000000000000000000000001"
+ *
+ * forge script script/Deploy.s.sol:DeployStakingRewards \
+ *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *     --broadcast \
+ *     --rpc-url http://127.0.0.1:8545
+ */
+contract DeployStakingRewards is BaseDeployment {
+    function setUp() public {}
+
+    function run() public {
+        vm.startBroadcast();
+
+        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        require(config.zkc != address(0), "ZKC address not set in deployment.toml");
+        require(config.veZKC != address(0), "veZKC address not set in deployment.toml");
+
+        bytes32 salt = vm.envOr("SALT", bytes32(0));
+
+        // Deploy StakingRewards implementation
+        address stakingRewardsImpl = address(new StakingRewards{salt: salt}());
+        console2.log("Deployed StakingRewards implementation to: ", stakingRewardsImpl);
+
+        // Deploy proxy with initialization
+        ERC1967Proxy proxy = new ERC1967Proxy{salt: salt}(
+            stakingRewardsImpl,
+            abi.encodeCall(StakingRewards.initialize, (config.zkc, config.veZKC, config.admin))
+        );
+        address stakingRewardsAddress = address(proxy);
+
+        vm.stopBroadcast();
+
+        // Update deployment.toml
+        _updateDeploymentConfig(deploymentKey, "staking-rewards", stakingRewardsAddress);
+        _updateDeploymentConfig(deploymentKey, "staking-rewards-impl", stakingRewardsImpl);
+        _updateDeploymentCommit(deploymentKey);
+
+        // Sanity checks
+        StakingRewards stakingRewardsContract = StakingRewards(stakingRewardsAddress);
+        IAccessControl accessControl = IAccessControl(stakingRewardsAddress);
+        console2.log("Admin address: ", config.admin);
+        console2.log("Admin role assigned: ", accessControl.hasRole(stakingRewardsContract.ADMIN_ROLE(), config.admin));
+        console2.log("ZKC token address: ", address(stakingRewardsContract.zkc()));
+        console2.log("veZKC token address: ", address(stakingRewardsContract.veZKC()));
+        console2.log("================================================");
+        console2.log("Deployed StakingRewards to: ", stakingRewardsAddress);
     }
 }

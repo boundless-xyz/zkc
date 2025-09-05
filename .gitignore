@@ -13,4 +13,12 @@ docs/
 # Dotenv file
 .env
 
+# Deployment secrets
+deployment_secrets.toml
+
+# Reference builds for upgrades
+build-info-reference/
+out-reference/
+cache-reference/
+
 .claude
