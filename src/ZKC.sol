@@ -178,7 +178,7 @@ contract ZKC is
     function getPoVWEmissionsForEpoch(uint256 epoch) public returns (uint256) {
         uint256 totalEmission = getEmissionsForEpoch(epoch);
         // Round up povw emissions. Combined with staking emissions rounding down,
-        // this ensures we don't leave any dust .
+        // this ensures we don't leave any dust.
         return (totalEmission * POVW_ALLOCATION_BPS + BASIS_POINTS - 1) / BASIS_POINTS;
     }
 
