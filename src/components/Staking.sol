@@ -256,14 +256,6 @@ abstract contract Staking is Storage, ERC721Upgradeable, ReentrancyGuardUpgradea
         emit OZIVotes.DelegateVotesChanged(owner, votesBefore, votesAfter);
         emit IRewards.DelegateRewardsChanged(owner, rewardsBefore, rewardsAfter);
 
-        // Get voting and reward power after unstaking for event emission
-        uint256 votesAfter = VotingPower.getVotes(_userCheckpoints, owner);
-        uint256 rewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, owner);
-
-        // Emit events showing power reduction
-        emit OZIVotes.DelegateVotesChanged(owner, votesBefore, votesAfter);
-        emit IRewards.DelegateRewardsChanged(owner, rewardsBefore, rewardsAfter);
-
         uint256 withdrawableAt = newStake.withdrawalRequestedAt + Constants.WITHDRAWAL_PERIOD;
         emit UnstakeInitiated(tokenId, owner, withdrawableAt);
     }

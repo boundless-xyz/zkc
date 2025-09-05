@@ -530,20 +530,10 @@ contract RewardsDelegationTest is veZKCTest {
         
         uint256 aliceInitialRewards = veToken.getStakingRewards(alice);
 
-        uint256 aliceInitialRewards = veToken.getStakingRewards(alice);
-
         // Test reward delegation events - Alice delegates to Bob
         vm.expectEmit(true, true, true, true);
         emit IRewards.RewardDelegateChanged(alice, alice, bob);
         
-        // Alice loses reward power
-        vm.expectEmit(true, true, true, true);
-        emit IRewards.DelegateRewardsChanged(alice, aliceInitialRewards, 0);
-        
-        // Bob gains reward power
-        vm.expectEmit(true, true, true, true);
-        emit IRewards.DelegateRewardsChanged(bob, 0, aliceInitialRewards);
-
         // Alice loses reward power
         vm.expectEmit(true, true, true, true);
         emit IRewards.DelegateRewardsChanged(alice, aliceInitialRewards, 0);
@@ -590,8 +580,6 @@ contract RewardsDelegationTest is veZKCTest {
         
         uint256 aliceRewards = veToken.getStakingRewards(alice);
 
-        uint256 aliceRewards = veToken.getStakingRewards(alice);
-
         // First delegation: Alice -> Bob
         vm.expectEmit(true, true, true, true);
         emit IRewards.RewardDelegateChanged(alice, alice, bob);
@@ -620,8 +608,6 @@ contract RewardsDelegationTest is veZKCTest {
         vm.prank(alice);
         veToken.stake(AMOUNT);
         
-        uint256 aliceRewards = veToken.getStakingRewards(alice);
-
         uint256 aliceRewards = veToken.getStakingRewards(alice);
 
         // Delegate rewards to Bob first

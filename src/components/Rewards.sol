@@ -114,10 +114,6 @@ abstract contract Rewards is Storage, Clock, IRewards {
 
         // Checkpoint delegation change for rewards
         _checkpointRewardDelegation(stake, oldDelegate, delegatee);
-        
-        // Capture reward power after the change
-        uint256 oldDelegateRewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, oldDelegate);
-        uint256 newDelegateRewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, delegatee);
 
         // Capture reward power after the change
         uint256 oldDelegateRewardsAfter = RewardPower.getStakingRewards(_userCheckpoints, oldDelegate);
