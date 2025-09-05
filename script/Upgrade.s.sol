@@ -12,6 +12,7 @@ import {StakingRewards} from "../src/rewards/StakingRewards.sol";
 /**
  * Sample Usage for ZKC upgrade:
  *
+ * # Option 1: Safe upgrade with reference build (recommended)
  * # First, create reference build from deployed ZKC commit:
  * export DEPLOYED_COMMIT=$(python3 -c "import tomlkit; print(tomlkit.load(open('deployment.toml'))['deployment']['$CHAIN_KEY']['zkc-commit'])")
  * WORKTREE_PATH="../zkc-reference-${DEPLOYED_COMMIT}"
@@ -27,6 +28,14 @@ import {StakingRewards} from "../src/rewards/StakingRewards.sol";
  *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
  *     --broadcast \
  *     --rpc-url http://127.0.0.1:8545
+ *
+ * # Option 2: Skip safety checks (WARNING: No reference build needed but unsafe!)
+ * export CHAIN_KEY="anvil"
+ * export SKIP_SAFETY_CHECKS=true
+ * forge script script/Upgrade.s.sol:UpgradeZKC \
+ *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *     --broadcast \
+ *     --rpc-url http://127.0.0.1:8545
  */
 contract UpgradeZKC is BaseDeployment {
     function run() public {
@@ -35,10 +44,20 @@ contract UpgradeZKC is BaseDeployment {
 
         vm.startBroadcast();
 
-        // Prepare upgrade options with reference contract
+        // Check for skip safety checks flag
+        bool skipSafetyChecks = vm.envOr("SKIP_SAFETY_CHECKS", false);
+
+        // Prepare upgrade options
         Options memory opts;
-        opts.referenceContract = "build-info-reference:ZKC";
-        opts.referenceBuildInfoDir = "build-info-reference";
+        
+        if (skipSafetyChecks) {
+            console2.log("WARNING: Skipping all upgrade safety checks and reference build!");
+            opts.unsafeSkipAllChecks = true;
+        } else {
+            // Only set reference contract when doing safety checks
+            opts.referenceContract = "build-info-reference:ZKC";
+            opts.referenceBuildInfoDir = "build-info-reference";
+        }
 
         console2.log("Upgrading ZKC at: ", config.zkc);
         address currentImpl = _getImplementationAddress(config.zkc);
@@ -48,7 +67,7 @@ contract UpgradeZKC is BaseDeployment {
         Upgrades.upgradeProxy(
             config.zkc,
             "ZKC.sol:ZKC",
-            abi.encodeCall(ZKC.initializeV2, ()), // Update to new initializer or remove if not needed
+            "", // Update to new initializer or remove if not needed
             opts
         );
 

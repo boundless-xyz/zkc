@@ -258,6 +258,7 @@ Options:
 Environment Variables:
   CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia, ethereum-sepolia-staging)
   PRIVATE_KEY            Required. Private key for transaction signing (0x...)
+  SKIP_SAFETY_CHECKS     Optional. Set to 'true' to skip upgrade safety checks (WARNING: unsafe!)
   
 Examples:
   # Deploy ZKC to anvil
@@ -283,6 +284,9 @@ Examples:
   
   # Upgrade ZKC on mainnet with verification
   PRIVATE_KEY=0x... CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc --broadcast --verify
+  
+  # Upgrade ZKC skipping safety checks (WARNING: unsafe!)
+  PRIVATE_KEY=0x... CHAIN_KEY=anvil SKIP_SAFETY_CHECKS=true ./script/manage upgrade-zkc --broadcast
   
   # Rollback ZKC to previous implementation
   PRIVATE_KEY=0x... CHAIN_KEY=anvil ./script/manage rollback-zkc --broadcast
@@ -391,29 +395,34 @@ main() {
     fi
     echo "✅ Chain ID verified: $CHAIN_ID"
     
-    # Create reference build for upgrade commands
+    # Create reference build for upgrade commands (unless skipping safety checks)
     if [[ "$COMMAND" == upgrade-* ]]; then
-        # Extract contract type from command
-        local contract_type=""
-        case "$COMMAND" in
-            upgrade-zkc)
-                contract_type="zkc"
-                ;;
-            upgrade-vezkc)
-                contract_type="vezkc"
-                ;;
-            upgrade-staking)
-                contract_type="staking"
-                ;;
-            *)
-                echo "❌ Unknown upgrade command: $COMMAND"
-                exit 1
-                ;;
-        esac
+        if [[ "${SKIP_SAFETY_CHECKS:-false}" == "true" ]]; then
+            echo "⚠️  SKIP_SAFETY_CHECKS=true - Skipping reference build creation"
+            echo "⚠️  WARNING: Upgrade safety checks will be disabled!"
+        else
+            # Extract contract type from command
+            local contract_type=""
+            case "$COMMAND" in
+                upgrade-zkc)
+                    contract_type="zkc"
+                    ;;
+                upgrade-vezkc)
+                    contract_type="vezkc"
+                    ;;
+                upgrade-staking)
+                    contract_type="staking"
+                    ;;
+                *)
+                    echo "❌ Unknown upgrade command: $COMMAND"
+                    exit 1
+                    ;;
+            esac
+            
+            create_reference_build "$contract_type"
+        fi
         
-        create_reference_build "$contract_type"
-        
-        # Also ensure current build is clean and complete
+        # Always ensure current build is clean and complete
         echo "🔨 Ensuring current build is complete..."
         forge clean
         forge build

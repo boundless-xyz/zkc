@@ -26,6 +26,9 @@ def main():
     
     # Contract addresses
     parser.add_argument('--admin', help='Admin address')
+    parser.add_argument('--zkc-admin', help='ZKC admin address')
+    parser.add_argument('--vezkc-admin', help='veZKC admin address')
+    parser.add_argument('--staking-rewards-admin', help='StakingRewards admin address')
     parser.add_argument('--zkc', help='ZKC proxy address')
     parser.add_argument('--zkc-impl', help='ZKC implementation address')
     parser.add_argument('--zkc-impl-prev', help='Previous ZKC implementation address')
@@ -83,6 +86,9 @@ def main():
         # Update provided values
         field_mappings = {
             'admin': args.admin,
+            'zkc_admin': args.zkc_admin,
+            'vezkc_admin': args.vezkc_admin,
+            'staking_rewards_admin': args.staking_rewards_admin,
             'zkc': args.zkc,
             'zkc_impl': args.zkc_impl,
             'zkc_impl_prev': args.zkc_impl_prev,

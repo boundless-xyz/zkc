@@ -13,7 +13,8 @@ import {UD60x18, ud, unwrap, pow} from "lib/prb-math/src/UD60x18.sol";
 /// - Year 8+: 3.0% annual (minimum rate)
 library Supply {
     uint256 public constant INITIAL_SUPPLY = 1_000_000_000 * 10 ** 18; // 1 billion ZKC
-    uint256 public constant EPOCHS_PER_YEAR = 182;
+    uint256 public constant EPOCHS_PER_YEAR = 35040;
+    uint256 public constant EPOCH_DURATION = 15 minutes;
     uint256 public constant SCALE = 1e18;
 
     /// @notice Precomputed per-epoch growth factors (1e18 scaled)

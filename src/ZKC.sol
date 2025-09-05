@@ -40,7 +40,7 @@ contract ZKC is
     uint256 public constant INITIAL_SUPPLY = Supply.INITIAL_SUPPLY;
 
     /// @notice Duration of each epoch in seconds
-    uint256 public constant EPOCH_DURATION = 2 days;
+    uint256 public constant EPOCH_DURATION = Supply.EPOCH_DURATION;
 
     /// @notice Number of epochs per year
     uint256 public constant EPOCHS_PER_YEAR = Supply.EPOCHS_PER_YEAR;
