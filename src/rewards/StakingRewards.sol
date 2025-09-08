@@ -55,7 +55,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     /// @notice Claim rewards for the given epochs
     /// @param epochs The epochs to claim rewards for
     /// @return amount The amount of rewards claimed
-    function claimRewards(uint256[] calldata epochs) external nonReentrant returns (uint256 amount) {
+    function claimRewards(uint256[] calldata epochs) external nonReentrant returns (uint256) {
         return _claim(msg.sender, epochs);
     }
 

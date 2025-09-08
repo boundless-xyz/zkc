@@ -85,7 +85,9 @@ contract veZKC is
     /// @param newImplementation Address of the new implementation contract
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
 
-    /// @dev Support required interfaces
+    /// @notice Support required interfaces for ERC165
+    /// @param interfaceId The interface identifier to check
+    /// @return bool True if the interface is supported
     function supportsInterface(bytes4 interfaceId)
         public
         view

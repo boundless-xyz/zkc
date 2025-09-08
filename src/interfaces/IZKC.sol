@@ -6,10 +6,14 @@ pragma solidity 0.8.26;
 /// @dev Defines ZKC-specific functionality for epoch-based reward distribution
 interface IZKC {
     /// @notice Emitted when a recipient claims PoVW rewards.
+    /// @param recipient The address that claimed the rewards
+    /// @param amount The amount of ZKC tokens claimed
     /// @dev The reward amount could include ZKC that was earned across multiple epochs.
     event PoVWRewardsClaimed(address indexed recipient, uint256 amount);
 
     /// @notice Emitted when a recipient claims staking rewards.
+    /// @param recipient The address that claimed the rewards
+    /// @param amount The amount of ZKC tokens claimed
     /// @dev The reward amount could include ZKC that was earned across multiple epochs.
     event StakingRewardsClaimed(address indexed recipient, uint256 amount);
 
