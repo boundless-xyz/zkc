@@ -67,7 +67,11 @@ contract ZKC is
     bytes32 public constant STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
 
     /// @notice Timestamp when epoch 0 started
-    /// @dev Values of 0 and type(uint256).max are invalid values for epoch0StartTime and mean epoch 0 has not started yet.
+    /// @dev Initial value is set to max uint256 to indicate that epoch 0 has not started yet.
+    ///      and prevent reward emissions functions from being callable before epoch 0 starts.
+    ///      When initializeV2 is called, this value will be updated with the correct
+    ///      start time of epoch, and the reward functions will be callable.
+    /// @dev Values of both 0 and type(uint256).max are both invalid values for epoch0StartTime.
     uint256 public epoch0StartTime;
 
     /// @notice Total amount of PoVW rewards claimed
