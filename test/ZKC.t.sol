@@ -45,7 +45,7 @@ contract ZKCTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         zkc = ZKC(address(proxy));
 
-        // Initialize V2 to set up burnable functionality
+        // Initialize V2 to set up burnable functionality and set epoch0StartTime to max
         vm.prank(owner);
         zkc.initializeV2();
 
