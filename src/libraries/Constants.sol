@@ -17,9 +17,9 @@ library Constants {
     ///      Example: 2 means 1 ZKC = 0.5e18 reward power
     uint256 public constant REWARD_POWER_SCALAR = 1;
 
-    /// @notice PoVW reward cap scalar (3 = 1:3 ratio in token units)
-    /// @dev Example: 3 means 1 ZKC = 0.33e18 reward cap
-    uint256 public constant POVW_REWARD_CAP_SCALAR = 3;
+    /// @notice PoVW reward cap scalar
+    /// @dev Example: 3 means 1 ZKC = 0.33 ZKC reward cap
+    uint256 public constant POVW_REWARD_CAP_SCALAR = 15;
 
     /// @notice 1 week in seconds (kept for potential future use)
     uint256 public constant WEEK = 1 weeks;

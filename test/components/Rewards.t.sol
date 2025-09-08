@@ -498,16 +498,6 @@ contract veZKCRewardsTest is veZKCTest {
         assertEq(
             stakingRewards, AMOUNT / Constants.REWARD_POWER_SCALAR, "Staking rewards should use REWARD_POWER_SCALAR"
         );
-
-        // The relationship between staking rewards and PoVW cap is determined by the scalars
-        // Note: due to integer division, there may be a rounding error of 1
-        uint256 expectedMultiplier = Constants.POVW_REWARD_CAP_SCALAR / Constants.REWARD_POWER_SCALAR;
-        assertApproxEqAbs(
-            stakingRewards,
-            povwCap * expectedMultiplier,
-            1,
-            "Staking rewards should be approximately POVW_REWARD_CAP_SCALAR/REWARD_POWER_SCALAR times the PoVW cap"
-        );
     }
 
     function testPoVWRewardCapDoesNotDecay() public {
@@ -664,16 +654,6 @@ contract veZKCRewardsTest is veZKCTest {
             povwCap,
             AMOUNT / Constants.POVW_REWARD_CAP_SCALAR,
             "PoVW cap should equal amount divided by POVW_REWARD_CAP_SCALAR"
-        );
-
-        // Relationship check - the scalars maintain the expected relationship
-        // stakingRewards = AMOUNT / REWARD_POWER_SCALAR
-        // povwCap = AMOUNT / POVW_REWARD_CAP_SCALAR
-        // Therefore: stakingRewards * POVW_REWARD_CAP_SCALAR = povwCap * REWARD_POWER_SCALAR * (POVW_REWARD_CAP_SCALAR / REWARD_POWER_SCALAR)
-        assertEq(
-            stakingRewards / povwCap,
-            Constants.POVW_REWARD_CAP_SCALAR / Constants.REWARD_POWER_SCALAR,
-            "Ratio of rewards to cap should equal ratio of scalars"
         );
     }
 

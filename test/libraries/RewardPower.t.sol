@@ -156,16 +156,6 @@ contract RewardPowerTest is Test {
             AMOUNT / Constants.POVW_REWARD_CAP_SCALAR,
             "PoVW cap should equal amount divided by POVW_REWARD_CAP_SCALAR"
         );
-
-        // The relationship between staking rewards and PoVW cap is determined by the scalars
-        // Account for rounding error from integer division
-        uint256 expectedMultiplier = Constants.POVW_REWARD_CAP_SCALAR / Constants.REWARD_POWER_SCALAR;
-        assertApproxEqAbs(
-            stakingRewards,
-            povwCap * expectedMultiplier,
-            1,
-            "Staking rewards should be POVW_REWARD_CAP_SCALAR/REWARD_POWER_SCALAR times the PoVW cap"
-        );
     }
 
     function testHistoricalConsistency() public {

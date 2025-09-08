@@ -12,7 +12,7 @@ The core contracts for ZKC. Includes the token itself, as well as its associated
 
 * **veZKC NFT (`src/veZKC.sol`)** represents ERC721 positions issued when staking ZKC that grant governance and reward power.
 
-* **Rewards (`rewards/`)** contains contracts that allow users to claim their portion of emitted ZKC rewards each epoch.
+* **Rewards (`rewards/`)** contains contracts that allow users to claim their portion of emitted ZKC rewards each epoch. Note: the _Proof of Verifiable Work_ rewards contract is *not* in this repo- it is in the Boundless repo. 
 
 ## ZKC
 
@@ -37,9 +37,9 @@ The annual emission rate decreases over time. Emissions are divided equally acro
 
 Each epoch's new emissions are allocated to two external contracts for distribution.
 
-**75% goes to Provers generating ZK proofs**. Submitting _Proofs of Verifiable Work_ (PoVW) entitles provers to a portion of emitted ZKC.
+**75% goes to Provers generating ZK proofs**. Submitting _Proofs of Verifiable Work_ (PoVW) entitles provers to a portion of emitted ZKC. Note: the _Proof of Verifiable Work_ rewards contract is *not* in this repo- it is in the Boundless repo.
 
-**25% goes to ZKC stakers**. Staking ZKC for veZKC entitles holders to a portion of emitted ZKC.
+**25% goes to ZKC stakers**. Staking ZKC for veZKC entitles holders to a portion of emitted ZKC. This contract is in `src/rewards/StakingRewards.sol`
 
 Emissions occur at the end of each epoch.
 
@@ -50,6 +50,8 @@ Emissions occur at the end of each epoch.
 Users stake ZKC tokens and receive a veZKC NFT position that provides eligibility for participating in governance votes and claiming ZKC emissions.
 
 Users stake ZKC without committing to a specific duration and receive full voting and reward power immediately upon staking. 
+
+Voting power and reward power can be delegated independently of one another.
 
 To unstake, users must initiate withdrawal and wait 30 days before completing the process to receive their ZKC. Voting and reward powers immediately drop to 0 when withdrawal is initiated.
 
