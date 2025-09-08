@@ -45,16 +45,6 @@ library Supply {
     uint256 public constant SUPPLY_YEAR_8 = 1505119522730302372125075313; // Supply at epoch 1456
     uint256 public constant SUPPLY_YEAR_9 = 1550273108412208360804045020; // Supply at epoch 1638
 
-    /// @notice Get the per-epoch growth factor for a given epoch
-    /// @param epoch The epoch number (0-indexed)
-    /// @return The growth factor scaled by 1e18
-    function getGrowthFactor(uint256 epoch) internal pure returns (uint256) {
-        if (epoch == 0) return 1e18; // No growth for epoch 0
-
-        uint256 year = getYearForEpoch(epoch);
-        return _getGrowthFactorForYear(year);
-    }
-
     /// @notice Calculate the total supply at the start of a given epoch
     /// @param epoch The epoch number (0-indexed)
     /// @return The total supply at the start of the epoch

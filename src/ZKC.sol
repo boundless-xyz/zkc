@@ -67,11 +67,8 @@ contract ZKC is
     bytes32 public constant STAKING_MINTER_ROLE = keccak256("STAKING_MINTER_ROLE");
 
     /// @notice Timestamp when epoch 0 started
-    /// @dev Initially set to max uint256 to indicate that epoch 0 has not started yet.
-    ///      and prevent reward emissions functions from being callable before epoch 0 starts.
-    ///      When initializeV2 is called, this value will be updated with the correct
-    ///      start time of epoch, and the reward functions will be callable.
-    uint256 public epoch0StartTime = type(uint256).max;
+    /// @dev Values of 0 and type(uint256).max are invalid values for epoch0StartTime and mean epoch 0 has not started yet.
+    uint256 public epoch0StartTime;
 
     /// @notice Total amount of PoVW rewards claimed
     uint256 public poVWClaimed;
@@ -85,6 +82,7 @@ contract ZKC is
     }
 
     /// @notice Internal function to check if epochs have started
+    /// @dev We defensively check for 0, even though it should be max uint256 if the epoch has not started.
     /// @return bool True if epochs have started, false otherwise
     function _epochsStarted() internal view returns (bool) {
         return epoch0StartTime != 0 && epoch0StartTime != type(uint256).max;
@@ -123,8 +121,9 @@ contract ZKC is
         _grantRole(ADMIN_ROLE, _owner);
     }
 
+
     /// @dev Must be called atomically during upgrade.
-    /// @dev On upgrade, initialize epoch0StartTime to max value to indicate epoch 0 has not started.
+    ///      Set epoch0StartTime to max to indicate that epoch 0 has not started yet.
     /// @notice Callable by anyone to initialize the contract to version 2
     function initializeV2() public reinitializer(2) {
         __ERC20Burnable_init();

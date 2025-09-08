@@ -45,12 +45,6 @@ library StakeManager {
         return Checkpoints.StakeInfo({amount: currentStake.amount, withdrawalRequestedAt: block.timestamp});
     }
 
-    /// @notice Create an empty stake (for burning)
-    /// @return Empty StakeInfo struct
-    function emptyStake() internal pure returns (Checkpoints.StakeInfo memory) {
-        return Checkpoints.StakeInfo({amount: 0, withdrawalRequestedAt: 0});
-    }
-
     /// @notice Check if a stake is withdrawing
     /// @param stake Stake information to check
     /// @return True if withdrawal has been initiated
