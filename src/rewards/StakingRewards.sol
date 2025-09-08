@@ -90,13 +90,13 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     /// @param user The user address
     /// @param epoch The epoch to check
     /// @return claimed Whether rewards have been claimed
-    function hasUserClaimedRewards(address user, uint256 epoch) external view returns (bool claimed) {
+    function hasUserClaimedRewards(address user, uint256 epoch) external view returns (bool) {
         return _userClaimed[epoch][user];
     }
 
     /// @notice Get the current epoch from the ZKC contract
     /// @return currentEpoch The current epoch number
-    function getCurrentEpoch() external view returns (uint256 currentEpoch) {
+    function getCurrentEpoch() external view returns (uint256) {
         return zkc.getCurrentEpoch();
     }
 
@@ -139,9 +139,10 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     /// @param user The user address
     /// @param epochs The epochs to claim rewards for
     /// @return amount The amount of rewards claimed
-    function _claim(address user, uint256[] calldata epochs) internal returns (uint256 amount) {
+    function _claim(address user, uint256[] calldata epochs) internal returns (uint256) {
         uint256[] memory amounts = _calculate(user, epochs);
         ZKC zkcMemory = zkc;
+        uint256 amount;
 
         uint256 currentEpoch = zkcMemory.getCurrentEpoch();
         for (uint256 i; i < epochs.length; ++i) {
