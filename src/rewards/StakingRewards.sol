@@ -71,6 +71,21 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         return _calculate(user, epochs);
     }
 
+    /// @notice Calculate unclaimed rewards for a user - returns 0 for already claimed epochs
+    /// @dev This function is gas inefficient. It should only be called off-chain as part of view function calls.
+    /// @param user The user address
+    /// @param epochs The epochs to calculate unclaimed rewards for
+    /// @return rewards The unclaimed rewards (0 if already claimed)
+    function calculateUnclaimedRewards(address user, uint256[] calldata epochs) external returns (uint256[] memory) {
+        uint256[] memory rewards = _calculate(user, epochs);
+        for (uint256 i = 0; i < epochs.length; i++) {
+            if (_userClaimed[epochs[i]][user]) {
+                rewards[i] = 0;
+            }
+        }
+        return rewards;
+    }
+
     /// @notice Check if a user has claimed rewards for a specific epoch
     /// @param user The user address
     /// @param epoch The epoch to check
