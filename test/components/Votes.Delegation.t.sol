@@ -207,7 +207,6 @@ contract VotesDelegationTest is veZKCTest {
         uint256 aliceStake = 1000 ether;
         uint256 bobStake = 500 ether;
         uint256 charlieStake = 200 ether;
-
         // All three users stake
         vm.prank(alice);
         veToken.stake(aliceStake);
@@ -215,7 +214,6 @@ contract VotesDelegationTest is veZKCTest {
         veToken.stake(bobStake);
         vm.prank(CHARLIE);
         veToken.stake(charlieStake);
-
         // Initial state - everyone self-delegates
         assertEq(veToken.getVotes(alice), aliceStake, "Alice should have her own voting power");
         assertEq(veToken.getVotes(bob), bobStake, "Bob should have his own voting power");
@@ -229,19 +227,16 @@ contract VotesDelegationTest is veZKCTest {
         assertEq(veToken.getVotes(alice), 0, "Alice should have no voting power after delegating");
         assertEq(veToken.getVotes(bob), bobStake + aliceStake, "Bob should have his own + Alice's voting power");
         assertEq(veToken.getVotes(CHARLIE), charlieStake, "Charlie's voting power unchanged");
-
         // Bob delegates his voting power to Charlie
         // IMPORTANT: Only Bob's own stake moves to Charlie, Alice's delegation stays with Bob
         vm.prank(bob);
         veToken.delegate(CHARLIE);
-
         // Final distribution demonstrates non-transitivity:
         // - Alice's delegation stays with Bob (doesn't transfer to Charlie)
         // - Only Bob's own stake goes to Charlie
         assertEq(veToken.getVotes(alice), 0, "Alice still has no voting power");
         assertEq(veToken.getVotes(bob), aliceStake, "Bob retains Alice's delegated power");
         assertEq(veToken.getVotes(CHARLIE), charlieStake + bobStake, "Charlie has his own + Bob's stake only");
-
         // Verify the total is conserved
         uint256 totalVotes = veToken.getVotes(alice) + veToken.getVotes(bob) + veToken.getVotes(CHARLIE);
         assertEq(totalVotes, aliceStake + bobStake + charlieStake, "Total voting power is conserved");

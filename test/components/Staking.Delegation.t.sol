@@ -28,13 +28,11 @@ contract StakingDelegationTest is veZKCTest {
     function testCannotInitiateUnstakeWithVoteDelegation() public {
         // Alice stakes and delegates votes
         vm.prank(alice);
-
         // Expect events for initial stake (alice gets both voting and reward power)
         vm.expectEmit(true, true, true, true);
         emit OZIVotes.DelegateVotesChanged(alice, 0, AMOUNT);
         vm.expectEmit(true, true, true, true);
         emit IRewards.DelegateRewardsChanged(alice, 0, AMOUNT);
-
         veToken.stake(AMOUNT);
         vm.prank(alice);
         veToken.delegate(bob);
@@ -48,13 +46,11 @@ contract StakingDelegationTest is veZKCTest {
     function testCannotInitiateUnstakeWithRewardDelegation() public {
         // Alice stakes and delegates rewards
         vm.prank(alice);
-
         // Expect events for initial stake (alice gets both voting and reward power)
         vm.expectEmit(true, true, true, true);
         emit OZIVotes.DelegateVotesChanged(alice, 0, AMOUNT);
         vm.expectEmit(true, true, true, true);
         emit IRewards.DelegateRewardsChanged(alice, 0, AMOUNT);
-
         veToken.stake(AMOUNT);
         vm.prank(alice);
         veToken.delegateRewards(bob);
@@ -103,13 +99,11 @@ contract StakingDelegationTest is veZKCTest {
 
         // Alice stakes and delegates
         vm.prank(alice);
-
         // Expect events for initial stake (alice gets both voting and reward power)
         vm.expectEmit(true, true, true, true);
         emit OZIVotes.DelegateVotesChanged(alice, 0, AMOUNT);
         vm.expectEmit(true, true, true, true);
         emit IRewards.DelegateRewardsChanged(alice, 0, AMOUNT);
-
         veToken.stake(AMOUNT);
         vm.prank(alice);
         veToken.delegate(bob);
@@ -128,7 +122,6 @@ contract StakingDelegationTest is veZKCTest {
         emit OZIVotes.DelegateVotesChanged(alice, AMOUNT, 0);
         vm.expectEmit(true, true, true, true);
         emit IRewards.DelegateRewardsChanged(alice, AMOUNT, 0);
-
         veToken.initiateUnstake();
 
         // Wait for withdrawal period

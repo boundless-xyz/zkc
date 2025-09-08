@@ -104,13 +104,11 @@ contract veZKCStakeTest is veZKCTest {
         // Initial stake
         vm.startPrank(alice);
         zkc.approve(address(veToken), STAKE_AMOUNT);
-
         // Expect events for initial stake
         vm.expectEmit(true, true, true, true);
         emit OZIVotes.DelegateVotesChanged(alice, 0, STAKE_AMOUNT);
         vm.expectEmit(true, true, true, true);
         emit IRewards.DelegateRewardsChanged(alice, 0, STAKE_AMOUNT);
-
         uint256 tokenId = veToken.stake(STAKE_AMOUNT);
 
         // Try to add without approval (should fail with ERC20 error)
@@ -123,13 +121,11 @@ contract veZKCStakeTest is veZKCTest {
 
         // Approve and add to stake
         zkc.approve(address(veToken), ADD_AMOUNT);
-
         // Expect events for addToStake (power increases from STAKE_AMOUNT to STAKE_AMOUNT + ADD_AMOUNT)
         vm.expectEmit(true, true, true, true);
         emit OZIVotes.DelegateVotesChanged(alice, STAKE_AMOUNT, STAKE_AMOUNT + ADD_AMOUNT);
         vm.expectEmit(true, true, true, true);
         emit IRewards.DelegateRewardsChanged(alice, STAKE_AMOUNT, STAKE_AMOUNT + ADD_AMOUNT);
-
         veToken.addToStake(ADD_AMOUNT);
         vm.snapshotGasLastCall("addToStake: Adding to existing stake");
         vm.stopPrank();
@@ -205,13 +201,11 @@ contract veZKCStakeTest is veZKCTest {
         // Alice stakes
         vm.startPrank(alice);
         zkc.approve(address(veToken), STAKE_AMOUNT);
-
         // Expect events for initial stake
         vm.expectEmit(true, true, true, true);
         emit OZIVotes.DelegateVotesChanged(alice, 0, STAKE_AMOUNT);
         vm.expectEmit(true, true, true, true);
         emit IRewards.DelegateRewardsChanged(alice, 0, STAKE_AMOUNT);
-
         uint256 tokenId = veToken.stake(STAKE_AMOUNT);
 
         // Check initial voting power
@@ -223,7 +217,6 @@ contract veZKCStakeTest is veZKCTest {
         emit OZIVotes.DelegateVotesChanged(alice, STAKE_AMOUNT, 0);
         vm.expectEmit(true, true, true, true);
         emit IRewards.DelegateRewardsChanged(alice, STAKE_AMOUNT, 0);
-
         veToken.initiateUnstake();
         vm.snapshotGasLastCall("initiateUnstake: Starting withdrawal process");
 

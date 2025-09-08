@@ -398,13 +398,11 @@ contract RewardsDelegationTest is veZKCTest {
     }
 
     // Non-transitivity test for reward delegation
-
     function testRewardDelegationIsNonTransitive() public {
         // Setup: Three users with different stake amounts
         uint256 aliceStake = 1000 ether;
         uint256 bobStake = 500 ether;
         uint256 charlieStake = 200 ether;
-
         // All three users stake
         vm.prank(alice);
         veToken.stake(aliceStake);
@@ -412,7 +410,6 @@ contract RewardsDelegationTest is veZKCTest {
         veToken.stake(bobStake);
         vm.prank(CHARLIE);
         veToken.stake(charlieStake);
-
         // Initial state - everyone self-delegates rewards
         assertEq(veToken.getStakingRewards(alice), aliceStake, "Alice should have her own reward power");
         assertEq(veToken.getStakingRewards(bob), bobStake, "Bob should have his own reward power");
@@ -433,7 +430,6 @@ contract RewardsDelegationTest is veZKCTest {
         // IMPORTANT: Only Bob's own stake moves to Charlie, Alice's delegation stays with Bob
         vm.prank(bob);
         veToken.delegateRewards(CHARLIE);
-
         // Final distribution demonstrates non-transitivity:
         // - Alice's delegation stays with Bob (doesn't transfer to Charlie)
         // - Only Bob's own stake goes to Charlie
