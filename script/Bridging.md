@@ -1,5 +1,5 @@
 # Bridging the canonical ZKC to OP Stack chains
-Before being able to bridge ZKC using common bridges like `https://superbridge.app/`, we must first deploy the bridged token on the L2 and complete one bridge manually.
+This is the process that was used to bridge ZKC to OP stack chains.
 
 ## 1. Deploy the canonical bridged token on the L2
 ```
@@ -24,7 +24,7 @@ cast send 0x99a52662b576f4b2d4ffbc4504331a624a7b2846 \
 ```
 
 ## 4. Bridge the tokens
-| The 400000 is gas limit for the L2 execution. Leave as is.
+| The 400000 is gas limit for the L2 execution.
 
 ```
 cast send <L1_STANDARD_BRIDGE_ADDRESS> \
