@@ -344,4 +344,32 @@ contract StakingRewardsTest is Test {
         vm.snapshotGasLastCall("calculateRewards: calculate 5 epochs");
         assertGt(amounts[0], 0);
     }
+
+    function testCalculateUnclaimedRewardsAfterClaim() public {
+        _stake(user1, 100e18);
+        _endEpochs(3);
+
+        uint256[] memory epochs = new uint256[](3);
+        epochs[0] = 0;
+        epochs[1] = 1;
+        epochs[2] = 2;
+
+        uint256[] memory beforeClaim = rewards.calculateUnclaimedRewards(user1, epochs);
+        uint256[] memory normalRewards = rewards.calculateRewards(user1, epochs);
+
+        assertEq(beforeClaim[0], normalRewards[0], "Unclaimed should equal normal before claim");
+        assertEq(beforeClaim[1], normalRewards[1], "Unclaimed should equal normal before claim");
+        assertEq(beforeClaim[2], normalRewards[2], "Unclaimed should equal normal before claim");
+
+        uint256[] memory singleEpoch = new uint256[](1);
+        singleEpoch[0] = 1;
+        vm.prank(user1);
+        rewards.claimRewards(singleEpoch);
+
+        uint256[] memory afterClaim = rewards.calculateUnclaimedRewards(user1, epochs);
+
+        assertEq(afterClaim[0], normalRewards[0], "Unclaimed epoch should return full amount");
+        assertEq(afterClaim[1], 0, "Claimed epoch should return 0");
+        assertEq(afterClaim[2], normalRewards[2], "Unclaimed epoch should return full amount");
+    }
 }
