@@ -76,11 +76,11 @@ povw-minter = "0x8c2a4a28116ed8b8fe559bc53e30b6a056c5d3c9"
 staking-minter = "0x70d01bad90553674a2ce32715e7cb118b6d4e424"
 vezkc-impl-prev = "0x5204922af74cc0d027c10413d7eb5fec7f32df6b"
 staking-rewards-impl-prev = "0x9548c7532fd97cca8b38c1bb02e64ac5a8712558"
+zkc-impl-prev = "0xa7e703df0575ea226f01a5d1494a97c4cfafbb34"
 
 #################################################################################
 #                                  DEVELOPMENT                                   #
 ################################################################################# 
-zkc-impl-prev = "0xa7e703df0575ea226f01a5d1494a97c4cfafbb34"
 
 [deployment.ethereum-sepolia-quick-epoch]
 name = "Ethereum Sepolia (Quick Epoch)"
