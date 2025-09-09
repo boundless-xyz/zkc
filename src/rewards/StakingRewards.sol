@@ -1,0 +1,164 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.26;
+
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {ZKC} from "../ZKC.sol";
+import {IZKC} from "../interfaces/IZKC.sol";
+import {IRewards} from "../interfaces/IRewards.sol";
+
+/// @notice Error thrown when a user tries to claim rewards for an epoch they have already claimed
+error AlreadyClaimed(uint256 epoch);
+
+/// @title StakingRewards
+/// @notice Contract for distributing staking rewards based on veZKC staking positions
+/// @dev Users can claim rewards for specific epochs based on their staking value
+contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
+    bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
+
+    /// @notice ZKC token contract
+    ZKC public zkc;
+
+    /// @notice veZKC rewards interface for getting staking positions
+    IRewards public veZKC;
+
+    /// @dev Mapping to track if a user has claimed rewards for an epoch
+    mapping(uint256 epoch => mapping(address user => bool claimed)) private _userClaimed;
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialize the StakingRewards contract
+    /// @dev Sets up the contract with ZKC token, veZKC rewards interface, and admin role
+    /// @param _zkc Address of the ZKC token contract
+    /// @param _veZKC Address of the veZKC contract implementing IRewards
+    /// @param _admin Address that will be granted the admin role
+    function initialize(address _zkc, address _veZKC, address _admin) public initializer {
+        __AccessControl_init();
+        __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
+
+        require(_zkc != address(0), "ZKC cannot be zero address");
+        require(_veZKC != address(0), "veZKC cannot be zero address");
+        require(_admin != address(0), "Admin cannot be zero address");
+
+        zkc = ZKC(_zkc);
+        veZKC = IRewards(_veZKC);
+
+        _grantRole(ADMIN_ROLE, _admin);
+    }
+
+    /// @notice Claim rewards for the given epochs
+    /// @param epochs The epochs to claim rewards for
+    /// @return amount The amount of rewards claimed
+    function claimRewards(uint256[] calldata epochs) external nonReentrant returns (uint256) {
+        return _claim(msg.sender, epochs);
+    }
+
+    /// @notice Calculate the rewards a user is owed for the given epochs. If the epoch has not ended yet, it will return zero rewards.
+    /// @dev Unlike claimRewards(), this allows duplicate epochs and current/future epochs.
+    ///      Callers should validate epochs before calling this function.
+    ///      Duplicate epochs will return the same reward amount.
+    ///      Current/future epochs will return zero rewards (as those epochs have not ended yet)
+    /// @param user The user address
+    /// @param epochs The epochs to calculate rewards for
+    /// @return rewards The rewards owed
+    function calculateRewards(address user, uint256[] calldata epochs) external returns (uint256[] memory) {
+        return _calculate(user, epochs);
+    }
+
+    /// @notice Calculate unclaimed rewards for a user - returns 0 for already claimed epochs
+    /// @dev This function is gas inefficient. It should only be called off-chain as part of view function calls.
+    /// @param user The user address
+    /// @param epochs The epochs to calculate unclaimed rewards for
+    /// @return rewards The unclaimed rewards (0 if already claimed)
+    function calculateUnclaimedRewards(address user, uint256[] calldata epochs) external returns (uint256[] memory) {
+        uint256[] memory rewards = _calculate(user, epochs);
+        for (uint256 i = 0; i < epochs.length; i++) {
+            if (_userClaimed[epochs[i]][user]) {
+                rewards[i] = 0;
+            }
+        }
+        return rewards;
+    }
+
+    /// @notice Check if a user has claimed rewards for a specific epoch
+    /// @param user The user address
+    /// @param epoch The epoch to check
+    /// @return claimed Whether rewards have been claimed
+    function hasUserClaimedRewards(address user, uint256 epoch) external view returns (bool) {
+        return _userClaimed[epoch][user];
+    }
+
+    /// @notice Get the current epoch from the ZKC contract
+    /// @return currentEpoch The current epoch number
+    function getCurrentEpoch() external view returns (uint256) {
+        return zkc.getCurrentEpoch();
+    }
+
+    /// @notice Get the end timestamp for a specific epoch
+    /// @param epoch The epoch number
+    /// @return endTimestamp The end timestamp of the epoch
+    function _epochEndTimestamp(uint256 epoch) internal view returns (uint256) {
+        return zkc.getEpochEndTime(epoch);
+    }
+
+    /// @notice Internal function to calculate the rewards a user is owed for the given epochs
+    /// @dev Unlike _claim(), this allows duplicate epochs and current/future epochs.
+    ///      Callers should validate epochs when using this function.
+    ///      Duplicate epochs will return the same reward amount.
+    ///      Current/future epochs will return zero rewards (as those epochs have not ended yet)
+    /// @param user The user address
+    /// @param epochs The epochs to calculate rewards for
+    /// @return rewards The list of rewards owed
+    function _calculate(address user, uint256[] calldata epochs) internal returns (uint256[] memory) {
+        ZKC zkcMemory = zkc;
+        IRewards veZKCMemory = veZKC;
+
+        uint256 currentEpoch = zkcMemory.getCurrentEpoch();
+        uint256[] memory rewards = new uint256[](epochs.length);
+        for (uint256 i; i < epochs.length; ++i) {
+            uint256 epoch = epochs[i];
+            if (epoch >= currentEpoch) continue; // cannot claim ongoing/future epoch
+            uint256 snapshotTime = _epochEndTimestamp(epoch);
+            uint256 userPower = veZKCMemory.getPastStakingRewards(user, snapshotTime);
+            if (userPower == 0) continue;
+            uint256 totalPower = veZKCMemory.getPastTotalStakingRewards(snapshotTime);
+            if (totalPower == 0) continue;
+            uint256 emission = zkcMemory.getStakingEmissionsForEpoch(epoch);
+            rewards[i] = (emission * userPower) / totalPower;
+        }
+        return rewards;
+    }
+
+    /// @notice Internal function to claim rewards for a user in the given epochs
+    /// @param user The user address
+    /// @param epochs The epochs to claim rewards for
+    /// @return amount The amount of rewards claimed
+    function _claim(address user, uint256[] calldata epochs) internal returns (uint256) {
+        uint256[] memory amounts = _calculate(user, epochs);
+        ZKC zkcMemory = zkc;
+        uint256 amount;
+
+        uint256 currentEpoch = zkcMemory.getCurrentEpoch();
+        for (uint256 i; i < epochs.length; ++i) {
+            uint256 epoch = epochs[i];
+            if (_userClaimed[epoch][user]) revert AlreadyClaimed(epoch);
+            // Epoch must have ended
+            if (epoch >= currentEpoch) revert IZKC.EpochNotEnded(epoch);
+            _userClaimed[epoch][user] = true;
+            amount += amounts[i];
+        }
+        if (amount == 0) return 0;
+        zkcMemory.mintStakingRewardsForRecipient(user, amount);
+        return amount;
+    }
+
+    /// @notice Authorize upgrades to this contract
+    /// @param newImplementation The address of the new implementation
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
+}

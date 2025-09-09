@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity 0.8.26;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {ZKC} from "../src/ZKC.sol";
@@ -56,6 +56,7 @@ contract InitialMint is Script {
 
         require(recipients.length == amounts.length, "Recipients and amounts arrays must have same length");
 
+        console2.log("Minting...");
         // Perform initial mint
         zkcContract.initialMint(recipients, amounts);
 

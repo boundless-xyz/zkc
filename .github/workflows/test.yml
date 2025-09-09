@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-  pull_request:
+    branches: [main]  # Only run on pushes to main branch
+  pull_request:       # Run on all pull requests
   workflow_dispatch:
 
 jobs:
