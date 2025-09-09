@@ -48,4 +48,7 @@ fail_on_revert = false      # Don't fail on individual reverts
 call_override = false       # Use default call behavior
 dictionary_weight = 80      # Weight for using dictionary values
 
+[lint]
+severity = ["Gas"]
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
