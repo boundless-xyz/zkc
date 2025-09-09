@@ -418,13 +418,18 @@ event ApprovalForAll(address indexed owner, address indexed operator, bool appro
 
 # Deployments
 
-## ZKC
+### ZKC
 
 **Mainnet**: `0x000006c2A22ff4A44ff1f5d0F2ed65F781F55555`  
 **(Bridged) Base**: `0xAA61bB7777bD01B684347961918f1E07fBbCe7CF`  
 
 # Testnet Deployments
-## ZKC
+### ZKC
 
 **Sepolia**: `0xb4FC69A452D09D2662BD8C3B5BB756902260aE28`  
 **(Bridged) Base Sepolia**: `0x8d4dA4b7938471A919B08F941461b2ed1679d7bb`
+
+# Audits
+
+* [Veridise (2025-09)](https://github.com/boundless-xyz/boundless-security/blob/main/audits/2025_09_Veridise%20(ZKC%20%2B%20POVW).pdf)
+* [OpenZeppelin (2025-09)](https://github.com/boundless-xyz/boundless-security/blob/main/audits/2025_09_OZ%20(ZKC).pdf)
