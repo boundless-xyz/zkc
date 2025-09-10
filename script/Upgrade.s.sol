@@ -43,7 +43,10 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
     /// @param proxyAddress The proxy contract address to upgrade
     /// @param initializerData The initializer call data (empty for no initializer)
     /// @return newImpl The new implementation address after deployment/upgrade
-    function _deployImplementationAndUpgrade(address proxyAddress, bytes memory initializerData) internal returns (address newImpl) {
+    function _deployImplementationAndUpgrade(address proxyAddress, bytes memory initializerData)
+        internal
+        returns (address newImpl)
+    {
         // Check for deployment mode flags
         bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
         bool skipSafetyChecks = vm.envOr("SKIP_SAFETY_CHECKS", false);
@@ -72,7 +75,6 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
 
             // Print Gnosis Safe transaction info
             _printGnosisSafeInfo(proxyAddress, newImpl, initializerData);
-
         } else {
             console2.log("Upgrading ZKC at: ", proxyAddress);
             address currentImpl = _getImplementationAddress(proxyAddress);
@@ -251,11 +253,11 @@ contract ZKCStartEpochs is BaseDeployment {
         require(config.zkc != address(0), "ZKC not deployed");
 
         bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
-        
+
         if (gnosisExecute) {
             console2.log("GNOSIS_EXECUTE=true: Preparing initializeV3 calldata for Safe execution");
             console2.log("ZKC Contract: ", config.zkc);
-            
+
             // Print Gnosis Safe transaction info for initializeV3
             bytes memory initV3CallData = abi.encodeCall(ZKC.initializeV3, ());
             console2.log("================================");
@@ -270,11 +272,10 @@ contract ZKCStartEpochs is BaseDeployment {
             console2.log("1. Custom ZKC events related to epoch initialization");
             console2.log("   - Check ZKC contract for specific events emitted by initializeV3");
             console2.log("====================================");
-            
+
             console2.log("================================================");
             console2.log("ZKC InitializeV3 Calldata Ready");
             console2.log("Transaction NOT executed - use Gnosis Safe to execute");
-            
         } else {
             vm.startBroadcast();
 
