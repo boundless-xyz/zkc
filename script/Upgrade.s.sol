@@ -67,7 +67,7 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
             console2.log("Current implementation: ", currentImpl);
 
             // Use prepareUpgrade for validation + deployment
-            newImpl = Upgrades.prepareUpgrade(proxyAddress, "ZKC.sol:ZKC", opts);
+            newImpl = Upgrades.prepareUpgrade("ZKC.sol:ZKC", opts);
             console2.log("New implementation deployed: ", newImpl);
 
             // Print Gnosis Safe transaction info
