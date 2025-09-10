@@ -22,7 +22,7 @@ staking-rewards-impl-prev = ""
 staking-rewards-deployer = "0xb13573c6ceb505a7bdd4fa3ad7b473c5c5d36b19"
 povw-minter = ""
 staking-minter = ""
-zkc-commit = "acaabe2"
+zkc-commit = "5b8310b"
 vezkc-commit = "caa29df"
 staking-rewards-commit = "caa29df"
 
