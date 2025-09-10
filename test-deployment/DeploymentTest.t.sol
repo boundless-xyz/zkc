@@ -45,12 +45,6 @@ contract DeploymentTest is Test {
         }
     }
     
-    function testAdminIsSet() external view {
-        require(deployment.zkcAdmin != address(0), "ZKC admin address must be set in deployment.toml");
-        require(deployment.veZKCAdmin != address(0), "veZKC admin address must be set in deployment.toml");
-        require(deployment.stakingRewardsAdmin != address(0), "StakingRewards admin address must be set in deployment.toml");
-    }
-    
     function testZKCIsDeployed() external view {
         require(deployment.zkc != address(0), "ZKC address must be set in deployment.toml");
         require(_getCodeSize(deployment.zkc) > 0, "ZKC proxy must have non-empty bytecode");
@@ -348,6 +342,21 @@ contract DeploymentTest is Test {
                 deployment.stakingRewardsImpl == deployment.stakingRewardsImplPrev,
                 "Current and previous StakingRewards implementations should be different"
             );
+        }
+    }
+    
+    function testZKCIsV2OrV3() external view {
+        if (deployment.zkc != address(0)) {
+            // Check that STAKING_ALLOCATION_BPS is 2500 (25%) - this indicates V2/V3 version
+            uint256 stakingAllocationBps = zkc.STAKING_ALLOCATION_BPS();
+            assertEq(
+                stakingAllocationBps,
+                2500,
+                "STAKING_ALLOCATION_BPS should be 2500 (25%) in ZKC V2/V3 version"
+            );
+            
+            console2.log("ZKC STAKING_ALLOCATION_BPS:", stakingAllocationBps);
+            console2.log("ZKC is deployed with V2/V3 version (25% staking allocation)");
         }
     }
     

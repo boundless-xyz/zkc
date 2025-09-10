@@ -175,6 +175,8 @@ forge_script() {
         script_file="Deploy.s.sol"
     elif [[ "$script_name" == Upgrade* ]]; then
         script_file="Upgrade.s.sol"
+    elif [[ "$script_name" == "ZKCStartEpochs" ]]; then
+        script_file="Upgrade.s.sol"
     elif [[ "$script_name" == Rollback* ]]; then
         script_file="Rollback.s.sol"
     elif [[ "$script_name" == Update* ]]; then
@@ -333,7 +335,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            deploy-*|upgrade-*|rollback-*|update-*|dev-*)
+            deploy-*|upgrade-*|rollback-*|update-*|dev-*|zkc-start-epochs)
                 COMMAND="$1"
                 shift
                 ;;
