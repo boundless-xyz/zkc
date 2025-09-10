@@ -39,12 +39,13 @@ import {StakingRewards} from "../src/rewards/StakingRewards.sol";
  */
 // Base contract with common upgrade logic
 abstract contract BaseZKCUpgrade is BaseDeployment {
-    /// @notice Common upgrade logic for ZKC contracts
+    /// @notice Deploy implementation and optionally upgrade ZKC contracts
     /// @param proxyAddress The proxy contract address to upgrade
     /// @param initializerData The initializer call data (empty for no initializer)
-    /// @return newImpl The new implementation address after upgrade
-    function _upgradeZKC(address proxyAddress, bytes memory initializerData) internal returns (address newImpl) {
-        // Check for skip safety checks flag
+    /// @return newImpl The new implementation address after deployment/upgrade
+    function _deployImplementationAndUpgrade(address proxyAddress, bytes memory initializerData) internal returns (address newImpl) {
+        // Check for deployment mode flags
+        bool deployImplOnly = vm.envOr("DEPLOY_IMPL_ONLY", false);
         bool skipSafetyChecks = vm.envOr("SKIP_SAFETY_CHECKS", false);
 
         // Prepare upgrade options
@@ -59,19 +60,34 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
             opts.referenceBuildInfoDir = "build-info-reference";
         }
 
-        console2.log("Upgrading ZKC at: ", proxyAddress);
-        address currentImpl = _getImplementationAddress(proxyAddress);
-        console2.log("Current implementation: ", currentImpl);
+        if (deployImplOnly) {
+            console2.log("DEPLOY_IMPL_ONLY=true: Deploying new implementation for Safe upgrade");
+            console2.log("Target proxy address: ", proxyAddress);
+            address currentImpl = _getImplementationAddress(proxyAddress);
+            console2.log("Current implementation: ", currentImpl);
 
-        // Perform upgrade with optional initializer
-        if (initializerData.length > 0) {
-            Upgrades.upgradeProxy(proxyAddress, "ZKC.sol:ZKC", initializerData, opts);
+            // Use prepareUpgrade for validation + deployment
+            newImpl = Upgrades.prepareUpgrade(proxyAddress, "ZKC.sol:ZKC", opts);
+            console2.log("New implementation deployed: ", newImpl);
+
+            // Print Gnosis Safe transaction info
+            _printGnosisSafeInfo(proxyAddress, newImpl, initializerData);
+
         } else {
-            Upgrades.upgradeProxy(proxyAddress, "ZKC.sol:ZKC", "", opts);
-        }
+            console2.log("Upgrading ZKC at: ", proxyAddress);
+            address currentImpl = _getImplementationAddress(proxyAddress);
+            console2.log("Current implementation: ", currentImpl);
 
-        newImpl = Upgrades.getImplementationAddress(proxyAddress);
-        console2.log("Upgraded ZKC implementation to: ", newImpl);
+            // Perform upgrade with optional initializer
+            if (initializerData.length > 0) {
+                Upgrades.upgradeProxy(proxyAddress, "ZKC.sol:ZKC", initializerData, opts);
+            } else {
+                Upgrades.upgradeProxy(proxyAddress, "ZKC.sol:ZKC", "", opts);
+            }
+
+            newImpl = Upgrades.getImplementationAddress(proxyAddress);
+            console2.log("Upgraded ZKC implementation to: ", newImpl);
+        }
 
         return newImpl;
     }
@@ -111,7 +127,7 @@ contract UpgradeZKC is BaseZKCUpgrade {
         vm.startBroadcast();
 
         address currentImpl = _getImplementationAddress(config.zkc);
-        address newImpl = _upgradeZKC(config.zkc, ""); // No initializer
+        address newImpl = _deployImplementationAndUpgrade(config.zkc, ""); // No initializer
 
         vm.stopBroadcast();
 
@@ -120,8 +136,11 @@ contract UpgradeZKC is BaseZKCUpgrade {
         _updateDeploymentConfig(deploymentKey, "zkc-impl", newImpl);
         _updateZKCCommit(deploymentKey);
 
-        // Print Gnosis Safe transaction info
-        _printGnosisSafeInfo(config.zkc, newImpl, "");
+        // Print Gnosis Safe transaction info (only if not in DEPLOY_IMPL_ONLY mode)
+        bool deployImplOnly = vm.envOr("DEPLOY_IMPL_ONLY", false);
+        if (!deployImplOnly) {
+            _printGnosisSafeInfo(config.zkc, newImpl, "");
+        }
 
         // Verify upgrade
         ZKC zkcContract = ZKC(config.zkc);
@@ -162,7 +181,7 @@ contract UpgradeZKC_InitV2 is BaseZKCUpgrade {
 
         address currentImpl = _getImplementationAddress(config.zkc);
         bytes memory initializerData = abi.encodeCall(ZKC.initializeV2, ());
-        address newImpl = _upgradeZKC(config.zkc, initializerData);
+        address newImpl = _deployImplementationAndUpgrade(config.zkc, initializerData);
 
         vm.stopBroadcast();
 
@@ -171,14 +190,19 @@ contract UpgradeZKC_InitV2 is BaseZKCUpgrade {
         _updateDeploymentConfig(deploymentKey, "zkc-impl", newImpl);
         _updateZKCCommit(deploymentKey);
 
-        // Print Gnosis Safe transaction info
-        _printGnosisSafeInfo(config.zkc, newImpl, initializerData);
+        // Print Gnosis Safe transaction info (only if not in DEPLOY_IMPL_ONLY mode)
+        bool deployImplOnly = vm.envOr("DEPLOY_IMPL_ONLY", false);
+        if (!deployImplOnly) {
+            _printGnosisSafeInfo(config.zkc, newImpl, initializerData);
+        }
 
         // Verify upgrade
         ZKC zkcContract = ZKC(config.zkc);
         console2.log("Proxy still points to ZKC: ", address(zkcContract) == config.zkc);
         console2.log("Implementation updated: ", newImpl != config.zkcImpl);
-        console2.log("initializeV2 called during upgrade");
+        if (!deployImplOnly) {
+            console2.log("initializeV2 called during upgrade");
+        }
         console2.log("================================================");
         console2.log("ZKC Upgrade with InitV2 Complete");
         console2.log("New Implementation: ", newImpl);

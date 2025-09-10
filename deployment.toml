@@ -81,6 +81,13 @@ zkc-impl-prev = "0xa7e703df0575ea226f01a5d1494a97c4cfafbb34"
 #################################################################################
 #                                  DEVELOPMENT                                   #
 ################################################################################# 
+[deployment.base-sepolia-dev-test]
+name = "Base Sepolia (Dev Test)"
+id = 84532
+zkc = "0x4fF8c595A80B1290b9E7ca00A34051736A71F216"
+zkc-commit = "b2e4cf4"
+zkc-impl-prev = "0x307ff4de744634e3f641392a79419f24b58327c1"
+zkc-impl = "0x14849991b3fb05b2cb67b97dd42dbae3065ffedd"
 
 [deployment.ethereum-sepolia-quick-epoch]
 name = "Ethereum Sepolia (Quick Epoch)"
