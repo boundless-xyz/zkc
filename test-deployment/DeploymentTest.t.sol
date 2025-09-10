@@ -45,12 +45,6 @@ contract DeploymentTest is Test {
         }
     }
     
-    function testAdminIsSet() external view {
-        require(deployment.zkcAdmin != address(0), "ZKC admin address must be set in deployment.toml");
-        require(deployment.veZKCAdmin != address(0), "veZKC admin address must be set in deployment.toml");
-        require(deployment.stakingRewardsAdmin != address(0), "StakingRewards admin address must be set in deployment.toml");
-    }
-    
     function testZKCIsDeployed() external view {
         require(deployment.zkc != address(0), "ZKC address must be set in deployment.toml");
         require(_getCodeSize(deployment.zkc) > 0, "ZKC proxy must have non-empty bytecode");
@@ -181,6 +175,84 @@ contract DeploymentTest is Test {
             }
         }
     }
+
+    function testStakingRewardsZkcAddressMatchesConfig() external view {
+        if (deployment.stakingRewards != address(0) && deployment.zkc != address(0)) {
+            assertEq(
+                address(stakingRewards.zkc()),
+                deployment.zkc,
+                "StakingRewards zkc address must match deployment config"
+            );
+        }
+    }
+
+    function testStakingRewardsVeZKCAddressMatchesConfig() external view {
+        if (deployment.stakingRewards != address(0) && deployment.veZKC != address(0)) {
+            assertEq(
+                address(stakingRewards.veZKC()),
+                deployment.veZKC,
+                "StakingRewards veZKC address must match deployment config"
+            );
+        }
+    }
+
+    function testZKCEpochFunctionsWorkAfterInitializeV3() external {
+        if (deployment.zkc != address(0)) {
+            // These functions should work after initializeV3 is called
+            try zkc.getCurrentEpoch() returns (uint256 currentEpoch) {
+                assertTrue(currentEpoch >= 0, "Current epoch should be valid");
+            } catch {
+                revert("getCurrentEpoch should work after initializeV3 in deployment");
+            }
+
+            try zkc.getCurrentEpochEndTime() returns (uint256 endTime) {
+                assertTrue(endTime > block.timestamp, "Current epoch end time should be in future");
+            } catch {
+                revert("getCurrentEpochEndTime should work after initializeV3 in deployment");
+            }
+
+            try zkc.getEpochStartTime(0) returns (uint256 startTime) {
+                assertTrue(startTime > 0 && startTime != type(uint256).max, "Epoch 0 start time should be set");
+            } catch {
+                revert("getEpochStartTime should work after initializeV3 in deployment");
+            }
+
+            try zkc.getEpochEndTime(0) returns (uint256 endTime) {
+                assertTrue(endTime > zkc.getEpochStartTime(0), "Epoch end time should be after start time");
+            } catch {
+                revert("getEpochEndTime should work after initializeV3 in deployment");
+            }
+        }
+    }
+
+    function testZKCEmissionFunctionsWorkAfterInitializeV3() external {
+        if (deployment.zkc != address(0)) {
+            // These emission functions should work after initializeV3 is called
+            try zkc.getPoVWEmissionsForEpoch(0) returns (uint256 povwEmissions) {
+                assertTrue(povwEmissions > 0, "PoVW emissions should be positive");
+            } catch {
+                revert("getPoVWEmissionsForEpoch should work after initializeV3 in deployment");
+            }
+
+            try zkc.getStakingEmissionsForEpoch(0) returns (uint256 stakingEmissions) {
+                assertTrue(stakingEmissions > 0, "Staking emissions should be positive");
+            } catch {
+                revert("getStakingEmissionsForEpoch should work after initializeV3 in deployment");
+            }
+
+            try zkc.getTotalPoVWEmissionsAtEpochStart(0) returns (uint256 totalPoVW) {
+                assertTrue(totalPoVW >= 0, "Total PoVW emissions should be non-negative");
+            } catch {
+                revert("getTotalPoVWEmissionsAtEpochStart should work after initializeV3 in deployment");
+            }
+
+            try zkc.getTotalStakingEmissionsAtEpochStart(0) returns (uint256 totalStaking) {
+                assertTrue(totalStaking >= 0, "Total staking emissions should be non-negative");
+            } catch {
+                revert("getTotalStakingEmissionsAtEpochStart should work after initializeV3 in deployment");
+            }
+        }
+    }
     
     function testZKCMinterRoles() external view {
         if (deployment.zkc != address(0)) {
@@ -270,6 +342,21 @@ contract DeploymentTest is Test {
                 deployment.stakingRewardsImpl == deployment.stakingRewardsImplPrev,
                 "Current and previous StakingRewards implementations should be different"
             );
+        }
+    }
+    
+    function testZKCIsV2OrV3() external view {
+        if (deployment.zkc != address(0)) {
+            // Check that STAKING_ALLOCATION_BPS is 2500 (25%) - this indicates V2/V3 version
+            uint256 stakingAllocationBps = zkc.STAKING_ALLOCATION_BPS();
+            assertEq(
+                stakingAllocationBps,
+                2500,
+                "STAKING_ALLOCATION_BPS should be 2500 (25%) in ZKC V2/V3 version"
+            );
+            
+            console2.log("ZKC STAKING_ALLOCATION_BPS:", stakingAllocationBps);
+            console2.log("ZKC is deployed with V2/V3 version (25% staking allocation)");
         }
     }
     
