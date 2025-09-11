@@ -100,6 +100,28 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
         return zkc.getCurrentEpoch();
     }
 
+    /// @notice Get estimated pending rewards for the current epoch
+    /// @dev This is an estimate only and may change by the end of the epoch as staking positions change
+    /// @param user The user address to check pending rewards for
+    /// @return pendingRewards The estimated rewards for the current epoch
+    function getPendingRewards(address user) external returns (uint256) {
+        uint256 currentEpoch = zkc.getCurrentEpoch();
+
+        // Get current staking power for the user
+        uint256 userPower = veZKC.getStakingRewards(user);
+        if (userPower == 0) return 0;
+
+        // Get total staking power
+        uint256 totalPower = veZKC.getTotalStakingRewards();
+        if (totalPower == 0) return 0;
+
+        // Get emission for current epoch
+        uint256 emission = zkc.getStakingEmissionsForEpoch(currentEpoch);
+
+        // Calculate proportional share
+        return (emission * userPower) / totalPower;
+    }
+
     /// @notice Get the end timestamp for a specific epoch
     /// @param epoch The epoch number
     /// @return endTimestamp The end timestamp of the epoch
