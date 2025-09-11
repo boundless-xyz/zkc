@@ -307,6 +307,55 @@ contract StakingRewardsTest is Test {
         assertEq(c2_epoch1, total_epoch1, "Non-withdrawing user should get all rewards for epoch 1");
     }
 
+    function testGetPendingRewardsNoStake() public {
+        uint256 pending = rewards.getPendingRewards(user1);
+        assertEq(pending, 0, "Should return 0 for user with no stake");
+    }
+
+    function testGetPendingRewards() public {
+        _stake(user1, 100e18);
+        _stake(user2, 300e18);
+
+        uint256 pending1 = rewards.getPendingRewards(user1);
+        uint256 pending2 = rewards.getPendingRewards(user2);
+        uint256 emission = zkc.getStakingEmissionsForEpoch(0);
+
+        assertEq(pending1 + pending2, emission, "Total pending should equal emission");
+        assertApproxEqRel(pending1, emission * 100 / 400, 1e16, "User1 should get 25% of emission");
+        assertApproxEqRel(pending2, emission * 300 / 400, 1e16, "User2 should get 75% of emission");
+    }
+
+    function testGetPendingRewardsChangesWithNewStakers() public {
+        _stake(user1, 100e18);
+        uint256 pendingBefore = rewards.getPendingRewards(user1);
+
+        _stake(user2, 100e18);
+        uint256 pendingAfter = rewards.getPendingRewards(user1);
+
+        assertLt(pendingAfter, pendingBefore, "Pending rewards should decrease when new stakers join");
+        assertApproxEqRel(
+            pendingAfter, pendingBefore / 2, 1e16, "Should be approximately half after equal staker joins"
+        );
+    }
+
+    function testGetPendingRewardsWithdrawingUser() public {
+        _stake(user1, 100e18);
+        _stake(user2, 100e18);
+
+        uint256 pendingBefore = rewards.getPendingRewards(user1);
+
+        vm.prank(user1);
+        vezkc.initiateUnstake();
+
+        uint256 pendingAfter = rewards.getPendingRewards(user1);
+        uint256 pending2 = rewards.getPendingRewards(user2);
+        uint256 emission = zkc.getStakingEmissionsForEpoch(0);
+
+        assertEq(pendingAfter, 0, "Withdrawing user should have 0 pending rewards");
+        assertEq(pending2, emission, "Non-withdrawing user should get all pending rewards");
+        assertGt(pendingBefore, 0, "User should have had pending rewards before withdrawal");
+    }
+
     // Gas Benchmarks
     function _runBatchGas(uint256 epochsToSimulate, uint256 stakeAmount, string memory label) internal {
         _stake(user1, stakeAmount);
