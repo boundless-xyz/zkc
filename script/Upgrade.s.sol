@@ -438,6 +438,8 @@ contract UpgradeStakingRewards is BaseDeployment {
         StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);
         console2.log("Proxy still points to StakingRewards: ", address(stakingRewardsContract) == config.stakingRewards);
         console2.log("Implementation updated: ", newImpl != config.stakingRewardsImpl);
+        console2.log("ZKC configured: ", address(stakingRewardsContract.zkc()));
+        console2.log("veZKC configured: ", address(stakingRewardsContract.veZKC()));
         console2.log("ZKC token still configured: ", address(stakingRewardsContract.zkc()) == config.zkc);
         console2.log("veZKC still configured: ", address(stakingRewardsContract.veZKC()) == config.veZKC);
         console2.log("================================================");

@@ -273,6 +273,7 @@ Options:
 Environment Variables:
   CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia, ethereum-sepolia-staging)
   PRIVATE_KEY            Required. Private key for transaction signing (0x...)
+  GNOSIS_EXECUTE         Optional. Set to 'true' to generate Gnosis Safe calldata without executing transactions
   SKIP_SAFETY_CHECKS     Optional. Set to 'true' to skip upgrade safety checks (WARNING: unsafe!)
   
 Examples:
@@ -317,6 +318,19 @@ Examples:
   
   # Development: mint initial tokens to self (requires MINT_AMOUNT env var)
   PRIVATE_KEY=0x... MINT_AMOUNT=1000000000000000000000000 CHAIN_KEY=anvil ./script/manage dev-mint-to-self --broadcast
+
+Gnosis Safe Examples (GNOSIS_EXECUTE=true):
+  # Generate upgrade calldata for Gnosis Safe (deploy implementation only)
+  GNOSIS_EXECUTE=true CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc
+  
+  # Generate initializeV3 calldata for Gnosis Safe
+  GNOSIS_EXECUTE=true CHAIN_KEY=ethereum-mainnet ./script/manage zkc-start-epochs
+  
+  # Generate rollback calldata for Gnosis Safe
+  GNOSIS_EXECUTE=true CHAIN_KEY=ethereum-mainnet ./script/manage rollback-zkc
+  
+  # Generate role grant calldata for Gnosis Safe
+  GNOSIS_EXECUTE=true POVW_MINTER=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage update-povw-minter
 
 Notes:
   - Network configuration is loaded from deployment.toml and deployment_secrets.toml
