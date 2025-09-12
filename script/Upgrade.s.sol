@@ -59,10 +59,10 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
             opts.unsafeSkipAllChecks = true;
         } else {
             // Get the ZKC commit hash from deployment config for commit-specific reference build
-            (DeploymentConfig memory config, ) = ConfigLoader.loadDeploymentConfig(vm);
+            (DeploymentConfig memory config,) = ConfigLoader.loadDeploymentConfig(vm);
             string memory zkcCommit = config.zkcCommit;
             require(bytes(zkcCommit).length > 0, "ZKC commit hash not found in deployment config");
-            
+
             // Only set reference contract when doing safety checks
             string memory referenceBuildDir = string.concat("build-info-reference-", zkcCommit);
             opts.referenceContract = string.concat(referenceBuildDir, ":ZKC");
@@ -355,7 +355,7 @@ contract UpgradeVeZKC is BaseDeployment {
 
         // Prepare upgrade options with reference contract
         Options memory opts;
-        
+
         if (skipSafetyChecks) {
             console2.log("WARNING: Skipping all upgrade safety checks and reference build!");
             opts.unsafeSkipAllChecks = true;
@@ -363,7 +363,7 @@ contract UpgradeVeZKC is BaseDeployment {
             // Get the veZKC commit hash from deployment config for commit-specific reference build
             string memory veZKCCommit = config.veZKCCommit;
             require(bytes(veZKCCommit).length > 0, "veZKC commit hash not found in deployment config");
-            
+
             string memory referenceBuildDir = string.concat("build-info-reference-", veZKCCommit);
             opts.referenceContract = string.concat(referenceBuildDir, ":veZKC");
             opts.referenceBuildInfoDir = referenceBuildDir;
@@ -434,7 +434,7 @@ contract UpgradeStakingRewards is BaseDeployment {
 
         // Prepare upgrade options with reference contract
         Options memory opts;
-        
+
         if (skipSafetyChecks) {
             console2.log("WARNING: Skipping all upgrade safety checks and reference build!");
             opts.unsafeSkipAllChecks = true;
@@ -442,7 +442,7 @@ contract UpgradeStakingRewards is BaseDeployment {
             // Get the StakingRewards commit hash from deployment config for commit-specific reference build
             string memory stakingRewardsCommit = config.stakingRewardsCommit;
             require(bytes(stakingRewardsCommit).length > 0, "StakingRewards commit hash not found in deployment config");
-            
+
             string memory referenceBuildDir = string.concat("build-info-reference-", stakingRewardsCommit);
             opts.referenceContract = string.concat(referenceBuildDir, ":StakingRewards");
             opts.referenceBuildInfoDir = referenceBuildDir;

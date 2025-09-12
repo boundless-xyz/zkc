@@ -36,7 +36,7 @@ contract RollbackZKC is BaseDeployment {
             console2.log("ZKC Contract: ", config.zkc);
             console2.log("Current implementation: ", currentImpl);
             console2.log("Rolling back to: ", config.zkcImplPrev);
-            
+
             // Print Gnosis Safe transaction info for rollback
             bytes memory rollbackCallData = abi.encodeWithSignature("upgradeTo(address)", config.zkcImplPrev);
             console2.log("================================");
@@ -52,11 +52,10 @@ contract RollbackZKC is BaseDeployment {
             console2.log("1. Upgraded(address indexed implementation)");
             console2.log("   - implementation: ", config.zkcImplPrev);
             console2.log("=====================================");
-            
+
             console2.log("================================================");
             console2.log("ZKC Rollback Calldata Ready");
             console2.log("Transaction NOT executed - use Gnosis Safe to execute");
-            
         } else {
             vm.startBroadcast();
 
@@ -78,7 +77,9 @@ contract RollbackZKC is BaseDeployment {
             ZKC zkcContract = ZKC(config.zkc);
             IAccessControl accessControl = IAccessControl(config.zkc);
             console2.log("Proxy still points to ZKC: ", address(zkcContract) == config.zkc);
-            console2.log("Admin role still assigned: ", accessControl.hasRole(zkcContract.ADMIN_ROLE(), config.zkcAdmin));
+            console2.log(
+                "Admin role still assigned: ", accessControl.hasRole(zkcContract.ADMIN_ROLE(), config.zkcAdmin)
+            );
             console2.log("Rollback verification successful");
             console2.log("================================================");
             console2.log("ZKC Rollback Complete");

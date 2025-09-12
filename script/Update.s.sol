@@ -37,9 +37,10 @@ contract UpdatePOVWMinter is BaseDeployment {
             console2.log("ZKC Contract: ", config.zkc);
             console2.log("POVW Minter: ", povwMinter);
             console2.log("Role: POVW_MINTER_ROLE");
-            
+
             // Print Gnosis Safe transaction info for grantRole
-            bytes memory grantRoleCallData = abi.encodeWithSignature("grantRole(bytes32,address)", povwMinterRole, povwMinter);
+            bytes memory grantRoleCallData =
+                abi.encodeWithSignature("grantRole(bytes32,address)", povwMinterRole, povwMinter);
             console2.log("================================");
             console2.log("================================");
             console2.log("=== GNOSIS SAFE GRANT ROLE INFO ===");
@@ -69,11 +70,10 @@ contract UpdatePOVWMinter is BaseDeployment {
             console2.log("topics[3] (sender - indexed): <Safe address as bytes32>");
             console2.log("data: 0x (empty - all parameters are indexed)");
             console2.log("=====================================");
-            
+
             console2.log("================================================");
             console2.log("POVW Minter Grant Role Calldata Ready");
             console2.log("Transaction NOT executed - use Gnosis Safe to execute");
-            
         } else {
             vm.startBroadcast();
 
@@ -130,9 +130,10 @@ contract UpdateStakingMinter is BaseDeployment {
             console2.log("ZKC Contract: ", config.zkc);
             console2.log("Staking Minter: ", stakingMinter);
             console2.log("Role: STAKING_MINTER_ROLE");
-            
+
             // Print Gnosis Safe transaction info for grantRole
-            bytes memory grantRoleCallData = abi.encodeWithSignature("grantRole(bytes32,address)", stakingMinterRole, stakingMinter);
+            bytes memory grantRoleCallData =
+                abi.encodeWithSignature("grantRole(bytes32,address)", stakingMinterRole, stakingMinter);
             console2.log("================================");
             console2.log("================================");
             console2.log("=== GNOSIS SAFE GRANT ROLE INFO ===");
@@ -162,11 +163,10 @@ contract UpdateStakingMinter is BaseDeployment {
             console2.log("topics[3] (sender - indexed): <Safe address as bytes32>");
             console2.log("data: 0x (empty - all parameters are indexed)");
             console2.log("=====================================");
-            
+
             console2.log("================================================");
             console2.log("Staking Minter Grant Role Calldata Ready");
             console2.log("Transaction NOT executed - use Gnosis Safe to execute");
-            
         } else {
             vm.startBroadcast();
 
