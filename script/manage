@@ -107,6 +107,15 @@ print(commit.strip())
     
     echo "📦 Creating reference build from commit: $deployed_commit"
     
+    # Check if reference build already exists for this commit
+    local reference_dir="build-info-reference-${deployed_commit}"
+    if [[ -d "$reference_dir" ]] && [[ -n "$(ls -A "$reference_dir" 2>/dev/null)" ]]; then
+        echo "✅ Reference build already exists for commit $deployed_commit"
+        echo "📁 Using cached reference build: $reference_dir"
+        echo "📁 Build info files: $(ls -1 "$reference_dir" | wc -l) files"
+        return 0
+    fi
+    
     # Create worktree for reference build
     local worktree_path="../${contract_type}-reference-${deployed_commit}"
     
@@ -114,12 +123,6 @@ print(commit.strip())
     if [[ -d "$worktree_path" ]]; then
         echo "🧹 Cleaning up existing reference worktree..."
         git worktree remove "$worktree_path" --force 2>/dev/null || true
-    fi
-    
-    # Clean up existing reference build info
-    if [[ -d "build-info-reference" ]]; then
-        echo "🧹 Cleaning up existing reference build info..."
-        rm -rf "build-info-reference"
     fi
     
     # Create new worktree
@@ -142,8 +145,8 @@ print(commit.strip())
                 echo "❌ No build info created in reference build"
                 echo "This may cause upgrade validation to fail"
             else
-                mkdir -p "$OLDPWD/build-info-reference"
-                cp -R out-reference/build-info/* "$OLDPWD/build-info-reference/"
+                mkdir -p "$OLDPWD/build-info-reference-${deployed_commit}"
+                cp -R out-reference/build-info/* "$OLDPWD/build-info-reference-${deployed_commit}/"
             fi
         else
             echo "📋 No [profile.reference] found in foundry.toml, using command-line flags..."
@@ -154,8 +157,8 @@ print(commit.strip())
                 echo "❌ No build info created with command-line flags"
                 echo "This may cause upgrade validation to fail"
             else
-                mkdir -p "$OLDPWD/build-info-reference"
-                cp -R out-reference/build-info/* "$OLDPWD/build-info-reference/"
+                mkdir -p "$OLDPWD/build-info-reference-${deployed_commit}"
+                cp -R out-reference/build-info/* "$OLDPWD/build-info-reference-${deployed_commit}/"
             fi
         fi
     )
@@ -164,9 +167,9 @@ print(commit.strip())
     git worktree remove "$worktree_path" --force
     
     # Verify build info was copied
-    if [[ -d "build-info-reference" ]] && [[ -n "$(ls -A build-info-reference 2>/dev/null)" ]]; then
-        echo "✅ Reference build created in build-info-reference/"
-        echo "📁 Build info files: $(ls -1 build-info-reference | wc -l) files"
+    if [[ -d "build-info-reference-${deployed_commit}" ]] && [[ -n "$(ls -A "build-info-reference-${deployed_commit}" 2>/dev/null)" ]]; then
+        echo "✅ Reference build created in build-info-reference-${deployed_commit}/"
+        echo "📁 Build info files: $(ls -1 "build-info-reference-${deployed_commit}" | wc -l) files"
     else
         echo "❌ Failed to create reference build info"
         echo "This may cause upgrade validation to fail"
