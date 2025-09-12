@@ -107,6 +107,15 @@ print(commit.strip())
     
     echo "📦 Creating reference build from commit: $deployed_commit"
     
+    # Check if reference build already exists for this commit
+    local reference_dir="build-info-reference-${deployed_commit}"
+    if [[ -d "$reference_dir" ]] && [[ -n "$(ls -A "$reference_dir" 2>/dev/null)" ]]; then
+        echo "✅ Reference build already exists for commit $deployed_commit"
+        echo "📁 Using cached reference build: $reference_dir"
+        echo "📁 Build info files: $(ls -1 "$reference_dir" | wc -l) files"
+        return 0
+    fi
+    
     # Create worktree for reference build
     local worktree_path="../${contract_type}-reference-${deployed_commit}"
     
@@ -114,12 +123,6 @@ print(commit.strip())
     if [[ -d "$worktree_path" ]]; then
         echo "🧹 Cleaning up existing reference worktree..."
         git worktree remove "$worktree_path" --force 2>/dev/null || true
-    fi
-    
-    # Clean up existing reference build info
-    if [[ -d "build-info-reference" ]]; then
-        echo "🧹 Cleaning up existing reference build info..."
-        rm -rf "build-info-reference"
     fi
     
     # Create new worktree
@@ -131,21 +134,32 @@ print(commit.strip())
         cd "$worktree_path"
         # Clean and do a full build to ensure complete build info
         forge clean
-        FOUNDRY_PROFILE=reference forge build
         
-        # Check if build info was created
-        if [[ ! -d "out-reference/build-info" ]] || [[ -z "$(ls -A out-reference/build-info 2>/dev/null)" ]]; then
-            echo "❌ No build info created in reference build"
-            echo "Trying default build..."
-            forge clean
-            forge build
-            if [[ -d "out/build-info" ]]; then
-                mkdir -p "$OLDPWD/build-info-reference"
-                cp -R out/build-info/* "$OLDPWD/build-info-reference/"
+        # Check if [profile.reference] exists in foundry.toml
+        if grep -q '^\[profile\.reference\]' foundry.toml 2>/dev/null; then
+            echo "📋 Found [profile.reference] in foundry.toml, using reference profile..."
+            FOUNDRY_PROFILE=reference forge build
+            
+            # Check if build info was created
+            if [[ ! -d "out-reference/build-info" ]] || [[ -z "$(ls -A out-reference/build-info 2>/dev/null)" ]]; then
+                echo "❌ No build info created in reference build"
+                echo "This may cause upgrade validation to fail"
+            else
+                mkdir -p "$OLDPWD/build-info-reference-${deployed_commit}"
+                cp -R out-reference/build-info/* "$OLDPWD/build-info-reference-${deployed_commit}/"
             fi
         else
-            mkdir -p "$OLDPWD/build-info-reference"
-            cp -R out-reference/build-info/* "$OLDPWD/build-info-reference/"
+            echo "📋 No [profile.reference] found in foundry.toml, using command-line flags..."
+            forge build --out out-reference --build-info --build-info-path out-reference/build-info --extra-output storageLayout
+            
+            # Check if build info was created
+            if [[ ! -d "out-reference/build-info" ]] || [[ -z "$(ls -A out-reference/build-info 2>/dev/null)" ]]; then
+                echo "❌ No build info created with command-line flags"
+                echo "This may cause upgrade validation to fail"
+            else
+                mkdir -p "$OLDPWD/build-info-reference-${deployed_commit}"
+                cp -R out-reference/build-info/* "$OLDPWD/build-info-reference-${deployed_commit}/"
+            fi
         fi
     )
     
@@ -153,9 +167,9 @@ print(commit.strip())
     git worktree remove "$worktree_path" --force
     
     # Verify build info was copied
-    if [[ -d "build-info-reference" ]] && [[ -n "$(ls -A build-info-reference 2>/dev/null)" ]]; then
-        echo "✅ Reference build created in build-info-reference/"
-        echo "📁 Build info files: $(ls -1 build-info-reference | wc -l) files"
+    if [[ -d "build-info-reference-${deployed_commit}" ]] && [[ -n "$(ls -A "build-info-reference-${deployed_commit}" 2>/dev/null)" ]]; then
+        echo "✅ Reference build created in build-info-reference-${deployed_commit}/"
+        echo "📁 Build info files: $(ls -1 "build-info-reference-${deployed_commit}" | wc -l) files"
     else
         echo "❌ Failed to create reference build info"
         echo "This may cause upgrade validation to fail"
@@ -262,6 +276,7 @@ Options:
 Environment Variables:
   CHAIN_KEY              Required. Deployment environment key (anvil, ethereum-mainnet, ethereum-sepolia, ethereum-sepolia-staging)
   PRIVATE_KEY            Required. Private key for transaction signing (0x...)
+  GNOSIS_EXECUTE         Optional. Set to 'true' to generate Gnosis Safe calldata without executing transactions
   SKIP_SAFETY_CHECKS     Optional. Set to 'true' to skip upgrade safety checks (WARNING: unsafe!)
   
 Examples:
@@ -306,6 +321,19 @@ Examples:
   
   # Development: mint initial tokens to self (requires MINT_AMOUNT env var)
   PRIVATE_KEY=0x... MINT_AMOUNT=1000000000000000000000000 CHAIN_KEY=anvil ./script/manage dev-mint-to-self --broadcast
+
+Gnosis Safe Examples (GNOSIS_EXECUTE=true):
+  # Generate upgrade calldata for Gnosis Safe (deploy implementation only)
+  GNOSIS_EXECUTE=true CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc
+  
+  # Generate initializeV3 calldata for Gnosis Safe
+  GNOSIS_EXECUTE=true CHAIN_KEY=ethereum-mainnet ./script/manage zkc-start-epochs
+  
+  # Generate rollback calldata for Gnosis Safe
+  GNOSIS_EXECUTE=true CHAIN_KEY=ethereum-mainnet ./script/manage rollback-zkc
+  
+  # Generate role grant calldata for Gnosis Safe
+  GNOSIS_EXECUTE=true POVW_MINTER=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage update-povw-minter
 
 Notes:
   - Network configuration is loaded from deployment.toml and deployment_secrets.toml

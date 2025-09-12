@@ -25,40 +25,70 @@ contract RollbackZKC is BaseDeployment {
         require(config.zkc != address(0), "ZKC not deployed");
         require(config.zkcImplPrev != address(0), "No previous ZKC implementation found for rollback");
 
-        vm.startBroadcast();
-
+        bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
         address currentImpl = _getImplementationAddress(config.zkc);
-        console2.log("Rolling back ZKC at: ", config.zkc);
-        console2.log("Current implementation: ", currentImpl);
-        console2.log("Previous implementation: ", config.zkcImplPrev);
 
         // Verify previous implementation has code
         require(_getCodeSize(config.zkcImplPrev) > 0, "Previous implementation has no code");
 
-        // Perform rollback by directly upgrading to previous implementation (unsafe)
-        (bool success,) =
-            config.zkc.call(abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.zkcImplPrev, ""));
-        require(success, "Failed to rollback ZKC implementation");
+        if (gnosisExecute) {
+            console2.log("GNOSIS_EXECUTE=true: Preparing rollback calldata for Safe execution");
+            console2.log("ZKC Contract: ", config.zkc);
+            console2.log("Current implementation: ", currentImpl);
+            console2.log("Rolling back to: ", config.zkcImplPrev);
 
-        address rolledBackImpl = _getImplementationAddress(config.zkc);
-        console2.log("Rolled back ZKC implementation to: ", rolledBackImpl);
-        require(rolledBackImpl == config.zkcImplPrev, "Rollback failed: implementation mismatch");
+            // Print Gnosis Safe transaction info for rollback
+            bytes memory rollbackCallData = abi.encodeWithSignature("upgradeTo(address)", config.zkcImplPrev);
+            console2.log("================================");
+            console2.log("================================");
+            console2.log("=== GNOSIS SAFE ROLLBACK INFO ===");
+            console2.log("Target Address (To): ", config.zkc);
+            console2.log("Function: upgradeTo(address)");
+            console2.log("Rollback to Implementation: ", config.zkcImplPrev);
+            console2.log("Calldata:");
+            console2.logBytes(rollbackCallData);
+            console2.log("");
+            console2.log("Expected Events on Successful Execution:");
+            console2.log("1. Upgraded(address indexed implementation)");
+            console2.log("   - implementation: ", config.zkcImplPrev);
+            console2.log("=====================================");
 
-        vm.stopBroadcast();
+            console2.log("================================================");
+            console2.log("ZKC Rollback Calldata Ready");
+            console2.log("Transaction NOT executed - use Gnosis Safe to execute");
+        } else {
+            vm.startBroadcast();
 
-        // Update deployment.toml: swap current and previous implementations
+            console2.log("Rolling back ZKC at: ", config.zkc);
+            console2.log("Current implementation: ", currentImpl);
+            console2.log("Previous implementation: ", config.zkcImplPrev);
+
+            // Perform rollback using upgradeTo (no initializer needed)
+            (bool success,) = config.zkc.call(abi.encodeWithSignature("upgradeTo(address)", config.zkcImplPrev));
+            require(success, "Failed to rollback ZKC implementation");
+
+            address rolledBackImpl = _getImplementationAddress(config.zkc);
+            console2.log("Rolled back ZKC implementation to: ", rolledBackImpl);
+            require(rolledBackImpl == config.zkcImplPrev, "Rollback failed: implementation mismatch");
+
+            vm.stopBroadcast();
+
+            // Verify rollback
+            ZKC zkcContract = ZKC(config.zkc);
+            IAccessControl accessControl = IAccessControl(config.zkc);
+            console2.log("Proxy still points to ZKC: ", address(zkcContract) == config.zkc);
+            console2.log(
+                "Admin role still assigned: ", accessControl.hasRole(zkcContract.ADMIN_ROLE(), config.zkcAdmin)
+            );
+            console2.log("Rollback verification successful");
+            console2.log("================================================");
+            console2.log("ZKC Rollback Complete");
+            console2.log("Rolled back to implementation: ", rolledBackImpl);
+        }
+
+        // Update deployment.toml: swap current and previous implementations (always do this)
         _updateDeploymentConfig(deploymentKey, "zkc-impl", config.zkcImplPrev);
         _updateDeploymentConfig(deploymentKey, "zkc-impl-prev", currentImpl);
-
-        // Verify rollback
-        ZKC zkcContract = ZKC(config.zkc);
-        IAccessControl accessControl = IAccessControl(config.zkc);
-        console2.log("Proxy still points to ZKC: ", address(zkcContract) == config.zkc);
-        console2.log("Admin role still assigned: ", accessControl.hasRole(zkcContract.ADMIN_ROLE(), config.zkcAdmin));
-        console2.log("Rollback verification successful");
-        console2.log("================================================");
-        console2.log("ZKC Rollback Complete");
-        console2.log("Rolled back to implementation: ", rolledBackImpl);
     }
 }
 

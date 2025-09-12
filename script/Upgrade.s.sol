@@ -58,9 +58,16 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
             console2.log("WARNING: Skipping all upgrade safety checks and reference build!");
             opts.unsafeSkipAllChecks = true;
         } else {
+            // Get the ZKC commit hash from deployment config for commit-specific reference build
+            (DeploymentConfig memory config,) = ConfigLoader.loadDeploymentConfig(vm);
+            string memory zkcCommit = config.zkcCommit;
+            require(bytes(zkcCommit).length > 0, "ZKC commit hash not found in deployment config");
+
             // Only set reference contract when doing safety checks
-            opts.referenceContract = "build-info-reference:ZKC";
-            opts.referenceBuildInfoDir = "build-info-reference";
+            string memory referenceBuildDir = string.concat("build-info-reference-", zkcCommit);
+            opts.referenceContract = string.concat(referenceBuildDir, ":ZKC");
+            opts.referenceBuildInfoDir = referenceBuildDir;
+            console2.log("Using reference build directory: ", referenceBuildDir);
         }
 
         if (gnosisExecute) {
@@ -343,10 +350,25 @@ contract UpgradeVeZKC is BaseDeployment {
 
         vm.startBroadcast();
 
+        // Check for skip safety checks flag
+        bool skipSafetyChecks = vm.envOr("SKIP_SAFETY_CHECKS", false);
+
         // Prepare upgrade options with reference contract
         Options memory opts;
-        opts.referenceContract = "build-info-reference:veZKC";
-        opts.referenceBuildInfoDir = "build-info-reference";
+
+        if (skipSafetyChecks) {
+            console2.log("WARNING: Skipping all upgrade safety checks and reference build!");
+            opts.unsafeSkipAllChecks = true;
+        } else {
+            // Get the veZKC commit hash from deployment config for commit-specific reference build
+            string memory veZKCCommit = config.veZKCCommit;
+            require(bytes(veZKCCommit).length > 0, "veZKC commit hash not found in deployment config");
+
+            string memory referenceBuildDir = string.concat("build-info-reference-", veZKCCommit);
+            opts.referenceContract = string.concat(referenceBuildDir, ":veZKC");
+            opts.referenceBuildInfoDir = referenceBuildDir;
+            console2.log("Using reference build directory: ", referenceBuildDir);
+        }
 
         console2.log("Upgrading veZKC at: ", config.veZKC);
         address currentImpl = _getImplementationAddress(config.veZKC);
@@ -407,10 +429,25 @@ contract UpgradeStakingRewards is BaseDeployment {
 
         vm.startBroadcast();
 
+        // Check for skip safety checks flag
+        bool skipSafetyChecks = vm.envOr("SKIP_SAFETY_CHECKS", false);
+
         // Prepare upgrade options with reference contract
         Options memory opts;
-        opts.referenceContract = "build-info-reference:StakingRewards";
-        opts.referenceBuildInfoDir = "build-info-reference";
+
+        if (skipSafetyChecks) {
+            console2.log("WARNING: Skipping all upgrade safety checks and reference build!");
+            opts.unsafeSkipAllChecks = true;
+        } else {
+            // Get the StakingRewards commit hash from deployment config for commit-specific reference build
+            string memory stakingRewardsCommit = config.stakingRewardsCommit;
+            require(bytes(stakingRewardsCommit).length > 0, "StakingRewards commit hash not found in deployment config");
+
+            string memory referenceBuildDir = string.concat("build-info-reference-", stakingRewardsCommit);
+            opts.referenceContract = string.concat(referenceBuildDir, ":StakingRewards");
+            opts.referenceBuildInfoDir = referenceBuildDir;
+            console2.log("Using reference build directory: ", referenceBuildDir);
+        }
 
         console2.log("Upgrading StakingRewards at: ", config.stakingRewards);
         address currentImpl = _getImplementationAddress(config.stakingRewards);
@@ -438,6 +475,8 @@ contract UpgradeStakingRewards is BaseDeployment {
         StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);
         console2.log("Proxy still points to StakingRewards: ", address(stakingRewardsContract) == config.stakingRewards);
         console2.log("Implementation updated: ", newImpl != config.stakingRewardsImpl);
+        console2.log("ZKC configured: ", address(stakingRewardsContract.zkc()));
+        console2.log("veZKC configured: ", address(stakingRewardsContract.veZKC()));
         console2.log("ZKC token still configured: ", address(stakingRewardsContract.zkc()) == config.zkc);
         console2.log("veZKC still configured: ", address(stakingRewardsContract.veZKC()) == config.veZKC);
         console2.log("================================================");
