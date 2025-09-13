@@ -9,8 +9,11 @@ struct DeploymentConfig {
     string name;
     uint256 id;
     address zkcAdmin;
+    address zkcAdmin2;
     address veZKCAdmin;
+    address veZKCAdmin2;
     address stakingRewardsAdmin;
+    address stakingRewardsAdmin2;
     address zkc;
     address zkcImpl;
     address zkcImplPrev;
@@ -48,8 +51,11 @@ library ConfigLoader {
         config.name = toml.readString(string.concat(keyPrefix, ".name"));
         config.id = toml.readUint(string.concat(keyPrefix, ".id"));
         config.zkcAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-admin"));
+        config.zkcAdmin2 = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-admin-2"));
         config.veZKCAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".vezkc-admin"));
+        config.veZKCAdmin2 = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".vezkc-admin-2"));
         config.stakingRewardsAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards-admin"));
+        config.stakingRewardsAdmin2 = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards-admin-2"));
         config.zkc = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc"));
         config.zkcImpl = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-impl"));
         config.zkcImplPrev = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".zkc-impl-prev"));

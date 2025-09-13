@@ -310,6 +310,15 @@ contract RemoveZKCAdmin is BaseDeployment {
         ZKC zkcContract = ZKC(config.zkc);
         bytes32 adminRole = zkcContract.ADMIN_ROLE();
 
+        // Safety check: Ensure at least one other admin will remain
+        IAccessControl accessControl = IAccessControl(config.zkc);
+        address otherAdmin = (adminToRemove == config.zkcAdmin) ? config.zkcAdmin2 : config.zkcAdmin;
+        
+        require(
+            otherAdmin != address(0) && accessControl.hasRole(adminRole, otherAdmin),
+            "Cannot remove admin: would leave ZKC without any admins"
+        );
+
         if (gnosisExecute) {
             console2.log("GNOSIS_EXECUTE=true: Preparing revokeRole calldata for Safe execution");
             console2.log("ZKC Contract: ", config.zkc);
@@ -352,8 +361,6 @@ contract RemoveZKCAdmin is BaseDeployment {
         } else {
             vm.startBroadcast();
 
-            IAccessControl accessControl = IAccessControl(config.zkc);
-
             // Check if caller has admin role
             require(accessControl.hasRole(zkcContract.ADMIN_ROLE(), msg.sender), "Caller must have ADMIN_ROLE");
 
@@ -365,6 +372,7 @@ contract RemoveZKCAdmin is BaseDeployment {
             // Sanity checks
             console2.log("ZKC Contract: ", config.zkc);
             console2.log("Removed ZKC Admin: ", adminToRemove);
+            console2.log("Other Admin still active: ", otherAdmin);
             console2.log("ADMIN_ROLE revoked: ", !accessControl.hasRole(adminRole, adminToRemove));
             console2.log("================================================");
             console2.log("ZKC Admin Role Removed Successfully");
@@ -443,7 +451,13 @@ contract AddVeZKCAdmin is BaseDeployment {
         }
 
         // Update deployment.toml with the new admin (always do this)
-        _updateDeploymentConfig(deploymentKey, "vezkc-admin-2", adminToAdd);
+        if (config.veZKCAdmin2 == address(0) || config.veZKCAdmin2 == adminToAdd) {
+            _updateDeploymentConfig(deploymentKey, "vezkc-admin-2", adminToAdd);
+        } else if (config.veZKCAdmin == address(0) || config.veZKCAdmin == adminToAdd) {
+            _updateDeploymentConfig(deploymentKey, "vezkc-admin", adminToAdd);
+        } else {
+            revert("veZKCAdmin2 and veZKCAdmin are both set already");
+        }
     }
 }
 
@@ -472,10 +486,19 @@ contract RemoveVeZKCAdmin is BaseDeployment {
         veZKC veZKCContract = veZKC(config.veZKC);
         bytes32 adminRole = veZKCContract.ADMIN_ROLE();
 
+        // Safety check: Ensure at least one other admin will remain
+        IAccessControl accessControl = IAccessControl(config.veZKC);
+        address otherAdmin = (config.veZKCAdmin != address(0) && config.veZKCAdmin != adminToRemove) ? config.veZKCAdmin : config.veZKCAdmin2;
+        require(
+            otherAdmin != adminToRemove && otherAdmin != address(0) && accessControl.hasRole(veZKCContract.ADMIN_ROLE(), otherAdmin),
+            "Cannot remove admin: would leave veZKC without any admins"
+        );
+
         if (gnosisExecute) {
             console2.log("GNOSIS_EXECUTE=true: Preparing revokeRole calldata for Safe execution");
             console2.log("veZKC Contract: ", config.veZKC);
             console2.log("Admin to Remove: ", adminToRemove);
+            console2.log("Other Admin still active: ", otherAdmin);
             console2.log("Role: ADMIN_ROLE");
 
             // Print Gnosis Safe transaction info for revokeRole
@@ -496,8 +519,6 @@ contract RemoveVeZKCAdmin is BaseDeployment {
         } else {
             vm.startBroadcast();
 
-            IAccessControl accessControl = IAccessControl(config.veZKC);
-
             // Check if caller has admin role
             require(accessControl.hasRole(veZKCContract.ADMIN_ROLE(), msg.sender), "Caller must have ADMIN_ROLE");
 
@@ -509,6 +530,7 @@ contract RemoveVeZKCAdmin is BaseDeployment {
             // Sanity checks
             console2.log("veZKC Contract: ", config.veZKC);
             console2.log("Removed veZKC Admin: ", adminToRemove);
+            console2.log("Other Admin still active: ", otherAdmin);
             console2.log("ADMIN_ROLE revoked: ", !accessControl.hasRole(adminRole, adminToRemove));
             console2.log("================================================");
             console2.log("veZKC Admin Role Removed Successfully");
@@ -587,7 +609,13 @@ contract AddStakingRewardsAdmin is BaseDeployment {
         }
 
         // Update deployment.toml with the new admin (always do this)
-        _updateDeploymentConfig(deploymentKey, "staking-rewards-admin-2", adminToAdd);
+        if (config.stakingRewardsAdmin2 == address(0) || config.stakingRewardsAdmin2 == adminToAdd) {
+            _updateDeploymentConfig(deploymentKey, "staking-rewards-admin-2", adminToAdd);
+        } else if (config.stakingRewardsAdmin == address(0) || config.stakingRewardsAdmin == adminToAdd) {
+            _updateDeploymentConfig(deploymentKey, "staking-rewards-admin", adminToAdd);
+        } else {
+            revert("staking-rewards-admin-2 and staking-rewards-admin are both set already");
+        }
     }
 }
 
@@ -616,10 +644,20 @@ contract RemoveStakingRewardsAdmin is BaseDeployment {
         StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);
         bytes32 adminRole = stakingRewardsContract.ADMIN_ROLE();
 
+        // Safety check: Ensure at least one other admin will remain
+        IAccessControl accessControl = IAccessControl(config.stakingRewards);
+        
+        address otherAdmin = (config.stakingRewardsAdmin != address(0) && config.stakingRewardsAdmin != adminToRemove) ? config.stakingRewardsAdmin : config.stakingRewardsAdmin2;
+        require(
+            otherAdmin != adminToRemove && otherAdmin != address(0) && accessControl.hasRole(stakingRewardsContract.ADMIN_ROLE(), otherAdmin),
+            "Cannot remove admin: would leave StakingRewards without any admins"
+        );
+
         if (gnosisExecute) {
             console2.log("GNOSIS_EXECUTE=true: Preparing revokeRole calldata for Safe execution");
             console2.log("StakingRewards Contract: ", config.stakingRewards);
             console2.log("Admin to Remove: ", adminToRemove);
+            console2.log("Other Admin still active: ", otherAdmin);
             console2.log("Role: ADMIN_ROLE");
 
             // Print Gnosis Safe transaction info for revokeRole
@@ -640,8 +678,6 @@ contract RemoveStakingRewardsAdmin is BaseDeployment {
         } else {
             vm.startBroadcast();
 
-            IAccessControl accessControl = IAccessControl(config.stakingRewards);
-
             // Check if caller has admin role
             require(accessControl.hasRole(stakingRewardsContract.ADMIN_ROLE(), msg.sender), "Caller must have ADMIN_ROLE");
 
@@ -653,6 +689,7 @@ contract RemoveStakingRewardsAdmin is BaseDeployment {
             // Sanity checks
             console2.log("StakingRewards Contract: ", config.stakingRewards);
             console2.log("Removed StakingRewards Admin: ", adminToRemove);
+            console2.log("Other Admin still active: ", otherAdmin);
             console2.log("ADMIN_ROLE revoked: ", !accessControl.hasRole(adminRole, adminToRemove));
             console2.log("================================================");
             console2.log("StakingRewards Admin Role Removed Successfully");
@@ -812,6 +849,39 @@ contract RemoveAdminAll is BaseDeployment {
         address adminToRemove = vm.envAddress("ADMIN_TO_REMOVE");
         require(adminToRemove != address(0), "ADMIN_TO_REMOVE environment variable not set");
 
+        // Safety check: Ensure at least one other admin will remain on each contract
+        ZKC zkcContract = ZKC(config.zkc);
+        veZKC veZKCContract = veZKC(config.veZKC);
+        StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);
+        
+        IAccessControl zkcAccessControl = IAccessControl(config.zkc);
+        IAccessControl veZKCAccessControl = IAccessControl(config.veZKC);
+        IAccessControl stakingAccessControl = IAccessControl(config.stakingRewards);
+
+        // Check ZKC contract
+        address zkcOtherAdmin = (config.zkcAdmin != address(0) && config.zkcAdmin != adminToRemove) ? config.zkcAdmin : config.zkcAdmin2;
+        assert(zkcOtherAdmin != adminToRemove && zkcOtherAdmin != address(0));
+        require(
+            zkcOtherAdmin != address(0) && zkcAccessControl.hasRole(zkcContract.ADMIN_ROLE(), zkcOtherAdmin),
+            "Cannot remove admin: would leave ZKC without any admins"
+        );
+
+        // Check veZKC contract
+        address veZKCOtherAdmin = (config.veZKCAdmin != address(0) && config.veZKCAdmin != adminToRemove) ? config.veZKCAdmin : config.veZKCAdmin2;
+        assert(veZKCOtherAdmin != adminToRemove && veZKCOtherAdmin != address(0));
+        require(
+            veZKCOtherAdmin != address(0) && veZKCAccessControl.hasRole(veZKCContract.ADMIN_ROLE(), veZKCOtherAdmin),
+            "Cannot remove admin: would leave veZKC without any admins"
+        );
+
+        // Check StakingRewards contract
+        address stakingOtherAdmin = (config.stakingRewardsAdmin != address(0) && config.stakingRewardsAdmin != adminToRemove) ? config.stakingRewardsAdmin : config.stakingRewardsAdmin2;
+        assert(stakingOtherAdmin != adminToRemove && stakingOtherAdmin != address(0));
+        require(
+            stakingOtherAdmin != address(0) && stakingAccessControl.hasRole(stakingRewardsContract.ADMIN_ROLE(), stakingOtherAdmin),
+            "Cannot remove admin: would leave StakingRewards without any admins"
+        );
+
         bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
 
         if (gnosisExecute) {
@@ -874,15 +944,6 @@ contract RemoveAdminAll is BaseDeployment {
             console2.log("Execute 3 transactions in Gnosis Safe with the above calldata");
         } else {
             vm.startBroadcast();
-
-            // Revoke admin role from all three contracts
-            ZKC zkcContract = ZKC(config.zkc);
-            veZKC veZKCContract = veZKC(config.veZKC);
-            StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);
-
-            IAccessControl zkcAccessControl = IAccessControl(config.zkc);
-            IAccessControl veZKCAccessControl = IAccessControl(config.veZKC);
-            IAccessControl stakingAccessControl = IAccessControl(config.stakingRewards);
 
             // Check if caller has admin role on all contracts
             require(zkcAccessControl.hasRole(zkcContract.ADMIN_ROLE(), msg.sender), "Caller must have ZKC ADMIN_ROLE");
