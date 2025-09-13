@@ -33,9 +33,6 @@ def main():
     parser.add_argument('--staking-rewards-admin', help='StakingRewards admin address')
     parser.add_argument('--staking-rewards-admin-2', help='StakingRewards secondary admin address')
     
-    # Admin removal
-    parser.add_argument('--remove-admin', help='Address of admin to remove')
-    parser.add_argument('admin_fields', nargs='*', help='Admin fields to check for removal (e.g., zkc-admin zkc-admin-2)')
     parser.add_argument('--zkc', help='ZKC proxy address')
     parser.add_argument('--zkc-impl', help='ZKC implementation address')
     parser.add_argument('--zkc-impl-prev', help='Previous ZKC implementation address')
@@ -90,14 +87,6 @@ def main():
         # Track updates made
         updates = {}
         
-        # Handle admin removal first
-        if args.remove_admin and args.admin_fields:
-            admin_to_remove = args.remove_admin.lower()
-            for field_name in args.admin_fields:
-                current_value = doc['deployment'][chain_key].get(field_name, '')
-                if isinstance(current_value, str) and current_value.lower() == admin_to_remove:
-                    doc['deployment'][chain_key][field_name] = ''
-                    updates[field_name] = '(removed)'
 
         # Update provided values
         field_mappings = {
