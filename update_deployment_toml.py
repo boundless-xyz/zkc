@@ -27,8 +27,12 @@ def main():
     # Contract addresses
     parser.add_argument('--admin', help='Admin address')
     parser.add_argument('--zkc-admin', help='ZKC admin address')
+    parser.add_argument('--zkc-admin-2', help='ZKC secondary admin address')
     parser.add_argument('--vezkc-admin', help='veZKC admin address')
+    parser.add_argument('--vezkc-admin-2', help='veZKC secondary admin address')
     parser.add_argument('--staking-rewards-admin', help='StakingRewards admin address')
+    parser.add_argument('--staking-rewards-admin-2', help='StakingRewards secondary admin address')
+    
     parser.add_argument('--zkc', help='ZKC proxy address')
     parser.add_argument('--zkc-impl', help='ZKC implementation address')
     parser.add_argument('--zkc-impl-prev', help='Previous ZKC implementation address')
@@ -83,12 +87,16 @@ def main():
         # Track updates made
         updates = {}
         
+
         # Update provided values
         field_mappings = {
             'admin': args.admin,
             'zkc_admin': args.zkc_admin,
+            'zkc_admin_2': args.zkc_admin_2,
             'vezkc_admin': args.vezkc_admin,
+            'vezkc_admin_2': args.vezkc_admin_2,
             'staking_rewards_admin': args.staking_rewards_admin,
+            'staking_rewards_admin_2': args.staking_rewards_admin_2,
             'zkc': args.zkc,
             'zkc_impl': args.zkc_impl,
             'zkc_impl_prev': args.zkc_impl_prev,
