@@ -192,3 +192,96 @@ contract UpdateStakingMinter is BaseDeployment {
         _updateDeploymentConfig(deploymentKey, "staking-minter", stakingMinter);
     }
 }
+
+/**
+ * Sample Usage for removing POVW minter role:
+ *
+ * export CHAIN_KEY="anvil"
+ * export POVW_MINTER="0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+ *
+ * forge script script/Update.s.sol:RemovePOVWMinter \
+ *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *     --broadcast \
+ *     --rpc-url http://127.0.0.1:8545
+ */
+contract RemovePOVWMinter is BaseDeployment {
+    function setUp() public {}
+
+    function run() public {
+        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        require(config.zkc != address(0), "ZKC address not set in deployment.toml");
+
+        address povwMinter = vm.envAddress("POVW_MINTER");
+        require(povwMinter != address(0), "POVW_MINTER environment variable not set");
+
+        bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
+        ZKC zkcContract = ZKC(config.zkc);
+        bytes32 povwMinterRole = zkcContract.POVW_MINTER_ROLE();
+
+        if (gnosisExecute) {
+            console2.log("GNOSIS_EXECUTE=true: Preparing revokeRole calldata for Safe execution");
+            console2.log("ZKC Contract: ", config.zkc);
+            console2.log("POVW Minter: ", povwMinter);
+            console2.log("Role: POVW_MINTER_ROLE");
+
+            // Print Gnosis Safe transaction info for revokeRole
+            bytes memory revokeRoleCallData =
+                abi.encodeWithSignature("revokeRole(bytes32,address)", povwMinterRole, povwMinter);
+            console2.log("================================");
+            console2.log("================================");
+            console2.log("=== GNOSIS SAFE REVOKE ROLE INFO ===");
+            console2.log("Target Address (To): ", config.zkc);
+            console2.log("Function: revokeRole(bytes32,address)");
+            console2.log("Role: ");
+            console2.logBytes32(povwMinterRole);
+            console2.log("Account: ", povwMinter);
+            console2.log("Calldata:");
+            console2.logBytes(revokeRoleCallData);
+            console2.log("");
+            console2.log("Expected Events on Successful Execution:");
+            console2.log("1. RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender)");
+            console2.log("   - role: POVW_MINTER_ROLE");
+            console2.log("   - account: ", povwMinter);
+            console2.log("   - sender: <Safe address>");
+            console2.log("");
+            console2.log("Expected Event in Raw Hex:");
+            console2.log("Event Signature: RoleRevoked(bytes32,address,address)");
+            // RoleRevoked event signature: keccak256("RoleRevoked(bytes32,address,address)")
+            bytes32 eventSignature = 0xf6391f5c32d9c69d2a47ea670b442974b53935d1edc7fd64eb21e047a839171b;
+            console2.log("topics[0] (event signature):");
+            console2.logBytes32(eventSignature);
+            console2.log("topics[1] (role - indexed):");
+            console2.logBytes32(povwMinterRole);
+            console2.log("topics[2] (account - indexed): 0x000000000000000000000000", povwMinter);
+            console2.log("topics[3] (sender - indexed): <Safe address as bytes32>");
+            console2.log("data: 0x (empty - all parameters are indexed)");
+            console2.log("=====================================");
+
+            console2.log("================================================");
+            console2.log("POVW Minter Revoke Role Calldata Ready");
+            console2.log("Transaction NOT executed - use Gnosis Safe to execute");
+        } else {
+            vm.startBroadcast();
+
+            IAccessControl accessControl = IAccessControl(config.zkc);
+
+            // Check if caller has admin role
+            require(accessControl.hasRole(zkcContract.ADMIN_ROLE(), msg.sender), "Caller must have ADMIN_ROLE");
+
+            // Revoke POVW_MINTER_ROLE
+            accessControl.revokeRole(povwMinterRole, povwMinter);
+
+            vm.stopBroadcast();
+
+            // Sanity checks
+            console2.log("ZKC Contract: ", config.zkc);
+            console2.log("POVW Minter: ", povwMinter);
+            console2.log("POVW_MINTER_ROLE revoked: ", !accessControl.hasRole(povwMinterRole, povwMinter));
+            console2.log("================================================");
+            console2.log("POVW Minter Role Removed Successfully");
+        }
+
+        // Clear deployment.toml entry for the removed minter (always do this)
+        _updateDeploymentConfig(deploymentKey, "povw-minter", address(0));
+    }
+}
