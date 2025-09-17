@@ -25,9 +25,13 @@ struct DeploymentConfig {
     address stakingRewardsDeployer;
     address povwMinter;
     address stakingMinter;
+    address circulatingZKC;
+    address circulatingZKCImpl;
+    address circulatingZKCAdmin;
     string zkcCommit;
     string veZKCCommit;
     string stakingRewardsCommit;
+    string circulatingZKCCommit;
 }
 
 library ConfigLoader {
@@ -66,6 +70,9 @@ library ConfigLoader {
             _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-rewards-deployer"));
         config.povwMinter = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".povw-minter"));
         config.stakingMinter = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-minter"));
+        config.circulatingZKC = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".circulating-zkc"));
+        config.circulatingZKCImpl = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".circulating-zkc-impl"));
+        config.circulatingZKCAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".circulating-zkc-admin"));
 
         // Read per-contract deployment commits, default to empty string if not found
         string memory zkcCommitKey = string.concat(keyPrefix, ".zkc-commit");

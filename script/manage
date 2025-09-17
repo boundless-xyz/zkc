@@ -255,6 +255,7 @@ Commands:
   deploy-zkc             Deploy ZKC token contract
   deploy-vezkc           Deploy veZKC staking contract
   deploy-staking         Deploy StakingRewards contract
+  deploy-circulating     Deploy CirculatingZKC contract
   upgrade-zkc            Upgrade ZKC implementation (no initializer)
   upgrade-zkc-initv2     Upgrade ZKC implementation and call initializeV2
   zkc-start-epochs       Call initializeV3 to start epochs (no upgrade)
@@ -265,6 +266,7 @@ Commands:
   rollback-staking       Rollback StakingRewards to previous implementation
   update-povw-minter     Set POVW_MINTER_ROLE in ZKC contract
   update-staking-minter  Set STAKING_MINTER_ROLE in ZKC contract
+  update-circulating     Update unlocked value in CirculatingZKC contract
   dev-mint-to-self       Development: mint initial tokens to caller
 
 Options:
@@ -300,6 +302,9 @@ Examples:
   
   # Deploy StakingRewards to anvil (requires ZKC and veZKC already deployed)
   PRIVATE_KEY=0x... CHAIN_KEY=anvil ./script/manage deploy-staking --broadcast
+
+  # Deploy CirculatingZKC to anvil (requires ZKC already deployed)
+  PRIVATE_KEY=0x... INITIAL_UNLOCKED="500000000000000000000000000" CHAIN_KEY=anvil ./script/manage deploy-circulating --broadcast
   
   # Upgrade ZKC on mainnet with verification (no initializer)
   PRIVATE_KEY=0x... CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc --broadcast --verify
@@ -318,7 +323,10 @@ Examples:
   
   # Set POVW minter role (requires POVW_MINTER env var)
   PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage update-povw-minter --broadcast
-  
+
+  # Update CirculatingZKC unlocked value (requires NEW_UNLOCKED env var)
+  PRIVATE_KEY=0x... NEW_UNLOCKED="750000000000000000000000000" CHAIN_KEY=anvil ./script/manage update-circulating --broadcast
+
   # Development: mint initial tokens to self (requires MINT_AMOUNT env var)
   PRIVATE_KEY=0x... MINT_AMOUNT=1000000000000000000000000 CHAIN_KEY=anvil ./script/manage dev-mint-to-self --broadcast
 
@@ -334,6 +342,9 @@ Gnosis Safe Examples (GNOSIS_EXECUTE=true):
   
   # Generate role grant calldata for Gnosis Safe
   GNOSIS_EXECUTE=true POVW_MINTER=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage update-povw-minter
+
+  # Generate CirculatingZKC update calldata for Gnosis Safe
+  GNOSIS_EXECUTE=true NEW_UNLOCKED="750000000000000000000000000" CHAIN_KEY=ethereum-mainnet ./script/manage update-circulating
 
 Notes:
   - Network configuration is loaded from deployment.toml and deployment_secrets.toml
@@ -479,6 +490,9 @@ main() {
         deploy-staking)
             forge_script "DeployStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
+        deploy-circulating)
+            forge_script "DeployCirculatingZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
         upgrade-zkc)
             forge_script "UpgradeZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
@@ -508,6 +522,9 @@ main() {
             ;;
         update-staking-minter)
             forge_script "UpdateStakingMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        update-circulating)
+            forge_script "UpdateCirculatingUnlocked" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         dev-mint-to-self)
             forge_script "Dev_InitialMintToSelf" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
