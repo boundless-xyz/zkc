@@ -43,11 +43,15 @@ def main():
     parser.add_argument('--staking-rewards-deployer', help='StakingRewards deployer address')
     parser.add_argument('--povw-minter', help='POVW minter address')
     parser.add_argument('--staking-minter', help='Staking minter address')
-    
+    parser.add_argument('--circulating-zkc', help='CirculatingZKC proxy address')
+    parser.add_argument('--circulating-zkc-impl', help='CirculatingZKC implementation address')
+    parser.add_argument('--circulating-zkc-admin', help='CirculatingZKC admin address')
+
     # Deployment metadata
     parser.add_argument('--zkc-commit', help='Git commit hash for ZKC deployment')
     parser.add_argument('--vezkc-commit', help='Git commit hash for veZKC deployment')
     parser.add_argument('--staking-rewards-commit', help='Git commit hash for StakingRewards deployment')
+    parser.add_argument('--circulating-zkc-commit', help='Git commit hash for CirculatingZKC deployment')
     parser.add_argument('--rpc-url', help='RPC URL for the network')
     parser.add_argument('--etherscan-api-key', help='Etherscan API key')
     
@@ -103,9 +107,13 @@ def main():
             'staking_rewards_deployer': args.staking_rewards_deployer,
             'povw_minter': args.povw_minter,
             'staking_minter': args.staking_minter,
+            'circulating_zkc': args.circulating_zkc,
+            'circulating_zkc_impl': args.circulating_zkc_impl,
+            'circulating_zkc_admin': args.circulating_zkc_admin,
             'zkc_commit': args.zkc_commit,
             'vezkc_commit': args.vezkc_commit,
             'staking_rewards_commit': args.staking_rewards_commit,
+            'circulating_zkc_commit': args.circulating_zkc_commit,
             'rpc_url': args.rpc_url,
             'etherscan_api_key': args.etherscan_api_key,
         }

@@ -105,6 +105,32 @@ abstract contract BaseDeployment is Script {
         vm.ffi(updateArgs);
     }
 
+    /**
+     * @notice Updates the CirculatingZKC contract commit hash in deployment.toml via FFI
+     * @param deploymentKey The chain key (e.g., "anvil", "ethereum-mainnet")
+     */
+    function _updateCirculatingZKCCommit(string memory deploymentKey) internal {
+        string[] memory args = new string[](4);
+        args[0] = "git";
+        args[1] = "rev-parse";
+        args[2] = "--short";
+        args[3] = "HEAD";
+
+        bytes memory result = vm.ffi(args);
+        string memory commit = string(result);
+
+        // Update deployment.toml with CirculatingZKC commit
+        string[] memory updateArgs = new string[](6);
+        updateArgs[0] = "python3";
+        updateArgs[1] = "update_deployment_toml.py";
+        updateArgs[2] = "--chain-key";
+        updateArgs[3] = deploymentKey;
+        updateArgs[4] = "--circulating-zkc-commit";
+        updateArgs[5] = commit;
+
+        vm.ffi(updateArgs);
+    }
+
     /// @notice Get the current implementation address from ERC1967 proxy
     /// @param proxy The proxy contract address
     /// @return impl The implementation address

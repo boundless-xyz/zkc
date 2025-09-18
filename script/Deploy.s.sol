@@ -258,6 +258,7 @@ contract DeployCirculatingZKC is BaseDeployment {
         _updateDeploymentConfig(deploymentKey, "circulating-zkc", circulatingZKCAddress);
         _updateDeploymentConfig(deploymentKey, "circulating-zkc-impl", circulatingZKCImpl);
         _updateDeploymentConfig(deploymentKey, "circulating-zkc-admin", admin);
+        _updateCirculatingZKCCommit(deploymentKey);
 
         // Sanity checks
         CirculatingZKC circulatingContract = CirculatingZKC(circulatingZKCAddress);
