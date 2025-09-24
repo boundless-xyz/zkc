@@ -56,7 +56,16 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     /// @param epochs The epochs to claim rewards for
     /// @return amount The amount of rewards claimed
     function claimRewards(uint256[] calldata epochs) external nonReentrant returns (uint256) {
-        return _claim(msg.sender, epochs);
+        return _claim(msg.sender, epochs, msg.sender);
+    }
+
+    /// @notice Claim rewards for the given epochs and send to a recipient
+    /// @param epochs The epochs to claim rewards for
+    /// @param recipient The address to receive the minted rewards
+    /// @return amount The amount of rewards claimed
+    function claimRewardsToRecipient(uint256[] calldata epochs, address recipient) external nonReentrant returns (uint256) {
+        require(recipient != address(0), "Recipient cannot be zero address");
+        return _claim(msg.sender, epochs, recipient);
     }
 
     /// @notice Calculate the rewards a user is owed for the given epochs. If the epoch has not ended yet, it will return zero rewards.
@@ -160,8 +169,9 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     /// @notice Internal function to claim rewards for a user in the given epochs
     /// @param user The user address
     /// @param epochs The epochs to claim rewards for
+    /// @param recipient The address to receive the minted rewards
     /// @return amount The amount of rewards claimed
-    function _claim(address user, uint256[] calldata epochs) internal returns (uint256) {
+    function _claim(address user, uint256[] calldata epochs, address recipient) internal returns (uint256) {
         uint256[] memory amounts = _calculate(user, epochs);
         ZKC zkcMemory = zkc;
         uint256 amount;
@@ -176,7 +186,7 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
             amount += amounts[i];
         }
         if (amount == 0) return 0;
-        zkcMemory.mintStakingRewardsForRecipient(user, amount);
+        zkcMemory.mintStakingRewardsForRecipient(recipient, amount);
         return amount;
     }
 

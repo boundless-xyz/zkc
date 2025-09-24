@@ -87,6 +87,22 @@ contract StakingRewardsTest is Test {
         return _claimRewards(user, epochs);
     }
 
+    // Helper function to claim rewards to a recipient
+    function _claimRewardsToRecipient(address user, uint256[] memory epochs, address recipient) internal returns (uint256) {
+        uint256[] memory amounts = rewards.calculateRewards(user, epochs);
+        uint256 totalAmount = 0;
+        for (uint256 i = 0; i < amounts.length; i++) {
+            totalAmount += amounts[i];
+        }
+        if (totalAmount > 0) {
+            vm.expectEmit(true, true, true, true);
+            emit IZKC.StakingRewardsClaimed(recipient, totalAmount);
+        }
+        vm.prank(user);
+        uint256 amount = rewards.claimRewardsToRecipient(epochs, recipient);
+        return amount;
+    }
+
     // Test single user gets full emission
     function testSingleUserGetsFullEmission() public {
         _stake(user1, 100e18);
@@ -305,6 +321,118 @@ contract StakingRewardsTest is Test {
 
         assertEq(c1_epoch1, 0, "Withdrawing user should get no rewards for epoch 1");
         assertEq(c2_epoch1, total_epoch1, "Non-withdrawing user should get all rewards for epoch 1");
+    }
+
+    // Test claimRewardsToRecipient sends rewards to specified recipient
+    function testClaimRewardsToRecipient() public {
+        address recipient = address(0xCAFE);
+        _stake(user1, 100e18);
+        _endEpochs(1);
+
+        uint256 balanceBeforeUser1 = zkc.balanceOf(user1);
+        uint256 balanceBefore = zkc.balanceOf(recipient);
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 0;
+
+        uint256 claimed = _claimRewardsToRecipient(user1, epochs, recipient);
+        uint256 expected = zkc.getStakingEmissionsForEpoch(0);
+
+        assertEq(claimed, expected, "Should claim full emission");
+        assertEq(zkc.balanceOf(recipient), balanceBefore + expected, "Recipient should receive rewards");
+        assertEq(zkc.balanceOf(user1), 1_000_000e18 - 100e18, "User1 balance should not change from rewards");
+    }
+
+    // Test claimRewardsToRecipient with multiple epochs
+    function testClaimRewardsToRecipientBatch() public {
+        address recipient = address(0xCAFE);
+        _stake(user1, 100e18);
+        _stake(user2, 100e18);
+        _endEpochs(3);
+
+        uint256[] memory epochs = new uint256[](3);
+        epochs[0] = 0;
+        epochs[1] = 1;
+        epochs[2] = 2;
+
+        uint256 balanceBeforeUser1 = zkc.balanceOf(user1);
+        uint256 balanceBefore = zkc.balanceOf(recipient);
+        uint256 claimed = _claimRewardsToRecipient(user1, epochs, recipient);
+
+        // User1 should get 50% of each epoch
+        uint256 expected = 0;
+        for (uint256 i = 0; i < 3; i++) {
+            expected += zkc.getStakingEmissionsForEpoch(i) / 2;
+        }
+
+        assertEq(claimed, expected, "Should claim 50% of emissions");
+        assertEq(zkc.balanceOf(recipient), balanceBefore + expected, "Recipient should receive rewards");
+        assertEq(zkc.balanceOf(user1), balanceBeforeUser1, "User1 balance should not change from rewards");
+    }
+
+    // Test that claiming to recipient still marks user as claimed
+    function testClaimRewardsToRecipientPreventsDoubleClaim() public {
+        address recipient1 = address(0xCAFE1);
+        address recipient2 = address(0xCAFE2);
+
+        _stake(user1, 100e18);
+        _endEpochs(1);
+
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 0;
+
+        uint256 balanceBeforeUser1 = zkc.balanceOf(user1);
+
+        // First claim to recipient1
+        _claimRewardsToRecipient(user1, epochs, recipient1);
+
+        // Second claim should fail
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(AlreadyClaimed.selector, 0));
+        rewards.claimRewardsToRecipient(epochs, recipient2);
+
+        // Also cannot claim normally
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(AlreadyClaimed.selector, 0));
+        rewards.claimRewards(epochs);
+    }
+
+    // Test cannot claim to zero address
+    function testCannotClaimToZeroAddress() public {
+        _stake(user1, 100e18);
+        _endEpochs(1);
+
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 0;
+
+        vm.prank(user1);
+        vm.expectRevert("Recipient cannot be zero address");
+        rewards.claimRewardsToRecipient(epochs, address(0));
+    }
+
+    // Test mixed claiming - some to self, some to recipient
+    function testMixedClaimingSelfAndRecipient() public {
+        address recipient = address(0xCAFE);
+        _stake(user1, 100e18);
+        _endEpochs(3);
+
+        // Claim epoch 0 to self
+        uint256 balanceBeforeUser1 = zkc.balanceOf(user1);
+        uint256 selfClaimed = _claimRewardsForEpoch(user1, 0);
+        assertEq(zkc.balanceOf(user1), 1_000_000e18 - 100e18 + selfClaimed, "User1 should receive epoch 0 rewards");
+
+        // Claim epochs 1 and 2 to recipient
+        uint256[] memory epochs = new uint256[](2);
+        epochs[0] = 1;
+        epochs[1] = 2;
+        uint256 recipientClaimed = _claimRewardsToRecipient(user1, epochs, recipient);
+
+        assertEq(zkc.balanceOf(recipient), recipientClaimed, "Recipient should receive epoch 1 and 2 rewards");
+        assertEq(zkc.balanceOf(user1), balanceBeforeUser1 + selfClaimed, "User1 balance should increase by epoch 0 rewards");
+        assertEq(
+            selfClaimed + recipientClaimed,
+            zkc.getStakingEmissionsForEpoch(0) + zkc.getStakingEmissionsForEpoch(1) + zkc.getStakingEmissionsForEpoch(2),
+            "Total claimed should equal all emissions"
+        );
     }
 
     function testGetPendingRewardsNoStake() public {
