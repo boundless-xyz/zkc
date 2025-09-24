@@ -88,7 +88,10 @@ contract StakingRewardsTest is Test {
     }
 
     // Helper function to claim rewards to a recipient
-    function _claimRewardsToRecipient(address user, uint256[] memory epochs, address recipient) internal returns (uint256) {
+    function _claimRewardsToRecipient(address user, uint256[] memory epochs, address recipient)
+        internal
+        returns (uint256)
+    {
         uint256[] memory amounts = rewards.calculateRewards(user, epochs);
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < amounts.length; i++) {
@@ -427,7 +430,9 @@ contract StakingRewardsTest is Test {
         uint256 recipientClaimed = _claimRewardsToRecipient(user1, epochs, recipient);
 
         assertEq(zkc.balanceOf(recipient), recipientClaimed, "Recipient should receive epoch 1 and 2 rewards");
-        assertEq(zkc.balanceOf(user1), balanceBeforeUser1 + selfClaimed, "User1 balance should increase by epoch 0 rewards");
+        assertEq(
+            zkc.balanceOf(user1), balanceBeforeUser1 + selfClaimed, "User1 balance should increase by epoch 0 rewards"
+        );
         assertEq(
             selfClaimed + recipientClaimed,
             zkc.getStakingEmissionsForEpoch(0) + zkc.getStakingEmissionsForEpoch(1) + zkc.getStakingEmissionsForEpoch(2),

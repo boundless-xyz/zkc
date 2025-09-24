@@ -63,7 +63,11 @@ contract StakingRewards is Initializable, AccessControlUpgradeable, UUPSUpgradea
     /// @param epochs The epochs to claim rewards for
     /// @param recipient The address to receive the minted rewards
     /// @return amount The amount of rewards claimed
-    function claimRewardsToRecipient(uint256[] calldata epochs, address recipient) external nonReentrant returns (uint256) {
+    function claimRewardsToRecipient(uint256[] calldata epochs, address recipient)
+        external
+        nonReentrant
+        returns (uint256)
+    {
         require(recipient != address(0), "Recipient cannot be zero address");
         return _claim(msg.sender, epochs, recipient);
     }
