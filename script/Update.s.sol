@@ -1130,6 +1130,5 @@ contract RemoveAdminAll is BaseDeployment {
         _removeAdminFromToml(deploymentKey, adminToRemove, "zkc-admin", "zkc-admin-2");
         _removeAdminFromToml(deploymentKey, adminToRemove, "vezkc-admin", "vezkc-admin-2");
         _removeAdminFromToml(deploymentKey, adminToRemove, "staking-rewards-admin", "staking-rewards-admin-2");
->>>>>>> origin/main
     }
 }
