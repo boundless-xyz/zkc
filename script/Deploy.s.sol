@@ -247,8 +247,7 @@ contract DeployCirculatingZKC is BaseDeployment {
 
         // Deploy proxy with initialization
         ERC1967Proxy proxy = new ERC1967Proxy{salt: salt}(
-            circulatingZKCImpl,
-            abi.encodeCall(CirculatingZKC.initialize, (config.zkc, initialUnlockedRaw, admin))
+            circulatingZKCImpl, abi.encodeCall(CirculatingZKC.initialize, (config.zkc, initialUnlockedRaw, admin))
         );
         address circulatingZKCAddress = address(proxy);
 

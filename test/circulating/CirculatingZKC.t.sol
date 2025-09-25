@@ -32,14 +32,8 @@ contract CirculatingZKCTest is Test {
         ZKC implementation = new ZKC();
 
         // Deploy proxy and initialize
-        bytes memory initData = abi.encodeWithSelector(
-            ZKC.initialize.selector,
-            minter1,
-            minter2,
-            implementation.INITIAL_SUPPLY(),
-            0,
-            owner
-        );
+        bytes memory initData =
+            abi.encodeWithSelector(ZKC.initialize.selector, minter1, minter2, implementation.INITIAL_SUPPLY(), 0, owner);
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         zkc = ZKC(address(proxy));
@@ -71,12 +65,8 @@ contract CirculatingZKCTest is Test {
         CirculatingZKC implementation = new CirculatingZKC();
 
         // Deploy proxy and initialize
-        bytes memory initData = abi.encodeWithSelector(
-            CirculatingZKC.initialize.selector,
-            address(zkc),
-            INITIAL_UNLOCKED,
-            owner
-        );
+        bytes memory initData =
+            abi.encodeWithSelector(CirculatingZKC.initialize.selector, address(zkc), INITIAL_UNLOCKED, owner);
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         circulatingZKC = CirculatingZKC(address(proxy));
