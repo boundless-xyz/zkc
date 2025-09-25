@@ -195,11 +195,7 @@ forge_script() {
         script_file="Rollback.s.sol"
     elif [[ "$script_name" == Update* ]]; then
         script_file="Update.s.sol"
-<<<<<<< HEAD
-    elif [[ "$script_name" == Remove* ]]; then
-=======
     elif [[ "$script_name" == Add* ]] || [[ "$script_name" == Remove* ]]; then
->>>>>>> origin/main
         script_file="Update.s.sol"
     elif [[ "$script_name" == Dev_* ]]; then
         script_file="Ops.s.sol"
@@ -272,9 +268,7 @@ Commands:
   rollback-staking       Rollback StakingRewards to previous implementation
   update-povw-minter     Set POVW_MINTER_ROLE in ZKC contract
   update-staking-minter  Set STAKING_MINTER_ROLE in ZKC contract
-<<<<<<< HEAD
   remove-povw-minter     Revoke POVW_MINTER_ROLE from address in ZKC contract
-=======
   update-circulating     Update unlocked value in CirculatingZKC contract
   add-zkc-admin          Add admin to ZKC contract
   remove-zkc-admin       Remove admin from ZKC contract
@@ -284,7 +278,6 @@ Commands:
   remove-staking-admin   Remove admin from StakingRewards contract
   add-admin-all          Add admin to all contracts (ZKC, veZKC, StakingRewards)
   remove-admin-all       Remove admin from all contracts (ZKC, veZKC, StakingRewards)
->>>>>>> origin/main
   dev-mint-to-self       Development: mint initial tokens to caller
 
 Options:
@@ -344,14 +337,11 @@ Examples:
   # Set POVW minter role (requires POVW_MINTER env var)
   PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage update-povw-minter --broadcast
 
-<<<<<<< HEAD
   # Remove POVW minter role (requires POVW_MINTER env var)
   PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage remove-povw-minter --broadcast
 
-=======
   # Update CirculatingZKC unlocked value (requires NEW_UNLOCKED env var)
   PRIVATE_KEY=0x... NEW_UNLOCKED="750000000000000000000000000" CHAIN_KEY=anvil ./script/manage update-circulating --broadcast
-
   
   # Add admin to ZKC contract
   PRIVATE_KEY=0x... ADMIN_TO_ADD=0x123... CHAIN_KEY=anvil ./script/manage add-zkc-admin --broadcast
@@ -362,7 +352,6 @@ Examples:
   # Add admin to all contracts at once
   PRIVATE_KEY=0x... ADMIN_TO_ADD=0x123... CHAIN_KEY=anvil ./script/manage add-admin-all --broadcast
   
->>>>>>> origin/main
   # Development: mint initial tokens to self (requires MINT_AMOUNT env var)
   PRIVATE_KEY=0x... MINT_AMOUNT=1000000000000000000000000 CHAIN_KEY=anvil ./script/manage dev-mint-to-self --broadcast
 
@@ -422,11 +411,7 @@ main() {
                 usage
                 exit 0
                 ;;
-<<<<<<< HEAD
-            deploy-*|upgrade-*|rollback-*|update-*|remove-*|dev-*|zkc-start-epochs)
-=======
             deploy-*|upgrade-*|rollback-*|update-*|add-*|remove-*|dev-*|zkc-start-epochs)
->>>>>>> origin/main
                 COMMAND="$1"
                 shift
                 ;;
@@ -575,10 +560,9 @@ main() {
         update-staking-minter)
             forge_script "UpdateStakingMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
-<<<<<<< HEAD
         remove-povw-minter)
             forge_script "RemovePOVWMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
-=======
+            ;;
         update-circulating)
             forge_script "UpdateCirculatingUnlocked" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
@@ -605,7 +589,6 @@ main() {
             ;;
         remove-admin-all)
             forge_script "RemoveAdminAll" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
->>>>>>> origin/main
             ;;
         dev-mint-to-self)
             forge_script "Dev_InitialMintToSelf" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
