@@ -310,7 +310,7 @@ contract UpdateCirculatingUnlocked is BaseDeployment {
     }
 }
 
- /**
+/**
  * Sample Usage for removing POVW minter role:
  *
  * export CHAIN_KEY="anvil"
@@ -321,7 +321,7 @@ contract UpdateCirculatingUnlocked is BaseDeployment {
  *     --broadcast \
  *     --rpc-url http://127.0.0.1:8545
  */
-contract RemovePOVWMinter is BaseDeployment {        
+contract RemovePOVWMinter is BaseDeployment {
     function setUp() public {}
 
     function run() public {
@@ -399,7 +399,7 @@ contract RemovePOVWMinter is BaseDeployment {
         _updateDeploymentConfig(deploymentKey, "povw-minter", address(0));
     }
 }
- 
+
 /**
  * Sample Usage for adding admin to ZKC:
  *
@@ -1217,6 +1217,5 @@ contract RemoveAdminAll is BaseDeployment {
         _removeAdminFromToml(deploymentKey, adminToRemove, "zkc-admin", "zkc-admin-2");
         _removeAdminFromToml(deploymentKey, adminToRemove, "vezkc-admin", "vezkc-admin-2");
         _removeAdminFromToml(deploymentKey, adminToRemove, "staking-rewards-admin", "staking-rewards-admin-2");
->>>>>>> origin/main
     }
 }
