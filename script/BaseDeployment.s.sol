@@ -28,6 +28,32 @@ abstract contract BaseDeployment is Script {
     }
 
     /**
+     * @notice Removes an admin from deployment.toml by checking both admin fields and clearing the matching one
+     * @param deploymentKey The chain key (e.g., "anvil", "ethereum-mainnet")
+     * @param adminToRemove The admin address to remove
+     * @param adminField1 First admin field to check (e.g., "zkc-admin")
+     * @param adminField2 Second admin field to check (e.g., "zkc-admin-2")
+     */
+    function _removeAdminFromToml(
+        string memory deploymentKey,
+        address adminToRemove,
+        string memory adminField1,
+        string memory adminField2
+    ) internal {
+        string[] memory args = new string[](8);
+        args[0] = "python3";
+        args[1] = "update_deployment_toml.py";
+        args[2] = "--chain-key";
+        args[3] = deploymentKey;
+        args[4] = "--remove-admin";
+        args[5] = Strings.toHexString(adminToRemove);
+        args[6] = adminField1;
+        args[7] = adminField2;
+
+        vm.ffi(args);
+    }
+
+    /**
      * @notice Updates the ZKC contract commit hash in deployment.toml via FFI
      * @param deploymentKey The chain key (e.g., "anvil", "ethereum-mainnet")
      */
