@@ -5,6 +5,7 @@ import {console2} from "forge-std/Script.sol";
 import {ZKC} from "../src/ZKC.sol";
 import {veZKC} from "../src/veZKC.sol";
 import {StakingRewards} from "../src/rewards/StakingRewards.sol";
+import {CirculatingZKC} from "../src/circulating/CirculatingZKC.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {ConfigLoader, DeploymentConfig} from "./Config.s.sol";
@@ -208,5 +209,67 @@ contract DeployStakingRewards is BaseDeployment {
         console2.log("veZKC token address: ", address(stakingRewardsContract.veZKC()));
         console2.log("================================================");
         console2.log("Deployed StakingRewards to: ", stakingRewardsAddress);
+    }
+}
+
+/**
+ * Sample Usage for CirculatingZKC deployment:
+ *
+ * export CHAIN_KEY="anvil"
+ * export INITIAL_UNLOCKED="500000000000000000000000000"  # 500M tokens
+ * export SALT="0x0000000000000000000000000000000000000000000000000000000000000001"
+ *
+ * forge script script/Deploy.s.sol:DeployCirculatingZKC \
+ *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *     --broadcast \
+ *     --rpc-url http://127.0.0.1:8545
+ */
+contract DeployCirculatingZKC is BaseDeployment {
+    function setUp() public {}
+
+    function run() public {
+        vm.startBroadcast();
+
+        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        require(config.zkc != address(0), "ZKC address not set in deployment.toml");
+
+        // Get configuration from environment or use defaults
+        uint256 initialUnlocked = vm.envUint("INITIAL_UNLOCKED");
+        uint256 initialUnlockedRaw = initialUnlocked * 10 ** 18;
+        address admin = vm.envAddress("CIRCULATING_ADMIN");
+        require(admin != address(0), "Admin address not set");
+
+        bytes32 salt = vm.envOr("SALT", bytes32(0));
+
+        // Deploy CirculatingZKC implementation
+        address circulatingZKCImpl = address(new CirculatingZKC{salt: salt}());
+        console2.log("Deployed CirculatingZKC implementation to: ", circulatingZKCImpl);
+
+        // Deploy proxy with initialization
+        ERC1967Proxy proxy = new ERC1967Proxy{salt: salt}(
+            circulatingZKCImpl, abi.encodeCall(CirculatingZKC.initialize, (config.zkc, initialUnlockedRaw, admin))
+        );
+        address circulatingZKCAddress = address(proxy);
+
+        vm.stopBroadcast();
+
+        // Update deployment.toml
+        _updateDeploymentConfig(deploymentKey, "circulating-zkc", circulatingZKCAddress);
+        _updateDeploymentConfig(deploymentKey, "circulating-zkc-impl", circulatingZKCImpl);
+        _updateDeploymentConfig(deploymentKey, "circulating-zkc-admin", admin);
+        _updateCirculatingZKCCommit(deploymentKey);
+
+        // Sanity checks
+        CirculatingZKC circulatingContract = CirculatingZKC(circulatingZKCAddress);
+        IAccessControl accessControl = IAccessControl(circulatingZKCAddress);
+        console2.log("Admin address: ", admin);
+        console2.log("Admin role assigned: ", accessControl.hasRole(circulatingContract.ADMIN_ROLE(), admin));
+        console2.log("ZKC token address: ", address(circulatingContract.zkc()));
+        console2.log("Initial unlocked amount: ", circulatingContract.unlocked());
+        console2.log("Initial unlocked amount (in tokens): ", circulatingContract.unlocked() / 10 ** 18);
+        console2.log("Current circulating supply: ", circulatingContract.circulatingSupply());
+        console2.log("Current circulating supply (in tokens): ", circulatingContract.circulatingSupply() / 10 ** 18);
+        console2.log("================================================");
+        console2.log("Deployed CirculatingZKC to: ", circulatingZKCAddress);
     }
 }

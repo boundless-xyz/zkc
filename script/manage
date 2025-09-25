@@ -195,7 +195,11 @@ forge_script() {
         script_file="Rollback.s.sol"
     elif [[ "$script_name" == Update* ]]; then
         script_file="Update.s.sol"
+<<<<<<< HEAD
     elif [[ "$script_name" == Remove* ]]; then
+=======
+    elif [[ "$script_name" == Add* ]] || [[ "$script_name" == Remove* ]]; then
+>>>>>>> origin/main
         script_file="Update.s.sol"
     elif [[ "$script_name" == Dev_* ]]; then
         script_file="Ops.s.sol"
@@ -257,6 +261,7 @@ Commands:
   deploy-zkc             Deploy ZKC token contract
   deploy-vezkc           Deploy veZKC staking contract
   deploy-staking         Deploy StakingRewards contract
+  deploy-circulating     Deploy CirculatingZKC contract
   upgrade-zkc            Upgrade ZKC implementation (no initializer)
   upgrade-zkc-initv2     Upgrade ZKC implementation and call initializeV2
   zkc-start-epochs       Call initializeV3 to start epochs (no upgrade)
@@ -267,7 +272,19 @@ Commands:
   rollback-staking       Rollback StakingRewards to previous implementation
   update-povw-minter     Set POVW_MINTER_ROLE in ZKC contract
   update-staking-minter  Set STAKING_MINTER_ROLE in ZKC contract
+<<<<<<< HEAD
   remove-povw-minter     Revoke POVW_MINTER_ROLE from address in ZKC contract
+=======
+  update-circulating     Update unlocked value in CirculatingZKC contract
+  add-zkc-admin          Add admin to ZKC contract
+  remove-zkc-admin       Remove admin from ZKC contract
+  add-vezkc-admin        Add admin to veZKC contract
+  remove-vezkc-admin     Remove admin from veZKC contract
+  add-staking-admin      Add admin to StakingRewards contract
+  remove-staking-admin   Remove admin from StakingRewards contract
+  add-admin-all          Add admin to all contracts (ZKC, veZKC, StakingRewards)
+  remove-admin-all       Remove admin from all contracts (ZKC, veZKC, StakingRewards)
+>>>>>>> origin/main
   dev-mint-to-self       Development: mint initial tokens to caller
 
 Options:
@@ -281,6 +298,8 @@ Environment Variables:
   PRIVATE_KEY            Required. Private key for transaction signing (0x...)
   GNOSIS_EXECUTE         Optional. Set to 'true' to generate Gnosis Safe calldata without executing transactions
   SKIP_SAFETY_CHECKS     Optional. Set to 'true' to skip upgrade safety checks (WARNING: unsafe!)
+  ADMIN_TO_ADD           Required for add-*-admin commands. Admin address to grant role to (0x...)
+  ADMIN_TO_REMOVE        Required for remove-*-admin commands. Admin address to revoke role from (0x...)
   
 Examples:
   # Deploy ZKC to anvil
@@ -303,6 +322,9 @@ Examples:
   
   # Deploy StakingRewards to anvil (requires ZKC and veZKC already deployed)
   PRIVATE_KEY=0x... CHAIN_KEY=anvil ./script/manage deploy-staking --broadcast
+
+  # Deploy CirculatingZKC to anvil (requires ZKC already deployed)
+  PRIVATE_KEY=0x... INITIAL_UNLOCKED="500000000000000000000000000" CHAIN_KEY=anvil ./script/manage deploy-circulating --broadcast
   
   # Upgrade ZKC on mainnet with verification (no initializer)
   PRIVATE_KEY=0x... CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc --broadcast --verify
@@ -322,9 +344,25 @@ Examples:
   # Set POVW minter role (requires POVW_MINTER env var)
   PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage update-povw-minter --broadcast
 
+<<<<<<< HEAD
   # Remove POVW minter role (requires POVW_MINTER env var)
   PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage remove-povw-minter --broadcast
 
+=======
+  # Update CirculatingZKC unlocked value (requires NEW_UNLOCKED env var)
+  PRIVATE_KEY=0x... NEW_UNLOCKED="750000000000000000000000000" CHAIN_KEY=anvil ./script/manage update-circulating --broadcast
+
+  
+  # Add admin to ZKC contract
+  PRIVATE_KEY=0x... ADMIN_TO_ADD=0x123... CHAIN_KEY=anvil ./script/manage add-zkc-admin --broadcast
+  
+  # Remove admin from veZKC contract
+  PRIVATE_KEY=0x... ADMIN_TO_REMOVE=0x123... CHAIN_KEY=anvil ./script/manage remove-vezkc-admin --broadcast
+  
+  # Add admin to all contracts at once
+  PRIVATE_KEY=0x... ADMIN_TO_ADD=0x123... CHAIN_KEY=anvil ./script/manage add-admin-all --broadcast
+  
+>>>>>>> origin/main
   # Development: mint initial tokens to self (requires MINT_AMOUNT env var)
   PRIVATE_KEY=0x... MINT_AMOUNT=1000000000000000000000000 CHAIN_KEY=anvil ./script/manage dev-mint-to-self --broadcast
 
@@ -340,6 +378,18 @@ Gnosis Safe Examples (GNOSIS_EXECUTE=true):
   
   # Generate role grant calldata for Gnosis Safe
   GNOSIS_EXECUTE=true POVW_MINTER=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage update-povw-minter
+  
+  # Generate admin grant calldata for Gnosis Safe
+  GNOSIS_EXECUTE=true ADMIN_TO_ADD=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage add-zkc-admin
+  
+  # Generate admin revoke calldata for Gnosis Safe
+  GNOSIS_EXECUTE=true ADMIN_TO_REMOVE=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage remove-staking-admin
+  
+  # Generate admin management for all contracts at once
+  GNOSIS_EXECUTE=true ADMIN_TO_ADD=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage add-admin-all
+
+  # Generate CirculatingZKC update calldata for Gnosis Safe
+  GNOSIS_EXECUTE=true NEW_UNLOCKED="750000000000000000000000000" CHAIN_KEY=ethereum-mainnet ./script/manage update-circulating
 
   # Generate role revoke calldata for Gnosis Safe
   GNOSIS_EXECUTE=true POVW_MINTER=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage remove-povw-minter
@@ -372,7 +422,11 @@ main() {
                 usage
                 exit 0
                 ;;
+<<<<<<< HEAD
             deploy-*|upgrade-*|rollback-*|update-*|remove-*|dev-*|zkc-start-epochs)
+=======
+            deploy-*|upgrade-*|rollback-*|update-*|add-*|remove-*|dev-*|zkc-start-epochs)
+>>>>>>> origin/main
                 COMMAND="$1"
                 shift
                 ;;
@@ -488,6 +542,9 @@ main() {
         deploy-staking)
             forge_script "DeployStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
+        deploy-circulating)
+            forge_script "DeployCirculatingZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
         upgrade-zkc)
             forge_script "UpgradeZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
@@ -518,8 +575,37 @@ main() {
         update-staking-minter)
             forge_script "UpdateStakingMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
+<<<<<<< HEAD
         remove-povw-minter)
             forge_script "RemovePOVWMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+=======
+        update-circulating)
+            forge_script "UpdateCirculatingUnlocked" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        add-zkc-admin)
+            forge_script "AddZKCAdmin" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        remove-zkc-admin)
+            forge_script "RemoveZKCAdmin" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        add-vezkc-admin)
+            forge_script "AddVeZKCAdmin" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        remove-vezkc-admin)
+            forge_script "RemoveVeZKCAdmin" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        add-staking-admin)
+            forge_script "AddStakingRewardsAdmin" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        remove-staking-admin)
+            forge_script "RemoveStakingRewardsAdmin" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        add-admin-all)
+            forge_script "AddAdminAll" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        remove-admin-all)
+            forge_script "RemoveAdminAll" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+>>>>>>> origin/main
             ;;
         dev-mint-to-self)
             forge_script "Dev_InitialMintToSelf" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"

@@ -50,5 +50,6 @@ dictionary_weight = 80      # Weight for using dictionary values
 
 [lint]
 severity = ["Gas"]
+exclude_lints = ["asm-keccak256", "incorrect-shift"]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
