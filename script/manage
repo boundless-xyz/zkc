@@ -268,6 +268,7 @@ Commands:
   rollback-staking       Rollback StakingRewards to previous implementation
   update-povw-minter     Set POVW_MINTER_ROLE in ZKC contract
   update-staking-minter  Set STAKING_MINTER_ROLE in ZKC contract
+  remove-povw-minter     Revoke POVW_MINTER_ROLE from address in ZKC contract
   update-circulating     Update unlocked value in CirculatingZKC contract
   add-zkc-admin          Add admin to ZKC contract
   remove-zkc-admin       Remove admin from ZKC contract
@@ -336,9 +337,11 @@ Examples:
   # Set POVW minter role (requires POVW_MINTER env var)
   PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage update-povw-minter --broadcast
 
+  # Remove POVW minter role (requires POVW_MINTER env var)
+  PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage remove-povw-minter --broadcast
+
   # Update CirculatingZKC unlocked value (requires NEW_UNLOCKED env var)
   PRIVATE_KEY=0x... NEW_UNLOCKED="750000000000000000000000000" CHAIN_KEY=anvil ./script/manage update-circulating --broadcast
-
   
   # Add admin to ZKC contract
   PRIVATE_KEY=0x... ADMIN_TO_ADD=0x123... CHAIN_KEY=anvil ./script/manage add-zkc-admin --broadcast
@@ -376,6 +379,9 @@ Gnosis Safe Examples (GNOSIS_EXECUTE=true):
 
   # Generate CirculatingZKC update calldata for Gnosis Safe
   GNOSIS_EXECUTE=true NEW_UNLOCKED="750000000000000000000000000" CHAIN_KEY=ethereum-mainnet ./script/manage update-circulating
+
+  # Generate role revoke calldata for Gnosis Safe
+  GNOSIS_EXECUTE=true POVW_MINTER=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage remove-povw-minter
 
 Notes:
   - Network configuration is loaded from deployment.toml and deployment_secrets.toml
@@ -553,6 +559,9 @@ main() {
             ;;
         update-staking-minter)
             forge_script "UpdateStakingMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        remove-povw-minter)
+            forge_script "RemovePOVWMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         update-circulating)
             forge_script "UpdateCirculatingUnlocked" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
