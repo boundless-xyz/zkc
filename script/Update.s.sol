@@ -221,7 +221,7 @@ contract UpdateCirculatingUnlocked is BaseDeployment {
     function setUp() public {}
 
     function run() public {
-        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        (DeploymentConfig memory config,) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.circulatingZKC != address(0), "CirculatingZKC address not set in deployment.toml");
 
         // Get new unlocked value from environment
