@@ -461,7 +461,9 @@ contract UpgradeStakingRewards is BaseDeployment {
             console2.log("Proxy NOT upgraded - use Gnosis Safe to complete upgrade");
         } else {
             StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);
-            console2.log("Proxy still points to StakingRewards: ", address(stakingRewardsContract) == config.stakingRewards);
+            console2.log(
+                "Proxy still points to StakingRewards: ", address(stakingRewardsContract) == config.stakingRewards
+            );
             console2.log("Implementation updated: ", newImpl != config.stakingRewardsImpl);
             console2.log("ZKC configured: ", address(stakingRewardsContract.zkc()));
             console2.log("veZKC configured: ", address(stakingRewardsContract.veZKC()));
