@@ -373,11 +373,11 @@ contract DeploymentTest is Test {
     function _getProxyImplementation(address proxy) internal view returns (address impl) {
         // ERC1967 implementation slot: keccak256("eip1967.proxy.implementation") - 1
         bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-        
+
         // Use vm.load to read the storage slot from the proxy contract
         bytes32 data = VM.load(proxy, slot);
         impl = address(uint160(uint256(data)));
-        
+
         // If still zero, try calling implementation() function
         if (impl == address(0)) {
             (bool success, bytes memory returnData) = proxy.staticcall(
@@ -387,5 +387,104 @@ contract DeploymentTest is Test {
                 impl = abi.decode(returnData, (address));
             }
         }
+    }
+
+    function testStakeAndClaimWithValueRecipient() external {
+        require(deployment.zkc != address(0), "ZKC must be deployed");
+        require(deployment.veZKC != address(0), "veZKC must be deployed");
+        require(deployment.stakingRewards != address(0), "StakingRewards must be deployed");
+
+        // Find a ZKC whale by checking the ZKC admin address (which should have tokens)
+        address whale = deployment.zkcAdmin;
+        if (whale == address(0)) {
+            whale = deployment.zkcAdmin2;
+        }
+        require(whale != address(0), "Could not find whale address");
+
+        uint256 whaleBalance = zkc.balanceOf(whale);
+        address[3] memory whales = [deployment.zkcAdmin, address(0xb13573C6CEB505A7BDD4Fa3AD7b473c5c5d36b19), address(0x28C6c06298d514Db089934071355E5743bf21d60)];
+        for (uint256 i = 0; i < whales.length; i++) {
+            if (whales[i] != address(0)) {
+                whale = whales[i];
+                whaleBalance = zkc.balanceOf(whale);
+                if (whaleBalance > 0) {
+                    break;
+                }
+            }
+        }
+        require(whaleBalance > 0, "Whale must have ZKC tokens");
+
+        // Use 10% of whale's balance for staking (or 100k ZKC, whichever is smaller)
+        uint256 stakeAmount = whaleBalance / 10;
+        if (stakeAmount > 100_000e18) {
+            stakeAmount = 100_000e18;
+        }
+        require(stakeAmount > 0, "Stake amount must be positive");
+
+        // Impersonate the whale
+        vm.startPrank(whale);
+
+        // Approve veZKC to spend ZKC
+        zkc.approve(deployment.veZKC, stakeAmount);
+
+        // Stake tokens
+        uint256 tokenId = veZKCContract.stake(stakeAmount);
+        console2.log("Staked with token ID:", tokenId);
+
+        vm.stopPrank();
+
+        // Get current epoch before warping
+        uint256 currentEpoch = zkc.getCurrentEpoch();
+        console2.log("Current epoch:", currentEpoch);
+
+        // Warp forward past the current epoch (2 days + 1 hour to be safe)
+        vm.warp(block.timestamp + 2 days + 1 hours);
+
+        uint256 newEpoch = zkc.getCurrentEpoch();
+        console2.log("New epoch after warp:", newEpoch);
+        require(newEpoch > currentEpoch, "Must advance to next epoch");
+
+        // Set up a value recipient address
+        address valueRecipient = address(0xBEEF);
+        uint256 recipientBalanceBefore = zkc.balanceOf(valueRecipient);
+        console2.log("Value recipient balance before claim:", recipientBalanceBefore);
+
+        // Claim rewards to the value recipient
+        vm.startPrank(whale);
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = currentEpoch;
+
+        uint256 claimedAmount = stakingRewards.claimRewardsToRecipient(epochs, valueRecipient);
+        console2.log("Claimed amount:", claimedAmount);
+
+        vm.stopPrank();
+
+        // Verify rewards were sent to value recipient
+        uint256 recipientBalanceAfter = zkc.balanceOf(valueRecipient);
+        console2.log("Value recipient balance after claim:", recipientBalanceAfter);
+
+        assertEq(recipientBalanceAfter - recipientBalanceBefore, claimedAmount, "Recipient should receive claimed rewards");
+        assertTrue(claimedAmount > 0, "Should have claimed some rewards");
+
+        console2.log("Successfully claimed", claimedAmount, "ZKC to value recipient");
+
+        // Attempt to claim again for the same epoch - should revert with AlreadyClaimed
+        vm.startPrank(whale);
+        vm.expectRevert(abi.encodeWithSignature("AlreadyClaimed(uint256)", currentEpoch));
+        stakingRewards.claimRewardsToRecipient(epochs, valueRecipient);
+        vm.stopPrank();
+
+        // Verify that attempting to claim to a different recipient also fails
+        address differentRecipient = address(0xCAFE);
+        vm.startPrank(whale);
+        vm.expectRevert(abi.encodeWithSignature("AlreadyClaimed(uint256)", currentEpoch));
+        stakingRewards.claimRewardsToRecipient(epochs, differentRecipient);
+        vm.stopPrank();
+
+        // Verify balances haven't changed after failed claim attempts
+        assertEq(zkc.balanceOf(valueRecipient), recipientBalanceAfter, "Value recipient balance should not change after failed claim");
+        assertEq(zkc.balanceOf(differentRecipient), 0, "Different recipient should have zero balance");
+
+        console2.log("Verified that double-claiming is prevented");
     }
 }

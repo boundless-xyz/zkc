@@ -221,7 +221,7 @@ contract UpdateCirculatingUnlocked is BaseDeployment {
     function setUp() public {}
 
     function run() public {
-        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        (DeploymentConfig memory config,) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.circulatingZKC != address(0), "CirculatingZKC address not set in deployment.toml");
 
         // Get new unlocked value from environment
@@ -1121,7 +1121,6 @@ contract RemoveAdminAll is BaseDeployment {
             console2.log("");
 
             // ZKC
-            ZKC zkcContract = ZKC(config.zkc);
             bytes32 zkcAdminRole = zkcContract.ADMIN_ROLE();
             bytes memory zkcRevokeRoleCallData =
                 abi.encodeWithSignature("revokeRole(bytes32,address)", zkcAdminRole, adminToRemove);
@@ -1137,7 +1136,6 @@ contract RemoveAdminAll is BaseDeployment {
             console2.log("");
 
             // veZKC
-            veZKC veZKCContract = veZKC(config.veZKC);
             bytes32 veZKCAdminRole = veZKCContract.ADMIN_ROLE();
             bytes memory veZKCRevokeRoleCallData =
                 abi.encodeWithSignature("revokeRole(bytes32,address)", veZKCAdminRole, adminToRemove);
@@ -1153,7 +1151,6 @@ contract RemoveAdminAll is BaseDeployment {
             console2.log("");
 
             // StakingRewards
-            StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);
             bytes32 stakingAdminRole = stakingRewardsContract.ADMIN_ROLE();
             bytes memory stakingRevokeRoleCallData =
                 abi.encodeWithSignature("revokeRole(bytes32,address)", stakingAdminRole, adminToRemove);

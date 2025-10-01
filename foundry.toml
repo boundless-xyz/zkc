@@ -42,7 +42,7 @@ fs_permissions = [
 
 # Invariant testing configuration
 [invariant]
-runs = 50                    # Faster execution while maintaining good coverage
+runs = 50                   # Faster execution while maintaining good coverage
 depth = 50                  # Sufficient depth for complex state evolution
 fail_on_revert = false      # Don't fail on individual reverts
 call_override = false       # Use default call behavior
