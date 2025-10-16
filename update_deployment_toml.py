@@ -32,7 +32,8 @@ def main():
     parser.add_argument('--vezkc-admin-2', help='veZKC secondary admin address')
     parser.add_argument('--staking-rewards-admin', help='StakingRewards admin address')
     parser.add_argument('--staking-rewards-admin-2', help='StakingRewards secondary admin address')
-    
+    parser.add_argument('--supply-calculator-admin-2', help='SupplyCalculator secondary admin address')
+
     parser.add_argument('--zkc', help='ZKC proxy address')
     parser.add_argument('--zkc-impl', help='ZKC implementation address')
     parser.add_argument('--zkc-impl-prev', help='Previous ZKC implementation address')
@@ -47,15 +48,15 @@ def main():
     parser.add_argument('--staking-rewards-deployer', help='StakingRewards deployer address')
     parser.add_argument('--povw-minter', help='POVW minter address')
     parser.add_argument('--staking-minter', help='Staking minter address')
-    parser.add_argument('--circulating-zkc', help='CirculatingZKC proxy address')
-    parser.add_argument('--circulating-zkc-impl', help='CirculatingZKC implementation address')
-    parser.add_argument('--circulating-zkc-admin', help='CirculatingZKC admin address')
+    parser.add_argument('--supply-calculator', help='SupplyCalculator proxy address')
+    parser.add_argument('--supply-calculator-impl', help='SupplyCalculator implementation address')
+    parser.add_argument('--supply-calculator-admin', help='SupplyCalculator admin address')
 
     # Deployment metadata
     parser.add_argument('--zkc-commit', help='Git commit hash for ZKC deployment')
     parser.add_argument('--vezkc-commit', help='Git commit hash for veZKC deployment')
     parser.add_argument('--staking-rewards-commit', help='Git commit hash for StakingRewards deployment')
-    parser.add_argument('--circulating-zkc-commit', help='Git commit hash for CirculatingZKC deployment')
+    parser.add_argument('--supply-calculator-commit', help='Git commit hash for SupplyCalculator deployment')
     parser.add_argument('--rpc-url', help='RPC URL for the network')
     parser.add_argument('--etherscan-api-key', help='Etherscan API key')
     
@@ -101,6 +102,7 @@ def main():
             'vezkc_admin_2': args.vezkc_admin_2,
             'staking_rewards_admin': args.staking_rewards_admin,
             'staking_rewards_admin_2': args.staking_rewards_admin_2,
+            'supply_calculator_admin_2': args.supply_calculator_admin_2,
             'zkc': args.zkc,
             'zkc_impl': args.zkc_impl,
             'zkc_impl_prev': args.zkc_impl_prev,
@@ -115,13 +117,13 @@ def main():
             'staking_rewards_deployer': args.staking_rewards_deployer,
             'povw_minter': args.povw_minter,
             'staking_minter': args.staking_minter,
-            'circulating_zkc': args.circulating_zkc,
-            'circulating_zkc_impl': args.circulating_zkc_impl,
-            'circulating_zkc_admin': args.circulating_zkc_admin,
+            'supply_calculator': args.supply_calculator,
+            'supply_calculator_impl': args.supply_calculator_impl,
+            'supply_calculator_admin': args.supply_calculator_admin,
             'zkc_commit': args.zkc_commit,
             'vezkc_commit': args.vezkc_commit,
             'staking_rewards_commit': args.staking_rewards_commit,
-            'circulating_zkc_commit': args.circulating_zkc_commit,
+            'supply_calculator_commit': args.supply_calculator_commit,
             'rpc_url': args.rpc_url,
             'etherscan_api_key': args.etherscan_api_key,
         }

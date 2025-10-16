@@ -6,7 +6,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {ConfigLoader, DeploymentConfig} from "./Config.s.sol";
 import {BaseDeployment} from "./BaseDeployment.s.sol";
 import {ZKC} from "../src/ZKC.sol";
-import {CirculatingZKC} from "../src/circulating/CirculatingZKC.sol";
+import {SupplyCalculator} from "../src/calculators/SupplyCalculator.sol";
 import {veZKC} from "../src/veZKC.sol";
 import {StakingRewards} from "../src/rewards/StakingRewards.sol";
 
@@ -197,13 +197,13 @@ contract UpdateStakingMinter is BaseDeployment {
 }
 
 /**
- * Sample Usage for updating CirculatingZKC unlocked value:
+ * Sample Usage for updating SupplyCalculator unlocked value:
  *
  * # Direct execution:
  * export CHAIN_KEY="anvil"
  * export NEW_UNLOCKED="750000000000000000000000000"  # 750M tokens
  *
- * forge script script/Update.s.sol:UpdateCirculatingUnlocked \
+ * forge script script/Update.s.sol:UpdateSupplyCalculatorUnlocked \
  *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
  *     --broadcast \
  *     --rpc-url http://127.0.0.1:8545
@@ -213,16 +213,16 @@ contract UpdateStakingMinter is BaseDeployment {
  * export NEW_UNLOCKED="750000000000000000000000000"  # 750M tokens
  * export GNOSIS_EXECUTE=true
  *
- * forge script script/Update.s.sol:UpdateCirculatingUnlocked \
+ * forge script script/Update.s.sol:UpdateSupplyCalculatorUnlocked \
  *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
  *     --rpc-url http://127.0.0.1:8545
  */
-contract UpdateCirculatingUnlocked is BaseDeployment {
+contract UpdateSupplyCalculatorUnlocked is BaseDeployment {
     function setUp() public {}
 
     function run() public {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
-        require(config.circulatingZKC != address(0), "CirculatingZKC address not set in deployment.toml");
+        require(config.supplyCalculator != address(0), "SupplyCalculator address not set in deployment.toml");
 
         // Get new unlocked value from environment
         uint256 newUnlocked = vm.envUint("NEW_UNLOCKED");
@@ -232,11 +232,11 @@ contract UpdateCirculatingUnlocked is BaseDeployment {
         bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
 
         // Get the contract instance
-        CirculatingZKC circulatingContract = CirculatingZKC(config.circulatingZKC);
+        SupplyCalculator supplyCalculator = SupplyCalculator(config.supplyCalculator);
 
         // Get current values for logging
-        uint256 currentUnlocked = circulatingContract.unlocked();
-        uint256 currentCirculatingSupply = circulatingContract.circulatingSupply();
+        uint256 currentUnlocked = supplyCalculator.unlocked();
+        uint256 currentCirculatingSupply = supplyCalculator.circulatingSupply();
 
         console2.log("================================================");
         console2.log("Current unlocked amount: ", currentUnlocked);
@@ -247,7 +247,7 @@ contract UpdateCirculatingUnlocked is BaseDeployment {
 
         if (gnosisExecute) {
             // Print Gnosis Safe transaction info for manual execution
-            _printGnosisSafeInfo(config.circulatingZKC, newUnlocked);
+            _printGnosisSafeInfo(config.supplyCalculator, newUnlocked);
 
             // Calculate expected new circulating supply for display
             uint256 expectedNewCirculatingSupply = currentCirculatingSupply - currentUnlocked + newUnlocked;
@@ -262,11 +262,11 @@ contract UpdateCirculatingUnlocked is BaseDeployment {
             vm.startBroadcast();
 
             // Update the unlocked value
-            circulatingContract.updateUnlockedValue(newUnlocked);
+            supplyCalculator.updateUnlockedValue(newUnlocked);
 
             // Get updated values
-            uint256 updatedUnlocked = circulatingContract.unlocked();
-            uint256 updatedCirculatingSupply = circulatingContract.circulatingSupply();
+            uint256 updatedUnlocked = supplyCalculator.unlocked();
+            uint256 updatedCirculatingSupply = supplyCalculator.circulatingSupply();
 
             vm.stopBroadcast();
 
@@ -287,7 +287,7 @@ contract UpdateCirculatingUnlocked is BaseDeployment {
     }
 
     /// @notice Print Gnosis Safe transaction information for manual updates
-    /// @param targetAddress The CirculatingZKC contract address (target for Gnosis Safe)
+    /// @param targetAddress The SupplyCalculator contract address (target for Gnosis Safe)
     /// @param newUnlocked The new unlocked value to set
     function _printGnosisSafeInfo(address targetAddress, uint256 newUnlocked) internal pure {
         console2.log("================================");
@@ -909,6 +909,172 @@ contract RemoveStakingRewardsAdmin is BaseDeployment {
 
         // Remove from deployment.toml - check both admin fields
         _removeAdminFromToml(deploymentKey, adminToRemove, "staking-rewards-admin", "staking-rewards-admin-2");
+    }
+}
+
+/**
+ * Sample Usage for adding admin to SupplyCalculator:
+ *
+ * export CHAIN_KEY="anvil"
+ * export ADMIN_TO_ADD="0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+ *
+ * forge script script/Update.s.sol:AddSupplyCalculatorAdmin \
+ *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *     --broadcast \
+ *     --rpc-url http://127.0.0.1:8545
+ */
+contract AddSupplyCalculatorAdmin is BaseDeployment {
+    function setUp() public {}
+
+    function run() public {
+        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        require(config.supplyCalculator != address(0), "SupplyCalculator address not set in deployment.toml");
+
+        address adminToAdd = vm.envAddress("ADMIN_TO_ADD");
+        require(adminToAdd != address(0), "ADMIN_TO_ADD environment variable not set");
+
+        bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
+        SupplyCalculator supplyCalculatorContract = SupplyCalculator(config.supplyCalculator);
+        bytes32 adminRole = supplyCalculatorContract.ADMIN_ROLE();
+
+        if (gnosisExecute) {
+            console2.log("GNOSIS_EXECUTE=true: Preparing grantRole calldata for Safe execution");
+            console2.log("SupplyCalculator Contract: ", config.supplyCalculator);
+            console2.log("Admin to Add: ", adminToAdd);
+            console2.log("Role: ADMIN_ROLE");
+
+            // Print Gnosis Safe transaction info for grantRole
+            bytes memory grantRoleCallData =
+                abi.encodeWithSignature("grantRole(bytes32,address)", adminRole, adminToAdd);
+            console2.log("================================");
+            console2.log("=== GNOSIS SAFE GRANT ROLE INFO ===");
+            console2.log("Target Address (To): ", config.supplyCalculator);
+            console2.log("Function: grantRole(bytes32,address)");
+            console2.log("Role: ");
+            console2.logBytes32(adminRole);
+            console2.log("Account: ", adminToAdd);
+            console2.log("Calldata:");
+            console2.logBytes(grantRoleCallData);
+            console2.log("=====================================");
+            console2.log("SupplyCalculator Admin Grant Role Calldata Ready");
+            console2.log("Transaction NOT executed - use Gnosis Safe to execute");
+        } else {
+            vm.startBroadcast();
+
+            IAccessControl accessControl = IAccessControl(config.supplyCalculator);
+
+            // Check if caller has admin role
+            require(
+                accessControl.hasRole(supplyCalculatorContract.ADMIN_ROLE(), msg.sender), "Caller must have ADMIN_ROLE"
+            );
+
+            // Grant ADMIN_ROLE
+            accessControl.grantRole(adminRole, adminToAdd);
+
+            vm.stopBroadcast();
+
+            // Sanity checks
+            console2.log("SupplyCalculator Contract: ", config.supplyCalculator);
+            console2.log("New SupplyCalculator Admin: ", adminToAdd);
+            console2.log("ADMIN_ROLE granted: ", accessControl.hasRole(adminRole, adminToAdd));
+            console2.log("================================================");
+            console2.log("SupplyCalculator Admin Role Updated Successfully");
+        }
+
+        // Update deployment.toml with the new admin (always do this)
+        if (config.supplyCalculatorAdmin2 == address(0) || config.supplyCalculatorAdmin2 == adminToAdd) {
+            _updateDeploymentConfig(deploymentKey, "supply-calculator-admin-2", adminToAdd);
+        } else if (config.supplyCalculatorAdmin == address(0) || config.supplyCalculatorAdmin == adminToAdd) {
+            _updateDeploymentConfig(deploymentKey, "supply-calculator-admin", adminToAdd);
+        } else {
+            revert("supply-calculator-admin-2 and supply-calculator-admin are both set already");
+        }
+    }
+}
+
+/**
+ * Sample Usage for removing admin from SupplyCalculator:
+ *
+ * export CHAIN_KEY="anvil"
+ * export ADMIN_TO_REMOVE="0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+ *
+ * forge script script/Update.s.sol:RemoveSupplyCalculatorAdmin \
+ *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *     --broadcast \
+ *     --rpc-url http://127.0.0.1:8545
+ */
+contract RemoveSupplyCalculatorAdmin is BaseDeployment {
+    function setUp() public {}
+
+    function run() public {
+        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        require(config.supplyCalculator != address(0), "SupplyCalculator address not set in deployment.toml");
+
+        address adminToRemove = vm.envAddress("ADMIN_TO_REMOVE");
+        require(adminToRemove != address(0), "ADMIN_TO_REMOVE environment variable not set");
+
+        bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
+        SupplyCalculator supplyCalculatorContract = SupplyCalculator(config.supplyCalculator);
+        bytes32 adminRole = supplyCalculatorContract.ADMIN_ROLE();
+
+        // Safety check: Ensure at least one other admin will remain
+        IAccessControl accessControl = IAccessControl(config.supplyCalculator);
+
+        address otherAdmin = (config.supplyCalculatorAdmin != address(0) && config.supplyCalculatorAdmin != adminToRemove)
+            ? config.supplyCalculatorAdmin
+            : config.supplyCalculatorAdmin2;
+        require(
+            otherAdmin != adminToRemove && otherAdmin != address(0)
+                && accessControl.hasRole(supplyCalculatorContract.ADMIN_ROLE(), otherAdmin),
+            "Cannot remove admin: would leave SupplyCalculator without any admins"
+        );
+
+        if (gnosisExecute) {
+            console2.log("GNOSIS_EXECUTE=true: Preparing revokeRole calldata for Safe execution");
+            console2.log("SupplyCalculator Contract: ", config.supplyCalculator);
+            console2.log("Admin to Remove: ", adminToRemove);
+            console2.log("Other Admin still active: ", otherAdmin);
+            console2.log("Role: ADMIN_ROLE");
+
+            // Print Gnosis Safe transaction info for revokeRole
+            bytes memory revokeRoleCallData =
+                abi.encodeWithSignature("revokeRole(bytes32,address)", adminRole, adminToRemove);
+            console2.log("================================");
+            console2.log("=== GNOSIS SAFE REVOKE ROLE INFO ===");
+            console2.log("Target Address (To): ", config.supplyCalculator);
+            console2.log("Function: revokeRole(bytes32,address)");
+            console2.log("Role: ");
+            console2.logBytes32(adminRole);
+            console2.log("Account: ", adminToRemove);
+            console2.log("Calldata:");
+            console2.logBytes(revokeRoleCallData);
+            console2.log("=====================================");
+            console2.log("SupplyCalculator Admin Revoke Role Calldata Ready");
+            console2.log("Transaction NOT executed - use Gnosis Safe to execute");
+        } else {
+            vm.startBroadcast();
+
+            // Check if caller has admin role
+            require(
+                accessControl.hasRole(supplyCalculatorContract.ADMIN_ROLE(), msg.sender), "Caller must have ADMIN_ROLE"
+            );
+
+            // Revoke ADMIN_ROLE
+            accessControl.revokeRole(adminRole, adminToRemove);
+
+            vm.stopBroadcast();
+
+            // Sanity checks
+            console2.log("SupplyCalculator Contract: ", config.supplyCalculator);
+            console2.log("Removed SupplyCalculator Admin: ", adminToRemove);
+            console2.log("Other Admin still active: ", otherAdmin);
+            console2.log("ADMIN_ROLE revoked: ", !accessControl.hasRole(adminRole, adminToRemove));
+            console2.log("================================================");
+            console2.log("SupplyCalculator Admin Role Removed Successfully");
+        }
+
+        // Remove from deployment.toml - check both admin fields
+        _removeAdminFromToml(deploymentKey, adminToRemove, "supply-calculator-admin", "supply-calculator-admin-2");
     }
 }
 
