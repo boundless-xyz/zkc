@@ -226,8 +226,8 @@ contract SupplyCalculatorTest is Test {
         assertEq(claimedSupply, zkc.INITIAL_SUPPLY() + rewards);
 
         // Get rounded values
-        uint256 rounded18dp = supplyCalculator.totalClaimedSupplyRounded();
-        uint256 roundedAmount = supplyCalculator.totalClaimedSupplyAmountRounded();
+        uint256 rounded18dp = supplyCalculator.claimedTotalSupplyRounded();
+        uint256 roundedAmount = supplyCalculator.claimedTotalSupplyAmountRounded();
 
         assertEq(rounded18dp, 1001234568000000000000000000);
         assertEq(roundedAmount, 1001234568);

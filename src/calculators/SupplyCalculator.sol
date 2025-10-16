@@ -49,6 +49,7 @@ contract SupplyCalculator is Initializable, AccessControlUpgradeable, UUPSUpgrad
 
     /// @notice Calculate the current circulating supply
     /// @dev Formula: unlocked + (zkc.claimedTotalSupply() - zkc.INITIAL_SUPPLY())
+    /// @dev Essentially, unlocked tokens from the initial mint + claimed rewards from PoVW and staking rewards
     /// @return The current circulating supply of ZKC tokens
     function circulatingSupply() public view returns (uint256) {
         uint256 claimedTotal = zkc.claimedTotalSupply();
@@ -76,6 +77,9 @@ contract SupplyCalculator is Initializable, AccessControlUpgradeable, UUPSUpgrad
         return _roundToWholeTokens(supply);
     }
 
+    /// @notice Get the total supply
+    /// @dev This represents the theoretical total supply of ZKC tokens based on the current epoch
+    /// @return The total supply of ZKC tokens
     function totalSupply() public view returns (uint256) {
         return IERC20(address(zkc)).totalSupply();
     }
@@ -98,7 +102,11 @@ contract SupplyCalculator is Initializable, AccessControlUpgradeable, UUPSUpgrad
         return _roundToWholeTokens(supply);
     }
 
-    function totalClaimedSupply() public view returns (uint256) {
+    /// @notice Get the total claimed supply
+    /// @dev This represents the initial supply that was minted and allocated to initial minters,
+    ///      as well as tokens that have been claimed (and thus minted) via PoVW or Staking rewards.
+    /// @return The total amount of tokens that have been claimed
+    function claimedTotalSupply() public view returns (uint256) {
         return zkc.claimedTotalSupply();
     }
 
@@ -106,7 +114,7 @@ contract SupplyCalculator is Initializable, AccessControlUpgradeable, UUPSUpgrad
     /// @dev Returns value in wei (18 decimals) but rounded such that when converted to whole tokens it's rounded
     /// @dev Uses the actual claimed/minted supply
     /// @return The claimed total supply rounded to nearest whole token in 18dp format
-    function totalClaimedSupplyRounded() public view returns (uint256) {
+    function claimedTotalSupplyRounded() public view returns (uint256) {
         uint256 supply = zkc.claimedTotalSupply();
         return _roundTo18dp(supply);
     }
@@ -115,7 +123,7 @@ contract SupplyCalculator is Initializable, AccessControlUpgradeable, UUPSUpgrad
     /// @dev Returns the value in regular representation (divided by 10^18) rounded to nearest whole token
     /// @dev Uses the actual claimed/minted supply
     /// @return The claimed total supply as a whole number
-    function totalClaimedSupplyAmountRounded() public view returns (uint256) {
+    function claimedTotalSupplyAmountRounded() public view returns (uint256) {
         uint256 supply = zkc.claimedTotalSupply();
         return _roundToWholeTokens(supply);
     }

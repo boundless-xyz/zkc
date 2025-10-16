@@ -486,25 +486,6 @@ contract UpgradeStakingRewards is BaseDeployment {
     }
 }
 
-/**
- * Sample Usage for SupplyCalculator upgrade:
- *
- * # First, create reference build from deployed SupplyCalculator commit:
- * export DEPLOYED_COMMIT=$(python3 -c "import tomlkit; print(tomlkit.load(open('deployment.toml'))['deployment']['$CHAIN_KEY']['supply-calculator-commit'])")
- * WORKTREE_PATH="../supply-calculator-reference-${DEPLOYED_COMMIT}"
- * git worktree add "$WORKTREE_PATH" "$DEPLOYED_COMMIT"
- * cd "$WORKTREE_PATH"
- * forge build --profile reference
- * cp -R out-reference/build-info "$OLDPWD/build-info-reference"
- * cd "$OLDPWD"
- *
- * # Then run upgrade:
- * export CHAIN_KEY="anvil"
- * forge script script/Upgrade.s.sol:UpgradeSupplyCalculator \
- *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
- *     --broadcast \
- *     --rpc-url http://127.0.0.1:8545
- */
 contract UpgradeSupplyCalculator is BaseDeployment {
     function run() public {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
