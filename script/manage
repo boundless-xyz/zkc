@@ -81,6 +81,9 @@ create_reference_build() {
         staking)
             commit_field="staking-rewards-commit"
             ;;
+        supply-calculator)
+            commit_field="supply-calculator-commit"
+            ;;
         *)
             echo "❌ Unknown contract type: $contract_type"
             exit 1
@@ -261,11 +264,13 @@ Commands:
   upgrade-zkc            Upgrade ZKC implementation (no initializer)
   upgrade-zkc-initv2     Upgrade ZKC implementation and call initializeV2
   zkc-start-epochs       Call initializeV3 to start epochs (no upgrade)
-  upgrade-vezkc          Upgrade veZKC implementation  
+  upgrade-vezkc          Upgrade veZKC implementation
   upgrade-staking        Upgrade StakingRewards implementation
+  upgrade-supply-calculator  Upgrade SupplyCalculator implementation
   rollback-zkc           Rollback ZKC to previous implementation
   rollback-vezkc         Rollback veZKC to previous implementation
   rollback-staking       Rollback StakingRewards to previous implementation
+  rollback-supply-calculator  Rollback SupplyCalculator to previous implementation
   update-povw-minter     Set POVW_MINTER_ROLE in ZKC contract
   update-staking-minter  Set STAKING_MINTER_ROLE in ZKC contract
   remove-povw-minter        Revoke POVW_MINTER_ROLE from address in ZKC contract
@@ -332,10 +337,16 @@ Examples:
   
   # Upgrade ZKC skipping safety checks (WARNING: unsafe!)
   PRIVATE_KEY=0x... CHAIN_KEY=anvil SKIP_SAFETY_CHECKS=true ./script/manage upgrade-zkc --broadcast
-  
+
+  # Upgrade SupplyCalculator on mainnet with verification
+  PRIVATE_KEY=0x... CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-supply-calculator --broadcast --verify
+
   # Rollback ZKC to previous implementation
   PRIVATE_KEY=0x... CHAIN_KEY=anvil ./script/manage rollback-zkc --broadcast
-  
+
+  # Rollback SupplyCalculator to previous implementation
+  PRIVATE_KEY=0x... CHAIN_KEY=anvil ./script/manage rollback-supply-calculator --broadcast
+
   # Set POVW minter role (requires POVW_MINTER env var)
   PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage update-povw-minter --broadcast
 
@@ -507,6 +518,9 @@ main() {
                 upgrade-staking)
                     contract_type="staking"
                     ;;
+                upgrade-supply-calculator)
+                    contract_type="supply-calculator"
+                    ;;
                 *)
                     echo "❌ Unknown upgrade command: $COMMAND"
                     exit 1
@@ -553,6 +567,9 @@ main() {
         upgrade-staking)
             forge_script "UpgradeStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
+        upgrade-supply-calculator)
+            forge_script "UpgradeSupplyCalculator" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
         rollback-zkc)
             forge_script "RollbackZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
@@ -561,6 +578,9 @@ main() {
             ;;
         rollback-staking)
             forge_script "RollbackStakingRewards" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
+        rollback-supply-calculator)
+            forge_script "RollbackSupplyCalculator" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         update-povw-minter)
             forge_script "UpdatePOVWMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"

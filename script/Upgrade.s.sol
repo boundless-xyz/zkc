@@ -8,6 +8,7 @@ import {BaseDeployment} from "./BaseDeployment.s.sol";
 import {ZKC} from "../src/ZKC.sol";
 import {veZKC} from "../src/veZKC.sol";
 import {StakingRewards} from "../src/rewards/StakingRewards.sol";
+import {SupplyCalculator} from "../src/calculators/SupplyCalculator.sol";
 
 /**
  * Sample Usage for ZKC upgrade:
@@ -481,6 +482,85 @@ contract UpgradeStakingRewards is BaseDeployment {
         console2.log("veZKC still configured: ", address(stakingRewardsContract.veZKC()) == config.veZKC);
         console2.log("================================================");
         console2.log("StakingRewards Upgrade Complete");
+        console2.log("New Implementation: ", newImpl);
+    }
+}
+
+/**
+ * Sample Usage for SupplyCalculator upgrade:
+ *
+ * # First, create reference build from deployed SupplyCalculator commit:
+ * export DEPLOYED_COMMIT=$(python3 -c "import tomlkit; print(tomlkit.load(open('deployment.toml'))['deployment']['$CHAIN_KEY']['supply-calculator-commit'])")
+ * WORKTREE_PATH="../supply-calculator-reference-${DEPLOYED_COMMIT}"
+ * git worktree add "$WORKTREE_PATH" "$DEPLOYED_COMMIT"
+ * cd "$WORKTREE_PATH"
+ * forge build --profile reference
+ * cp -R out-reference/build-info "$OLDPWD/build-info-reference"
+ * cd "$OLDPWD"
+ *
+ * # Then run upgrade:
+ * export CHAIN_KEY="anvil"
+ * forge script script/Upgrade.s.sol:UpgradeSupplyCalculator \
+ *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *     --broadcast \
+ *     --rpc-url http://127.0.0.1:8545
+ */
+contract UpgradeSupplyCalculator is BaseDeployment {
+    function run() public {
+        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        require(config.supplyCalculator != address(0), "SupplyCalculator not deployed");
+
+        vm.startBroadcast();
+
+        // Check for skip safety checks flag
+        bool skipSafetyChecks = vm.envOr("SKIP_SAFETY_CHECKS", false);
+
+        // Prepare upgrade options with reference contract
+        Options memory opts;
+
+        if (skipSafetyChecks) {
+            console2.log("WARNING: Skipping all upgrade safety checks and reference build!");
+            opts.unsafeSkipAllChecks = true;
+        } else {
+            // Get the SupplyCalculator commit hash from deployment config for commit-specific reference build
+            string memory supplyCalculatorCommit = config.supplyCalculatorCommit;
+            require(bytes(supplyCalculatorCommit).length > 0, "SupplyCalculator commit hash not found in deployment config");
+
+            string memory referenceBuildDir = string.concat("build-info-reference-", supplyCalculatorCommit);
+            opts.referenceContract = string.concat(referenceBuildDir, ":SupplyCalculator");
+            opts.referenceBuildInfoDir = referenceBuildDir;
+            console2.log("Using reference build directory: ", referenceBuildDir);
+        }
+
+        console2.log("Upgrading SupplyCalculator at: ", config.supplyCalculator);
+        address currentImpl = _getImplementationAddress(config.supplyCalculator);
+        console2.log("Current implementation: ", currentImpl);
+
+        // Perform safe upgrade
+        Upgrades.upgradeProxy(
+            config.supplyCalculator,
+            "SupplyCalculator.sol:SupplyCalculator",
+            "", // No reinitializer
+            opts
+        );
+
+        address newImpl = Upgrades.getImplementationAddress(config.supplyCalculator);
+        console2.log("Upgraded SupplyCalculator implementation to: ", newImpl);
+
+        vm.stopBroadcast();
+
+        // Update deployment.toml with new implementation and store previous
+        _updateDeploymentConfig(deploymentKey, "supply-calculator-impl-prev", currentImpl);
+        _updateDeploymentConfig(deploymentKey, "supply-calculator-impl", newImpl);
+        _updateSupplyCalculatorCommit(deploymentKey);
+
+        // Verify upgrade
+        SupplyCalculator supplyCalculatorContract = SupplyCalculator(config.supplyCalculator);
+        console2.log("Proxy still points to SupplyCalculator: ", address(supplyCalculatorContract) == config.supplyCalculator);
+        console2.log("Implementation updated: ", newImpl != config.supplyCalculatorImpl);
+        console2.log("ZKC token still configured: ", address(supplyCalculatorContract.zkc()) == config.zkc);
+        console2.log("================================================");
+        console2.log("SupplyCalculator Upgrade Complete");
         console2.log("New Implementation: ", newImpl);
     }
 }

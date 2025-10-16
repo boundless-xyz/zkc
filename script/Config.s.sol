@@ -30,6 +30,7 @@ struct DeploymentConfig {
     address stakingMinter;
     address supplyCalculator;
     address supplyCalculatorImpl;
+    address supplyCalculatorImplPrev;
     address supplyCalculatorAdmin;
     address supplyCalculatorAdmin2;
     string zkcCommit;
@@ -79,6 +80,7 @@ library ConfigLoader {
         config.stakingMinter = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-minter"));
         config.supplyCalculator = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator"));
         config.supplyCalculatorImpl = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator-impl"));
+        config.supplyCalculatorImplPrev = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator-impl-prev"));
         config.supplyCalculatorAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator-admin"));
         config.supplyCalculatorAdmin2 = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator-admin-2"));
 
@@ -91,6 +93,9 @@ library ConfigLoader {
 
         string memory stakingRewardsCommitKey = string.concat(keyPrefix, ".staking-rewards-commit");
         config.stakingRewardsCommit = _readStringOrEmpty(toml, stakingRewardsCommitKey);
+
+        string memory supplyCalculatorCommitKey = string.concat(keyPrefix, ".supply-calculator-commit");
+        config.supplyCalculatorCommit = _readStringOrEmpty(toml, supplyCalculatorCommitKey);
 
         return (config, deploymentKey);
     }
