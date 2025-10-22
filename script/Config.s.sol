@@ -80,9 +80,12 @@ library ConfigLoader {
         config.stakingMinter = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".staking-minter"));
         config.supplyCalculator = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator"));
         config.supplyCalculatorImpl = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator-impl"));
-        config.supplyCalculatorImplPrev = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator-impl-prev"));
-        config.supplyCalculatorAdmin = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator-admin"));
-        config.supplyCalculatorAdmin2 = _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator-admin-2"));
+        config.supplyCalculatorImplPrev =
+            _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator-impl-prev"));
+        config.supplyCalculatorAdmin =
+            _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator-admin"));
+        config.supplyCalculatorAdmin2 =
+            _readAddressOrZero(vm, toml, string.concat(keyPrefix, ".supply-calculator-admin-2"));
 
         // Read per-contract deployment commits, default to empty string if not found
         string memory zkcCommitKey = string.concat(keyPrefix, ".zkc-commit");

@@ -505,7 +505,9 @@ contract UpgradeSupplyCalculator is BaseDeployment {
         } else {
             // Get the SupplyCalculator commit hash from deployment config for commit-specific reference build
             string memory supplyCalculatorCommit = config.supplyCalculatorCommit;
-            require(bytes(supplyCalculatorCommit).length > 0, "SupplyCalculator commit hash not found in deployment config");
+            require(
+                bytes(supplyCalculatorCommit).length > 0, "SupplyCalculator commit hash not found in deployment config"
+            );
 
             string memory referenceBuildDir = string.concat("build-info-reference-", supplyCalculatorCommit);
             opts.referenceContract = string.concat(referenceBuildDir, ":SupplyCalculator");
@@ -537,7 +539,9 @@ contract UpgradeSupplyCalculator is BaseDeployment {
 
         // Verify upgrade
         SupplyCalculator supplyCalculatorContract = SupplyCalculator(config.supplyCalculator);
-        console2.log("Proxy still points to SupplyCalculator: ", address(supplyCalculatorContract) == config.supplyCalculator);
+        console2.log(
+            "Proxy still points to SupplyCalculator: ", address(supplyCalculatorContract) == config.supplyCalculator
+        );
         console2.log("Implementation updated: ", newImpl != config.supplyCalculatorImpl);
         console2.log("ZKC token still configured: ", address(supplyCalculatorContract.zkc()) == config.zkc);
         console2.log("================================================");

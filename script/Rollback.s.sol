@@ -222,7 +222,8 @@ contract RollbackSupplyCalculator is BaseDeployment {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.supplyCalculator != address(0), "SupplyCalculator not deployed");
         require(
-            config.supplyCalculatorImplPrev != address(0), "No previous SupplyCalculator implementation found for rollback"
+            config.supplyCalculatorImplPrev != address(0),
+            "No previous SupplyCalculator implementation found for rollback"
         );
 
         vm.startBroadcast();
@@ -254,7 +255,9 @@ contract RollbackSupplyCalculator is BaseDeployment {
         // Verify rollback
         SupplyCalculator supplyCalculatorContract = SupplyCalculator(config.supplyCalculator);
         IAccessControl accessControl = IAccessControl(config.supplyCalculator);
-        console2.log("Proxy still points to SupplyCalculator: ", address(supplyCalculatorContract) == config.supplyCalculator);
+        console2.log(
+            "Proxy still points to SupplyCalculator: ", address(supplyCalculatorContract) == config.supplyCalculator
+        );
         console2.log(
             "Admin role still assigned: ",
             accessControl.hasRole(supplyCalculatorContract.ADMIN_ROLE(), config.supplyCalculatorAdmin)

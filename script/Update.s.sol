@@ -1020,9 +1020,9 @@ contract RemoveSupplyCalculatorAdmin is BaseDeployment {
         // Safety check: Ensure at least one other admin will remain
         IAccessControl accessControl = IAccessControl(config.supplyCalculator);
 
-        address otherAdmin = (config.supplyCalculatorAdmin != address(0) && config.supplyCalculatorAdmin != adminToRemove)
-            ? config.supplyCalculatorAdmin
-            : config.supplyCalculatorAdmin2;
+        address otherAdmin = (
+            config.supplyCalculatorAdmin != address(0) && config.supplyCalculatorAdmin != adminToRemove
+        ) ? config.supplyCalculatorAdmin : config.supplyCalculatorAdmin2;
         require(
             otherAdmin != adminToRemove && otherAdmin != address(0)
                 && accessControl.hasRole(supplyCalculatorContract.ADMIN_ROLE(), otherAdmin),
