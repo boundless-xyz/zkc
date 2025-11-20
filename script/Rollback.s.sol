@@ -8,6 +8,7 @@ import {BaseDeployment} from "./BaseDeployment.s.sol";
 import {ZKC} from "../src/ZKC.sol";
 import {veZKC} from "../src/veZKC.sol";
 import {StakingRewards} from "../src/rewards/StakingRewards.sol";
+import {SupplyCalculator} from "../src/calculators/SupplyCalculator.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 /**
@@ -175,9 +176,8 @@ contract RollbackStakingRewards is BaseDeployment {
         require(_getCodeSize(config.stakingRewardsImplPrev) > 0, "Previous implementation has no code");
 
         // Perform rollback by directly upgrading to previous implementation (unsafe)
-        (bool success,) = config.stakingRewards.call(
-            abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.stakingRewardsImplPrev, "")
-        );
+        (bool success,) = config.stakingRewards
+            .call(abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.stakingRewardsImplPrev, ""));
         require(success, "Failed to rollback StakingRewards implementation");
 
         address rolledBackImpl = _getImplementationAddress(config.stakingRewards);
@@ -203,6 +203,67 @@ contract RollbackStakingRewards is BaseDeployment {
         console2.log("Rollback verification successful");
         console2.log("================================================");
         console2.log("StakingRewards Rollback Complete");
+        console2.log("Rolled back to implementation: ", rolledBackImpl);
+    }
+}
+
+/**
+ * Sample Usage for SupplyCalculator rollback:
+ *
+ * export CHAIN_KEY="anvil"
+ * forge script script/Rollback.s.sol:RollbackSupplyCalculator \
+ *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *     --broadcast \
+ *     --rpc-url http://127.0.0.1:8545
+ */
+contract RollbackSupplyCalculator is BaseDeployment {
+    function run() public {
+        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        require(config.supplyCalculator != address(0), "SupplyCalculator not deployed");
+        require(
+            config.supplyCalculatorImplPrev != address(0),
+            "No previous SupplyCalculator implementation found for rollback"
+        );
+
+        vm.startBroadcast();
+
+        address currentImpl = _getImplementationAddress(config.supplyCalculator);
+        console2.log("Rolling back SupplyCalculator at: ", config.supplyCalculator);
+        console2.log("Current implementation: ", currentImpl);
+        console2.log("Previous implementation: ", config.supplyCalculatorImplPrev);
+
+        // Verify previous implementation has code
+        require(_getCodeSize(config.supplyCalculatorImplPrev) > 0, "Previous implementation has no code");
+
+        // Perform rollback by directly upgrading to previous implementation (unsafe)
+        (bool success,) = config.supplyCalculator
+            .call(abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.supplyCalculatorImplPrev, ""));
+        require(success, "Failed to rollback SupplyCalculator implementation");
+
+        address rolledBackImpl = _getImplementationAddress(config.supplyCalculator);
+        console2.log("Rolled back SupplyCalculator implementation to: ", rolledBackImpl);
+        require(rolledBackImpl == config.supplyCalculatorImplPrev, "Rollback failed: implementation mismatch");
+
+        vm.stopBroadcast();
+
+        // Update deployment.toml: swap current and previous implementations
+        _updateDeploymentConfig(deploymentKey, "supply-calculator-impl", config.supplyCalculatorImplPrev);
+        _updateDeploymentConfig(deploymentKey, "supply-calculator-impl-prev", currentImpl);
+
+        // Verify rollback
+        SupplyCalculator supplyCalculatorContract = SupplyCalculator(config.supplyCalculator);
+        IAccessControl accessControl = IAccessControl(config.supplyCalculator);
+        console2.log(
+            "Proxy still points to SupplyCalculator: ", address(supplyCalculatorContract) == config.supplyCalculator
+        );
+        console2.log(
+            "Admin role still assigned: ",
+            accessControl.hasRole(supplyCalculatorContract.ADMIN_ROLE(), config.supplyCalculatorAdmin)
+        );
+        console2.log("ZKC token still configured: ", address(supplyCalculatorContract.zkc()) == config.zkc);
+        console2.log("Rollback verification successful");
+        console2.log("================================================");
+        console2.log("SupplyCalculator Rollback Complete");
         console2.log("Rolled back to implementation: ", rolledBackImpl);
     }
 }

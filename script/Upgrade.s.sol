@@ -8,6 +8,7 @@ import {BaseDeployment} from "./BaseDeployment.s.sol";
 import {ZKC} from "../src/ZKC.sol";
 import {veZKC} from "../src/veZKC.sol";
 import {StakingRewards} from "../src/rewards/StakingRewards.sol";
+import {SupplyCalculator} from "../src/calculators/SupplyCalculator.sol";
 
 /**
  * Sample Usage for ZKC upgrade:
@@ -481,6 +482,70 @@ contract UpgradeStakingRewards is BaseDeployment {
         console2.log("veZKC still configured: ", address(stakingRewardsContract.veZKC()) == config.veZKC);
         console2.log("================================================");
         console2.log("StakingRewards Upgrade Complete");
+        console2.log("New Implementation: ", newImpl);
+    }
+}
+
+contract UpgradeSupplyCalculator is BaseDeployment {
+    function run() public {
+        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        require(config.supplyCalculator != address(0), "SupplyCalculator not deployed");
+
+        vm.startBroadcast();
+
+        // Check for skip safety checks flag
+        bool skipSafetyChecks = vm.envOr("SKIP_SAFETY_CHECKS", false);
+
+        // Prepare upgrade options with reference contract
+        Options memory opts;
+
+        if (skipSafetyChecks) {
+            console2.log("WARNING: Skipping all upgrade safety checks and reference build!");
+            opts.unsafeSkipAllChecks = true;
+        } else {
+            // Get the SupplyCalculator commit hash from deployment config for commit-specific reference build
+            string memory supplyCalculatorCommit = config.supplyCalculatorCommit;
+            require(
+                bytes(supplyCalculatorCommit).length > 0, "SupplyCalculator commit hash not found in deployment config"
+            );
+
+            string memory referenceBuildDir = string.concat("build-info-reference-", supplyCalculatorCommit);
+            opts.referenceContract = string.concat(referenceBuildDir, ":SupplyCalculator");
+            opts.referenceBuildInfoDir = referenceBuildDir;
+            console2.log("Using reference build directory: ", referenceBuildDir);
+        }
+
+        console2.log("Upgrading SupplyCalculator at: ", config.supplyCalculator);
+        address currentImpl = _getImplementationAddress(config.supplyCalculator);
+        console2.log("Current implementation: ", currentImpl);
+
+        // Perform safe upgrade
+        Upgrades.upgradeProxy(
+            config.supplyCalculator,
+            "SupplyCalculator.sol:SupplyCalculator",
+            "", // No reinitializer
+            opts
+        );
+
+        address newImpl = Upgrades.getImplementationAddress(config.supplyCalculator);
+        console2.log("Upgraded SupplyCalculator implementation to: ", newImpl);
+
+        vm.stopBroadcast();
+
+        // Update deployment.toml with new implementation and store previous
+        _updateDeploymentConfig(deploymentKey, "supply-calculator-impl-prev", currentImpl);
+        _updateDeploymentConfig(deploymentKey, "supply-calculator-impl", newImpl);
+        _updateSupplyCalculatorCommit(deploymentKey);
+
+        // Verify upgrade
+        SupplyCalculator supplyCalculatorContract = SupplyCalculator(config.supplyCalculator);
+        console2.log(
+            "Proxy still points to SupplyCalculator: ", address(supplyCalculatorContract) == config.supplyCalculator
+        );
+        console2.log("Implementation updated: ", newImpl != config.supplyCalculatorImpl);
+        console2.log("ZKC token still configured: ", address(supplyCalculatorContract.zkc()) == config.zkc);
+        console2.log("================================================");
+        console2.log("SupplyCalculator Upgrade Complete");
         console2.log("New Implementation: ", newImpl);
     }
 }

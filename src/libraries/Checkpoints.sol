@@ -139,9 +139,7 @@ library Checkpoints {
         require(newRewardAmount >= 0, "Checkpoints: reward amount underflow");
 
         Point memory newUserPoint = Point({
-            votingAmount: uint256(newVotingAmount),
-            rewardAmount: uint256(newRewardAmount),
-            updatedAt: block.timestamp
+            votingAmount: uint256(newVotingAmount), rewardAmount: uint256(newRewardAmount), updatedAt: block.timestamp
         });
 
         // Update user checkpoint
