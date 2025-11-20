@@ -176,9 +176,8 @@ contract RollbackStakingRewards is BaseDeployment {
         require(_getCodeSize(config.stakingRewardsImplPrev) > 0, "Previous implementation has no code");
 
         // Perform rollback by directly upgrading to previous implementation (unsafe)
-        (bool success,) = config.stakingRewards.call(
-            abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.stakingRewardsImplPrev, "")
-        );
+        (bool success,) = config.stakingRewards
+            .call(abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.stakingRewardsImplPrev, ""));
         require(success, "Failed to rollback StakingRewards implementation");
 
         address rolledBackImpl = _getImplementationAddress(config.stakingRewards);
@@ -237,9 +236,8 @@ contract RollbackSupplyCalculator is BaseDeployment {
         require(_getCodeSize(config.supplyCalculatorImplPrev) > 0, "Previous implementation has no code");
 
         // Perform rollback by directly upgrading to previous implementation (unsafe)
-        (bool success,) = config.supplyCalculator.call(
-            abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.supplyCalculatorImplPrev, "")
-        );
+        (bool success,) = config.supplyCalculator
+            .call(abi.encodeWithSignature("upgradeToAndCall(address,bytes)", config.supplyCalculatorImplPrev, ""));
         require(success, "Failed to rollback SupplyCalculator implementation");
 
         address rolledBackImpl = _getImplementationAddress(config.supplyCalculator);

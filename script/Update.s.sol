@@ -1020,9 +1020,10 @@ contract RemoveSupplyCalculatorAdmin is BaseDeployment {
         // Safety check: Ensure at least one other admin will remain
         IAccessControl accessControl = IAccessControl(config.supplyCalculator);
 
-        address otherAdmin = (
-            config.supplyCalculatorAdmin != address(0) && config.supplyCalculatorAdmin != adminToRemove
-        ) ? config.supplyCalculatorAdmin : config.supplyCalculatorAdmin2;
+        address otherAdmin = (config.supplyCalculatorAdmin != address(0)
+                && config.supplyCalculatorAdmin != adminToRemove)
+            ? config.supplyCalculatorAdmin
+            : config.supplyCalculatorAdmin2;
         require(
             otherAdmin != adminToRemove && otherAdmin != address(0)
                 && accessControl.hasRole(supplyCalculatorContract.ADMIN_ROLE(), otherAdmin),
@@ -1269,9 +1270,10 @@ contract RemoveAdminAll is BaseDeployment {
         );
 
         // Check StakingRewards contract
-        address stakingOtherAdmin = (
-            config.stakingRewardsAdmin != address(0) && config.stakingRewardsAdmin != adminToRemove
-        ) ? config.stakingRewardsAdmin : config.stakingRewardsAdmin2;
+        address stakingOtherAdmin = (config.stakingRewardsAdmin != address(0)
+                && config.stakingRewardsAdmin != adminToRemove)
+            ? config.stakingRewardsAdmin
+            : config.stakingRewardsAdmin2;
         assert(stakingOtherAdmin != adminToRemove && stakingOtherAdmin != address(0));
         require(
             stakingOtherAdmin != address(0)

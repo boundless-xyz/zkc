@@ -308,10 +308,8 @@ contract veZKCHandler is Test {
         // Only record if this is a new timestamp and it's not block 0
         if (
             timestamp > 0
-                && (
-                    ghost_historicalTimestamps.length == 0
-                        || ghost_historicalTimestamps[ghost_historicalTimestamps.length - 1] < timestamp
-                )
+                && (ghost_historicalTimestamps.length == 0
+                    || ghost_historicalTimestamps[ghost_historicalTimestamps.length - 1] < timestamp)
         ) {
             ghost_historicalTimestamps.push(timestamp);
 

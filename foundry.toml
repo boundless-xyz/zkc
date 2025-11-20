@@ -40,9 +40,6 @@ fs_permissions = [
   { access = "read", path = "deployment_secrets.toml" }
 ]
 
-[fmt]
-line_length = 120
-
 # Invariant testing configuration
 [invariant]
 runs = 50                    # Faster execution while maintaining good coverage
