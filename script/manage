@@ -592,7 +592,7 @@ main() {
             forge_script "RemovePOVWMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         update-supply-calculator)
-            forge_script "UpdateSupplyCalculatorUnlocked" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            forge_script "UpdateSupplyCalculatorLocked" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         add-zkc-admin)
             forge_script "AddZKCAdmin" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
