@@ -544,6 +544,8 @@ contract UpgradeSupplyCalculator is BaseDeployment {
         );
         console2.log("Implementation updated: ", newImpl != config.supplyCalculatorImpl);
         console2.log("ZKC token still configured: ", address(supplyCalculatorContract.zkc()) == config.zkc);
+        console2.log("Circulating supply: ", supplyCalculatorContract.circulatingSupply());
+        console2.log("Circulating supply (in tokens): ", supplyCalculatorContract.circulatingSupply() / 10 ** 18);
         console2.log("================================================");
         console2.log("SupplyCalculator Upgrade Complete");
         console2.log("New Implementation: ", newImpl);

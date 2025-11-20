@@ -249,27 +249,29 @@ contract UpdateSupplyCalculatorUnlocked is BaseDeployment {
         console2.log("Current circulating supply (in tokens): ", currentCirculatingSupply / 10 ** 18);
         console2.log("================================================");
 
+        // Calculate new unlocked value from new locked value
+        uint256 newUnlocked = Supply.INITIAL_SUPPLY - newLocked;
+
         if (gnosisExecute) {
             // Print Gnosis Safe transaction info for manual execution
-            _printGnosisSafeInfo(config.supplyCalculator, newUnlocked);
+            _printGnosisSafeInfo(config.supplyCalculator, newLocked);
 
             // Calculate expected new values for display
-            uint256 expectedNewUnlocked = Supply.INITIAL_SUPPLY - newLocked;
-            uint256 expectedNewCirculatingSupply = currentCirculatingSupply - currentUnlocked + expectedNewUnlocked;
+            uint256 expectedNewCirculatingSupply = currentCirculatingSupply - currentUnlocked + newUnlocked;
 
             console2.log("Expected after update:");
             console2.log("New locked amount: ", newLocked);
             console2.log("New locked amount (in tokens): ", newLocked / 10 ** 18);
-            console2.log("New unlocked amount: ", expectedNewUnlocked);
-            console2.log("New unlocked amount (in tokens): ", expectedNewUnlocked / 10 ** 18);
+            console2.log("New unlocked amount: ", newUnlocked);
+            console2.log("New unlocked amount (in tokens): ", newUnlocked / 10 ** 18);
             console2.log("New circulating supply: ", expectedNewCirculatingSupply);
             console2.log("New circulating supply (in tokens): ", expectedNewCirculatingSupply / 10 ** 18);
             console2.log("================================================");
         } else {
             vm.startBroadcast();
 
-            // Update the unlocked value
-            supplyCalculator.updateUnlockedValue(newUnlocked);
+            // Update the locked value (which will also update unlocked)
+            supplyCalculator.updateLockedValue(newLocked);
 
             // Get updated values
             uint256 updatedUnlocked = supplyCalculator.unlocked();
@@ -298,8 +300,8 @@ contract UpdateSupplyCalculatorUnlocked is BaseDeployment {
 
     /// @notice Print Gnosis Safe transaction information for manual updates
     /// @param targetAddress The SupplyCalculator contract address (target for Gnosis Safe)
-    /// @param newUnlocked The new unlocked value to set
-    function _printGnosisSafeInfo(address targetAddress, uint256 newUnlocked) internal pure {
+    /// @param newLocked The new locked value to set
+    function _printGnosisSafeInfo(address targetAddress, uint256 newLocked) internal pure {
         console2.log("================================");
         console2.log("================================");
         console2.log("=== GNOSIS SAFE UPDATE INFO ===");

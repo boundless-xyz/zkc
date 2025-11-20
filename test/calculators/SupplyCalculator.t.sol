@@ -76,12 +76,17 @@ contract SupplyCalculatorTest is Test {
     function testInitialization() public view {
         assertEq(address(supplyCalculator.zkc()), address(zkc));
         assertEq(supplyCalculator.unlocked(), INITIAL_UNLOCKED);
+        assertEq(supplyCalculator.locked(), zkc.INITIAL_SUPPLY() - INITIAL_UNLOCKED);
         assertTrue(supplyCalculator.hasRole(supplyCalculator.ADMIN_ROLE(), owner));
     }
 
     function testCirculatingSupplyAfterInitialMint() public {
-        // Circulating supply should be just unlocked since total minted (1B)
+        // Circulating supply = claimedTotalSupply - locked
+        // claimedTotalSupply = INITIAL_SUPPLY (1B), locked = INITIAL_SUPPLY - INITIAL_UNLOCKED
+        uint256 claimedTotal = zkc.claimedTotalSupply();
+        uint256 expectedCirculating = claimedTotal - supplyCalculator.locked();
         uint256 circulatingSupply = supplyCalculator.circulatingSupply();
+        assertEq(circulatingSupply, expectedCirculating);
         assertEq(circulatingSupply, INITIAL_UNLOCKED);
     }
 
@@ -99,13 +104,18 @@ contract SupplyCalculatorTest is Test {
         vm.prank(stakingMinter);
         zkc.mintStakingRewardsForRecipient(user, stakingRewards);
 
-        uint256 expectedCirculating = INITIAL_UNLOCKED + povwRewards + stakingRewards;
+        // Circulating supply = claimedTotalSupply - locked
+        uint256 claimedTotal = zkc.claimedTotalSupply();
+        uint256 expectedCirculating = claimedTotal - supplyCalculator.locked();
         uint256 circulatingSupply = supplyCalculator.circulatingSupply();
         assertEq(circulatingSupply, expectedCirculating);
+        // Verify it matches: INITIAL_UNLOCKED + rewards
+        assertEq(circulatingSupply, INITIAL_UNLOCKED + povwRewards + stakingRewards);
     }
 
     function testUpdateUnlockedValue() public {
         uint256 newUnlocked = 750_000_000e18; // 750M tokens
+        uint256 expectedLocked = zkc.INITIAL_SUPPLY() - newUnlocked;
 
         vm.expectEmit(true, true, true, true);
         emit SupplyCalculator.UnlockedValueUpdated(INITIAL_UNLOCKED, newUnlocked);
@@ -113,10 +123,14 @@ contract SupplyCalculatorTest is Test {
         supplyCalculator.updateUnlockedValue(newUnlocked);
 
         assertEq(supplyCalculator.unlocked(), newUnlocked);
+        assertEq(supplyCalculator.locked(), expectedLocked);
+        // Verify synchronization: locked + unlocked = INITIAL_SUPPLY
+        assertEq(supplyCalculator.locked() + supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY());
 
         // Check circulating supply updated correctly
         uint256 circulatingSupply = supplyCalculator.circulatingSupply();
-        assertEq(circulatingSupply, newUnlocked);
+        uint256 claimedTotal = zkc.claimedTotalSupply();
+        assertEq(circulatingSupply, claimedTotal - supplyCalculator.locked());
     }
 
     function testUpdateUnlockedValueAccessControl() public {
@@ -131,6 +145,7 @@ contract SupplyCalculatorTest is Test {
         vm.prank(owner);
         supplyCalculator.updateUnlockedValue(newUnlocked);
         assertEq(supplyCalculator.unlocked(), newUnlocked);
+        assertEq(supplyCalculator.locked(), zkc.INITIAL_SUPPLY() - newUnlocked);
     }
 
     function testUpgradeAccessControl() public {
@@ -161,9 +176,13 @@ contract SupplyCalculatorTest is Test {
         vm.prank(user);
         zkc.burn(burnAmount);
 
-        uint256 expectedCirculating = INITIAL_UNLOCKED + rewards - burnAmount;
+        // Circulating supply = claimedTotalSupply - locked
+        uint256 claimedTotal = zkc.claimedTotalSupply();
+        uint256 expectedCirculating = claimedTotal - supplyCalculator.locked();
         uint256 circulatingSupply = supplyCalculator.circulatingSupply();
         assertEq(circulatingSupply, expectedCirculating);
+        // Verify it matches: INITIAL_UNLOCKED + rewards - burned
+        assertEq(circulatingSupply, INITIAL_UNLOCKED + rewards - burnAmount);
     }
 
     function testCirculatingSupplyRounded() public {
@@ -232,5 +251,60 @@ contract SupplyCalculatorTest is Test {
 
         assertEq(rounded18dp, 1001234568000000000000000000);
         assertEq(roundedAmount, 1001234568);
+    }
+
+    function testUpdateLockedValue() public {
+        uint256 newLocked = 794_546_893e18; // 794,546,893 tokens
+        uint256 expectedUnlocked = zkc.INITIAL_SUPPLY() - newLocked;
+
+        vm.expectEmit(true, true, true, true);
+        emit SupplyCalculator.LockedValueUpdated(supplyCalculator.locked(), newLocked);
+        vm.prank(owner);
+        supplyCalculator.updateLockedValue(newLocked);
+
+        assertEq(supplyCalculator.locked(), newLocked);
+        assertEq(supplyCalculator.unlocked(), expectedUnlocked);
+        // Verify synchronization: locked + unlocked = INITIAL_SUPPLY
+        assertEq(supplyCalculator.locked() + supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY());
+
+        // Check circulating supply updated correctly
+        uint256 claimedTotal = zkc.claimedTotalSupply();
+        uint256 circulatingSupply = supplyCalculator.circulatingSupply();
+        assertEq(circulatingSupply, claimedTotal - newLocked);
+    }
+
+    function testUpdateLockedValueAccessControl() public {
+        uint256 newLocked = 750_000_000e18;
+
+        // Non-admin should not be able to update
+        vm.prank(user);
+        vm.expectRevert();
+        supplyCalculator.updateLockedValue(newLocked);
+
+        // Admin should be able to update
+        vm.prank(owner);
+        supplyCalculator.updateLockedValue(newLocked);
+        assertEq(supplyCalculator.locked(), newLocked);
+        assertEq(supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY() - newLocked);
+    }
+
+    function testSynchronizationBetweenLockedAndUnlocked() public {
+        // Test that updating unlocked syncs locked
+        uint256 newUnlocked = 300_000_000e18;
+        vm.prank(owner);
+        supplyCalculator.updateUnlockedValue(newUnlocked);
+        
+        assertEq(supplyCalculator.unlocked(), newUnlocked);
+        assertEq(supplyCalculator.locked(), zkc.INITIAL_SUPPLY() - newUnlocked);
+        assertEq(supplyCalculator.locked() + supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY());
+
+        // Test that updating locked syncs unlocked
+        uint256 newLocked = 600_000_000e18;
+        vm.prank(owner);
+        supplyCalculator.updateLockedValue(newLocked);
+        
+        assertEq(supplyCalculator.locked(), newLocked);
+        assertEq(supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY() - newLocked);
+        assertEq(supplyCalculator.locked() + supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY());
     }
 }
