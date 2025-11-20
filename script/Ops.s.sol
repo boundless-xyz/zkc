@@ -27,7 +27,7 @@ contract Dev_InitialMintToSelf is BaseDeployment {
     function run() public {
         vm.startBroadcast();
 
-        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        (DeploymentConfig memory config,) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.zkc != address(0), "ZKC address not set in deployment.toml");
 
         uint256 mintAmount = vm.envUint("MINT_AMOUNT");
