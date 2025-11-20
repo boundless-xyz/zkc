@@ -101,44 +101,6 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
 
         return newImpl;
     }
-
-    /// @notice Print Gnosis Safe transaction information for manual upgrades
-    /// @param proxyAddress The proxy contract address (target for Gnosis Safe)
-    /// @param newImpl The new implementation address
-    /// @param initializerData The initializer call data (if any)
-    function _printGnosisSafeInfo(address proxyAddress, address newImpl, bytes memory initializerData) internal pure {
-        console2.log("================================");
-        console2.log("================================");
-        console2.log("=== GNOSIS SAFE UPGRADE INFO ===");
-        console2.log("Target Address (To): ", proxyAddress);
-
-        if (initializerData.length > 0) {
-            // For upgradeToAndCall
-            bytes memory callData = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", newImpl, initializerData);
-            console2.log("Function: upgradeToAndCall(address,bytes)");
-            console2.log("New Implementation: ", newImpl);
-            console2.log("Calldata:");
-            console2.logBytes(callData);
-            console2.log("");
-            console2.log("Expected Events on Successful Execution:");
-            console2.log("1. Upgraded(address indexed implementation)");
-            console2.log("   - implementation: ", newImpl);
-            console2.log("2. Initialized(uint8 version)");
-            console2.log("   - version: depends on initializer function");
-        } else {
-            // For upgradeTo
-            bytes memory callData = abi.encodeWithSignature("upgradeTo(address)", newImpl);
-            console2.log("Function: upgradeTo(address)");
-            console2.log("New Implementation: ", newImpl);
-            console2.log("Calldata:");
-            console2.logBytes(callData);
-            console2.log("");
-            console2.log("Expected Events on Successful Execution:");
-            console2.log("1. Upgraded(address indexed implementation)");
-            console2.log("   - implementation: ", newImpl);
-        }
-        console2.log("================================");
-    }
 }
 
 contract UpgradeZKC is BaseZKCUpgrade {
@@ -428,9 +390,8 @@ contract UpgradeStakingRewards is BaseDeployment {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.stakingRewards != address(0), "StakingRewards not deployed");
 
-        vm.startBroadcast();
-
-        // Check for skip safety checks flag
+        // Check for deployment mode flags
+        bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
         bool skipSafetyChecks = vm.envOr("SKIP_SAFETY_CHECKS", false);
 
         // Prepare upgrade options with reference contract
@@ -450,39 +411,69 @@ contract UpgradeStakingRewards is BaseDeployment {
             console2.log("Using reference build directory: ", referenceBuildDir);
         }
 
-        console2.log("Upgrading StakingRewards at: ", config.stakingRewards);
         address currentImpl = _getImplementationAddress(config.stakingRewards);
-        console2.log("Current implementation: ", currentImpl);
+        address newImpl;
 
-        // Perform safe upgrade
-        Upgrades.upgradeProxy(
-            config.stakingRewards,
-            "StakingRewards.sol:StakingRewards",
-            "", // No reinitializer
-            opts
-        );
+        if (gnosisExecute) {
+            console2.log("GNOSIS_EXECUTE=true: Deploying new implementation for Safe upgrade");
+            console2.log("Target proxy address: ", config.stakingRewards);
+            console2.log("Current implementation: ", currentImpl);
 
-        address newImpl = Upgrades.getImplementationAddress(config.stakingRewards);
-        console2.log("Upgraded StakingRewards implementation to: ", newImpl);
+            vm.startBroadcast();
 
-        vm.stopBroadcast();
+            // Use prepareUpgrade for validation + deployment
+            newImpl = Upgrades.prepareUpgrade("StakingRewards.sol:StakingRewards", opts);
+            console2.log("New implementation deployed: ", newImpl);
+
+            vm.stopBroadcast();
+
+            // Print Gnosis Safe transaction info
+            _printGnosisSafeInfo(config.stakingRewards, newImpl, "");
+        } else {
+            console2.log("Upgrading StakingRewards at: ", config.stakingRewards);
+            console2.log("Current implementation: ", currentImpl);
+
+            vm.startBroadcast();
+
+            // Perform safe upgrade
+            Upgrades.upgradeProxy(
+                config.stakingRewards,
+                "StakingRewards.sol:StakingRewards",
+                "", // No reinitializer
+                opts
+            );
+
+            newImpl = Upgrades.getImplementationAddress(config.stakingRewards);
+            console2.log("Upgraded StakingRewards implementation to: ", newImpl);
+
+            vm.stopBroadcast();
+        }
 
         // Update deployment.toml with new implementation and store previous
         _updateDeploymentConfig(deploymentKey, "staking-rewards-impl-prev", currentImpl);
         _updateDeploymentConfig(deploymentKey, "staking-rewards-impl", newImpl);
         _updateStakingRewardsCommit(deploymentKey);
 
-        // Verify upgrade
-        StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);
-        console2.log("Proxy still points to StakingRewards: ", address(stakingRewardsContract) == config.stakingRewards);
-        console2.log("Implementation updated: ", newImpl != config.stakingRewardsImpl);
-        console2.log("ZKC configured: ", address(stakingRewardsContract.zkc()));
-        console2.log("veZKC configured: ", address(stakingRewardsContract.veZKC()));
-        console2.log("ZKC token still configured: ", address(stakingRewardsContract.zkc()) == config.zkc);
-        console2.log("veZKC still configured: ", address(stakingRewardsContract.veZKC()) == config.veZKC);
-        console2.log("================================================");
-        console2.log("StakingRewards Upgrade Complete");
-        console2.log("New Implementation: ", newImpl);
+        // Verify results
+        if (gnosisExecute) {
+            console2.log("================================================");
+            console2.log("StakingRewards Implementation Deployment Complete");
+            console2.log("New Implementation: ", newImpl);
+            console2.log("Proxy NOT upgraded - use Gnosis Safe to complete upgrade");
+        } else {
+            StakingRewards stakingRewardsContract = StakingRewards(config.stakingRewards);
+            console2.log(
+                "Proxy still points to StakingRewards: ", address(stakingRewardsContract) == config.stakingRewards
+            );
+            console2.log("Implementation updated: ", newImpl != config.stakingRewardsImpl);
+            console2.log("ZKC configured: ", address(stakingRewardsContract.zkc()));
+            console2.log("veZKC configured: ", address(stakingRewardsContract.veZKC()));
+            console2.log("ZKC token still configured: ", address(stakingRewardsContract.zkc()) == config.zkc);
+            console2.log("veZKC still configured: ", address(stakingRewardsContract.veZKC()) == config.veZKC);
+            console2.log("================================================");
+            console2.log("StakingRewards Upgrade Complete");
+            console2.log("New Implementation: ", newImpl);
+        }
     }
 }
 
