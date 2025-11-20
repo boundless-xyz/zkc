@@ -132,10 +132,10 @@ abstract contract BaseDeployment is Script {
     }
 
     /**
-     * @notice Updates the CirculatingZKC contract commit hash in deployment.toml via FFI
+     * @notice Updates the SupplyCalculator contract commit hash in deployment.toml via FFI
      * @param deploymentKey The chain key (e.g., "anvil", "ethereum-mainnet")
      */
-    function _updateCirculatingZKCCommit(string memory deploymentKey) internal {
+    function _updateSupplyCalculatorCommit(string memory deploymentKey) internal {
         string[] memory args = new string[](4);
         args[0] = "git";
         args[1] = "rev-parse";
@@ -145,13 +145,13 @@ abstract contract BaseDeployment is Script {
         bytes memory result = vm.ffi(args);
         string memory commit = string(result);
 
-        // Update deployment.toml with CirculatingZKC commit
+        // Update deployment.toml with SupplyCalculator commit
         string[] memory updateArgs = new string[](6);
         updateArgs[0] = "python3";
         updateArgs[1] = "update_deployment_toml.py";
         updateArgs[2] = "--chain-key";
         updateArgs[3] = deploymentKey;
-        updateArgs[4] = "--circulating-zkc-commit";
+        updateArgs[4] = "--supply-calculator-commit";
         updateArgs[5] = commit;
 
         vm.ffi(updateArgs);

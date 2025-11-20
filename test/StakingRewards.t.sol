@@ -263,8 +263,8 @@ contract StakingRewardsTest is Test {
         epochs[0] = 2;
         epochs[1] = 0;
         epochs[2] = 1;
-        uint256 expected =
-            zkc.getStakingEmissionsForEpoch(0) + zkc.getStakingEmissionsForEpoch(1) + zkc.getStakingEmissionsForEpoch(2);
+        uint256 expected = zkc.getStakingEmissionsForEpoch(0) + zkc.getStakingEmissionsForEpoch(1)
+            + zkc.getStakingEmissionsForEpoch(2);
         uint256[] memory calc = rewards.calculateRewards(user1, epochs);
         uint256 sum;
         for (uint256 i; i < calc.length; ++i) {
@@ -435,7 +435,8 @@ contract StakingRewardsTest is Test {
         );
         assertEq(
             selfClaimed + recipientClaimed,
-            zkc.getStakingEmissionsForEpoch(0) + zkc.getStakingEmissionsForEpoch(1) + zkc.getStakingEmissionsForEpoch(2),
+            zkc.getStakingEmissionsForEpoch(0) + zkc.getStakingEmissionsForEpoch(1)
+                + zkc.getStakingEmissionsForEpoch(2),
             "Total claimed should equal all emissions"
         );
     }

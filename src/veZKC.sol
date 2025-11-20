@@ -20,15 +20,7 @@ import {ZKC} from "./ZKC.sol";
 
 /// @title veZKC - Vote Escrowed ZK Coin
 /// @notice Staking contracts for ZKC, granting voting and reward power.
-contract veZKC is
-    Initializable,
-    AccessControlUpgradeable,
-    UUPSUpgradeable,
-    EIP712Upgradeable,
-    Votes,
-    Rewards,
-    Staking
-{
+contract veZKC is Initializable, AccessControlUpgradeable, UUPSUpgradeable, EIP712Upgradeable, Votes, Rewards, Staking {
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
 
     /// @notice Returns the ZKC token address
