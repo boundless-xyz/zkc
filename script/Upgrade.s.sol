@@ -542,3 +542,129 @@ contract UpgradeSupplyCalculator is BaseDeployment {
         console2.log("New Implementation: ", newImpl);
     }
 }
+
+/**
+ * Sample Usage for SupplyCalculator upgrade with initializeV2:
+ *
+ * # Option 1: Safe upgrade with reference build (recommended)
+ * # First, create reference build from deployed SupplyCalculator commit:
+ * export DEPLOYED_COMMIT=$(python3 -c "import tomlkit; print(tomlkit.load(open('deployment.toml'))['deployment']['$CHAIN_KEY']['supply-calculator-commit'])")
+ * WORKTREE_PATH="../supply-calculator-reference-${DEPLOYED_COMMIT}"
+ * git worktree add "$WORKTREE_PATH" "$DEPLOYED_COMMIT"
+ * cd "$WORKTREE_PATH"
+ * forge build --profile reference
+ * cp -R out-reference/build-info "$OLDPWD/build-info-reference"
+ * cd "$OLDPWD"
+ *
+ * # Then run upgrade:
+ * export CHAIN_KEY="anvil"
+ * export INITIAL_LOCKED=500000000000000000000000000  # 500M ZKC in wei
+ * forge script script/Upgrade.s.sol:UpgradeSupplyCalculatorInitV2 \
+ *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+ *     --broadcast \
+ *     --rpc-url http://127.0.0.1:8545
+ */
+contract UpgradeSupplyCalculatorInitV2 is BaseDeployment {
+    function run() public {
+        (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
+        require(config.supplyCalculator != address(0), "SupplyCalculator not deployed");
+
+        // Read initial locked value from environment variable
+        uint256 initialLocked = vm.envUint("INITIAL_LOCKED");
+        console2.log("Initial locked value: ", initialLocked);
+        console2.log("Initial locked (in tokens): ", initialLocked / 10 ** 18);
+
+        vm.startBroadcast();
+
+        // Check for skip safety checks flag
+        bool skipSafetyChecks = vm.envOr("SKIP_SAFETY_CHECKS", false);
+
+        // Prepare upgrade options with reference contract
+        Options memory opts;
+
+        if (skipSafetyChecks) {
+            console2.log("WARNING: Skipping all upgrade safety checks and reference build!");
+            opts.unsafeSkipAllChecks = true;
+        } else {
+            // Get the SupplyCalculator commit hash from deployment config for commit-specific reference build
+            string memory supplyCalculatorCommit = config.supplyCalculatorCommit;
+            require(
+                bytes(supplyCalculatorCommit).length > 0, "SupplyCalculator commit hash not found in deployment config"
+            );
+
+            string memory referenceBuildDir = string.concat("build-info-reference-", supplyCalculatorCommit);
+            opts.referenceContract = string.concat(referenceBuildDir, ":SupplyCalculator");
+            opts.referenceBuildInfoDir = referenceBuildDir;
+            console2.log("Using reference build directory: ", referenceBuildDir);
+        }
+
+        address currentImpl = _getImplementationAddress(config.supplyCalculator);
+        bytes memory initializerData = abi.encodeCall(SupplyCalculator.initializeV2, (initialLocked));
+        address newImpl;
+
+        // Check for deployment mode flags
+        bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
+
+        if (gnosisExecute) {
+            console2.log("GNOSIS_EXECUTE=true: Deploying new implementation for Safe upgrade");
+            console2.log("Target proxy address: ", config.supplyCalculator);
+            console2.log("Current implementation: ", currentImpl);
+
+            // Use prepareUpgrade for validation + deployment
+            newImpl = Upgrades.prepareUpgrade("SupplyCalculator.sol:SupplyCalculator", opts);
+            console2.log("New implementation deployed: ", newImpl);
+
+            // Print Gnosis Safe transaction info
+            _printGnosisSafeInfo(config.supplyCalculator, newImpl, initializerData);
+        } else {
+            console2.log("Upgrading SupplyCalculator at: ", config.supplyCalculator);
+            console2.log("Current implementation: ", currentImpl);
+
+            // Perform upgrade with initializeV2 initializer
+            Upgrades.upgradeProxy(config.supplyCalculator, "SupplyCalculator.sol:SupplyCalculator", initializerData, opts);
+
+            newImpl = Upgrades.getImplementationAddress(config.supplyCalculator);
+            console2.log("Upgraded SupplyCalculator implementation to: ", newImpl);
+        }
+
+        vm.stopBroadcast();
+
+        // Update deployment.toml with new implementation and store previous
+        _updateDeploymentConfig(deploymentKey, "supply-calculator-impl-prev", currentImpl);
+        _updateDeploymentConfig(deploymentKey, "supply-calculator-impl", newImpl);
+        _updateSupplyCalculatorCommit(deploymentKey);
+
+        // Print Gnosis Safe transaction info (only if not in GNOSIS_EXECUTE mode)
+        if (!gnosisExecute) {
+            _printGnosisSafeInfo(config.supplyCalculator, newImpl, initializerData);
+        }
+
+        // Verify results
+        if (gnosisExecute) {
+            console2.log("================================================");
+            console2.log("SupplyCalculator Implementation Deployment Complete");
+            console2.log("New Implementation: ", newImpl);
+            console2.log("Proxy NOT upgraded - use Gnosis Safe to complete upgrade");
+            console2.log("Note: initializeV2 will be called when Safe executes upgrade");
+        } else {
+            SupplyCalculator supplyCalculatorContract = SupplyCalculator(config.supplyCalculator);
+            console2.log(
+                "Proxy still points to SupplyCalculator: ", address(supplyCalculatorContract) == config.supplyCalculator
+            );
+            console2.log("Implementation updated: ", newImpl != config.supplyCalculatorImpl);
+            console2.log("ZKC token still configured: ", address(supplyCalculatorContract.zkc()) == config.zkc);
+            console2.log("Claimed total supply: ", supplyCalculatorContract.zkc().claimedTotalSupply());
+            console2.log("Claimed total supply (in tokens): ", supplyCalculatorContract.zkc().claimedTotalSupply() / 10 ** 18);
+            console2.log("Locked value: ", supplyCalculatorContract.locked());
+            console2.log("Locked value (in tokens): ", supplyCalculatorContract.locked() / 10 ** 18);
+            console2.log("Unlocked value: ", supplyCalculatorContract.unlocked());
+            console2.log("Unlocked value (in tokens): ", supplyCalculatorContract.unlocked() / 10 ** 18);
+            console2.log("Circulating supply: ", supplyCalculatorContract.circulatingSupply());
+            console2.log("Circulating supply (in tokens): ", supplyCalculatorContract.circulatingSupply() / 10 ** 18);
+            console2.log("initializeV2 called during upgrade");
+            console2.log("================================================");
+            console2.log("SupplyCalculator Upgrade with InitV2 Complete");
+            console2.log("New Implementation: ", newImpl);
+        }
+    }
+}

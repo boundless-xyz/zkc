@@ -56,6 +56,22 @@ contract SupplyCalculator is Initializable, AccessControlUpgradeable, UUPSUpgrad
         _grantRole(ADMIN_ROLE, _admin);
     }
 
+    /// @notice Initialize V2: Set locked value directly
+    /// @param newLocked Initial value for the locked tokens
+    /// @dev Sets locked to specified value and unlocked to INITIAL_SUPPLY - locked
+    function initializeV2(uint256 newLocked) public reinitializer(2) {
+        require(newLocked <= Supply.INITIAL_SUPPLY, "Locked cannot exceed initial supply");
+        
+        uint256 oldLocked = locked;
+        uint256 oldUnlocked = unlocked;
+        
+        locked = newLocked;
+        unlocked = Supply.INITIAL_SUPPLY - newLocked;
+        
+        emit LockedValueUpdated(oldLocked, locked);
+        emit UnlockedValueUpdated(oldUnlocked, unlocked);
+    }
+
     /// @notice Calculate the current circulating supply
     /// @dev Formula: claimedTotalSupply - locked
     /// @return The current circulating supply of ZKC tokens
