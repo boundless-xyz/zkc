@@ -7,6 +7,11 @@ load_env_var() {
     local var_name="$2"
     local file="${3:-deployment.toml}"
     
+    # If environment variable is already set, don't override it
+    if [[ -n "${!var_name:-}" ]]; then
+        return
+    fi
+    
     # Try secrets file first if it exists
     if [[ -f "deployment_secrets.toml" ]] && [[ "$file" == "deployment_secrets.toml" ]]; then
         value=$(python3 -c "
@@ -267,6 +272,7 @@ Commands:
   upgrade-vezkc          Upgrade veZKC implementation
   upgrade-staking        Upgrade StakingRewards implementation
   upgrade-supply-calculator  Upgrade SupplyCalculator implementation
+  upgrade-supply-calculator-initv2  Upgrade SupplyCalculator and call initializeV2
   rollback-zkc           Rollback ZKC to previous implementation
   rollback-vezkc         Rollback veZKC to previous implementation
   rollback-staking       Rollback StakingRewards to previous implementation
@@ -298,6 +304,7 @@ Environment Variables:
   PRIVATE_KEY            Required. Private key for transaction signing (0x...)
   GNOSIS_EXECUTE         Optional. Set to 'true' to generate Gnosis Safe calldata without executing transactions
   SKIP_SAFETY_CHECKS     Optional. Set to 'true' to skip upgrade safety checks (WARNING: unsafe!)
+  INITIAL_LOCKED         Required for upgrade-supply-calculator-initv2. Locked value in wei (e.g., 794546893000000000000000000)
   ADMIN_TO_ADD           Required for add-*-admin commands. Admin address to grant role to (0x...)
   ADMIN_TO_REMOVE        Required for remove-*-admin commands. Admin address to revoke role from (0x...)
   
@@ -313,6 +320,9 @@ Examples:
   SALT="0x0000000000000000000000000000000000000000000000000000000000000001" \
   ADMIN="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" \
   script/manage deploy-zkc --broadcast
+  
+  # Upgrade SupplyCalculator and call initializeV2
+  PRIVATE_KEY=0x... INITIAL_LOCKED=794546893000000000000000000 CHAIN_KEY=anvil ./script/manage upgrade-supply-calculator-initv2 --broadcast
   
   # Deploy veZKC to sepolia with Fireblocks (requires ZKC already deployed)
   PRIVATE_KEY=0x... CHAIN_KEY=ethereum-sepolia ./script/manage deploy-vezkc --fireblocks --broadcast --verify
@@ -340,6 +350,9 @@ Examples:
 
   # Upgrade SupplyCalculator on mainnet with verification
   PRIVATE_KEY=0x... CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-supply-calculator --broadcast --verify
+  
+  # Upgrade SupplyCalculator and call initializeV2
+  PRIVATE_KEY=0x... INITIAL_LOCKED=794546893000000000000000000 CHAIN_KEY=anvil ./script/manage upgrade-supply-calculator-initv2 --broadcast
 
   # Rollback ZKC to previous implementation
   PRIVATE_KEY=0x... CHAIN_KEY=anvil ./script/manage rollback-zkc --broadcast
@@ -466,6 +479,12 @@ main() {
     load_env_var "etherscan-api-key" "ETHERSCAN_API_KEY" "deployment_secrets.toml"
     load_env_var "id" "CHAIN_ID"
     
+    # Use ETH_RPC_URL as fallback if RPC_URL is not set
+    if [[ -z "${RPC_URL:-}" ]] && [[ -n "${ETH_RPC_URL:-}" ]]; then
+        RPC_URL="$ETH_RPC_URL"
+        echo "📝 Using ETH_RPC_URL as RPC_URL"
+    fi
+    
     # PRIVATE_KEY must be set as environment variable
     if [[ -z "${PRIVATE_KEY:-}" ]]; then
         echo "❌ PRIVATE_KEY environment variable is required"
@@ -481,6 +500,7 @@ main() {
     # Verify required configuration
     if [[ -z "${RPC_URL:-}" ]]; then
         echo "❌ RPC URL not configured for $CHAIN_KEY"
+        echo "   Set RPC_URL or ETH_RPC_URL environment variable, or configure in deployment_secrets.toml"
         exit 1
     fi
     
@@ -491,7 +511,34 @@ main() {
     
     # Verify chain ID matches RPC
     echo "🔍 Verifying chain configuration..."
-    actual_chain_id=$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null || echo "")
+    echo "   RPC URL: $RPC_URL"
+    echo "   Expected Chain ID: $CHAIN_ID"
+    echo "   Querying RPC..."
+    
+    actual_chain_id=$(cast chain-id --rpc-url "$RPC_URL" 2>&1)
+    cast_exit_code=$?
+    
+    if [[ $cast_exit_code -ne 0 ]]; then
+        echo "❌ Failed to query chain ID from RPC:"
+        echo "   Exit code: $cast_exit_code"
+        echo "   Error output: $actual_chain_id"
+        echo ""
+        echo "   Troubleshooting:"
+        echo "   - Verify your RPC URL is correct and accessible"
+        echo "   - Check your network connection"
+        echo "   - Ensure the RPC endpoint is responding"
+        exit 1
+    fi
+    
+    if [[ -z "$actual_chain_id" ]]; then
+        echo "❌ Chain ID query returned empty result"
+        echo "   Please verify your RPC URL is correct and accessible"
+        exit 1
+    fi
+    
+    # Trim whitespace from chain ID
+    actual_chain_id=$(echo "$actual_chain_id" | xargs)
+    
     if [[ "$actual_chain_id" != "$CHAIN_ID" ]]; then
         echo "❌ Chain ID mismatch:"
         echo "   Expected: $CHAIN_ID (from deployment.toml)"
@@ -518,7 +565,7 @@ main() {
                 upgrade-staking)
                     contract_type="staking"
                     ;;
-                upgrade-supply-calculator)
+                upgrade-supply-calculator|upgrade-supply-calculator-initv2)
                     contract_type="supply-calculator"
                     ;;
                 *)
@@ -570,6 +617,9 @@ main() {
         upgrade-supply-calculator)
             forge_script "UpgradeSupplyCalculator" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
+        upgrade-supply-calculator-initv2)
+            forge_script "UpgradeSupplyCalculatorInitV2" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            ;;
         rollback-zkc)
             forge_script "RollbackZKC" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
@@ -592,7 +642,7 @@ main() {
             forge_script "RemovePOVWMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         update-supply-calculator)
-            forge_script "UpdateSupplyCalculatorUnlocked" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
+            forge_script "UpdateSupplyCalculatorLocked" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         add-zkc-admin)
             forge_script "AddZKCAdmin" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"

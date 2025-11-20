@@ -21,10 +21,18 @@ contract SupplyCalculator is Initializable, AccessControlUpgradeable, UUPSUpgrad
     /// @notice Amount of tokens considered unlocked and in circulation
     uint256 public unlocked;
 
+    /// @notice Amount of tokens considered locked and not in circulation
+    uint256 public locked;
+
     /// @notice Emitted when the unlocked value is updated
     /// @param oldValue The previous unlocked value
     /// @param newValue The new unlocked value
     event UnlockedValueUpdated(uint256 oldValue, uint256 newValue);
+
+    /// @notice Emitted when the locked value is updated
+    /// @param oldValue The previous locked value
+    /// @param newValue The new locked value
+    event LockedValueUpdated(uint256 oldValue, uint256 newValue);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -44,21 +52,32 @@ contract SupplyCalculator is Initializable, AccessControlUpgradeable, UUPSUpgrad
 
         zkc = IZKC(_zkc);
         unlocked = _initialUnlocked;
+        locked = Supply.INITIAL_SUPPLY - _initialUnlocked;
         _grantRole(ADMIN_ROLE, _admin);
     }
 
+    /// @notice Initialize V2: Set locked value directly
+    /// @param newLocked Initial value for the locked tokens
+    /// @dev Sets locked to specified value and unlocked to INITIAL_SUPPLY - locked
+    function initializeV2(uint256 newLocked) public reinitializer(2) {
+        require(newLocked <= Supply.INITIAL_SUPPLY, "Locked cannot exceed initial supply");
+        
+        uint256 oldLocked = locked;
+        uint256 oldUnlocked = unlocked;
+        
+        locked = newLocked;
+        unlocked = Supply.INITIAL_SUPPLY - newLocked;
+        
+        emit LockedValueUpdated(oldLocked, locked);
+        emit UnlockedValueUpdated(oldUnlocked, unlocked);
+    }
+
     /// @notice Calculate the current circulating supply
-    /// @dev Formula: unlocked + (zkc.claimedTotalSupply() - zkc.INITIAL_SUPPLY())
-    /// @dev Essentially, unlocked tokens from the initial mint + claimed rewards from PoVW and staking rewards
+    /// @dev Formula: claimedTotalSupply - locked
     /// @return The current circulating supply of ZKC tokens
     function circulatingSupply() public view returns (uint256) {
         uint256 claimedTotal = zkc.claimedTotalSupply();
-        uint256 initialSupply = Supply.INITIAL_SUPPLY;
-
-        // Calculate the claimed rewards from PoVW and staking rewards
-        uint256 claimedRewards = claimedTotal - initialSupply;
-
-        return unlocked + claimedRewards;
+        return claimedTotal - locked;
     }
 
     /// @notice Calculate the current circulating supply rounded to the nearest whole token (18dp representation)
@@ -160,11 +179,24 @@ contract SupplyCalculator is Initializable, AccessControlUpgradeable, UUPSUpgrad
 
     /// @notice Update the unlocked value
     /// @dev Only callable by accounts with ADMIN_ROLE
+    /// @dev Also updates locked to keep them in sync: locked = INITIAL_SUPPLY - unlocked
     /// @param _newUnlocked The new value for unlocked tokens
     function updateUnlockedValue(uint256 _newUnlocked) external onlyRole(ADMIN_ROLE) {
         uint256 oldValue = unlocked;
         unlocked = _newUnlocked;
+        locked = Supply.INITIAL_SUPPLY - _newUnlocked;
         emit UnlockedValueUpdated(oldValue, _newUnlocked);
+    }
+
+    /// @notice Update the locked value
+    /// @dev Only callable by accounts with ADMIN_ROLE
+    /// @dev Also updates unlocked to keep them in sync: unlocked = INITIAL_SUPPLY - locked
+    /// @param _newLocked The new value for locked tokens
+    function updateLockedValue(uint256 _newLocked) external onlyRole(ADMIN_ROLE) {
+        uint256 oldValue = locked;
+        locked = _newLocked;
+        unlocked = Supply.INITIAL_SUPPLY - _newLocked;
+        emit LockedValueUpdated(oldValue, _newLocked);
     }
 
     /// @notice Authorize contract upgrades (UUPS pattern)

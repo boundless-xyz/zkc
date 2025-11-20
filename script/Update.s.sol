@@ -9,6 +9,7 @@ import {ZKC} from "../src/ZKC.sol";
 import {SupplyCalculator} from "../src/calculators/SupplyCalculator.sol";
 import {veZKC} from "../src/veZKC.sol";
 import {StakingRewards} from "../src/rewards/StakingRewards.sol";
+import {Supply} from "../src/libraries/Supply.sol";
 
 /**
  * Sample Usage for setting POVW minter role:
@@ -201,7 +202,7 @@ contract UpdateStakingMinter is BaseDeployment {
  *
  * # Direct execution:
  * export CHAIN_KEY="anvil"
- * export NEW_UNLOCKED="750000000000000000000000000"  # 750M tokens
+ * export NEW_LOCKED="250000000000000000000000000"  # 250M tokens
  *
  * forge script script/Update.s.sol:UpdateSupplyCalculatorUnlocked \
  *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
@@ -210,23 +211,23 @@ contract UpdateStakingMinter is BaseDeployment {
  *
  * # Gnosis Safe execution (print call data only):
  * export CHAIN_KEY="anvil"
- * export NEW_UNLOCKED="750000000000000000000000000"  # 750M tokens
+ * export NEW_LOCKED="250000000000000000000000000"  # 250M tokens
  * export GNOSIS_EXECUTE=true
  *
  * forge script script/Update.s.sol:UpdateSupplyCalculatorUnlocked \
  *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
  *     --rpc-url http://127.0.0.1:8545
  */
-contract UpdateSupplyCalculatorUnlocked is BaseDeployment {
+contract UpdateSupplyCalculatorLocked is BaseDeployment {
     function setUp() public {}
 
     function run() public {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.supplyCalculator != address(0), "SupplyCalculator address not set in deployment.toml");
 
-        // Get new unlocked value from environment
-        uint256 newUnlocked = vm.envUint("NEW_UNLOCKED");
-        require(newUnlocked > 0, "NEW_UNLOCKED must be greater than 0");
+        // Get new locked value from environment
+        uint256 newLocked = vm.envUint("NEW_LOCKED");
+        require(newLocked > 0, "NEW_LOCKED must be greater than 0");
 
         // Check for Gnosis Safe execution mode
         bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
@@ -236,23 +237,31 @@ contract UpdateSupplyCalculatorUnlocked is BaseDeployment {
 
         // Get current values for logging
         uint256 currentUnlocked = supplyCalculator.unlocked();
+        uint256 currentLocked = supplyCalculator.locked();
         uint256 currentCirculatingSupply = supplyCalculator.circulatingSupply();
 
         console2.log("================================================");
+        console2.log("Current locked amount: ", currentLocked);
+        console2.log("Current locked amount (in tokens): ", currentLocked / 10 ** 18);
         console2.log("Current unlocked amount: ", currentUnlocked);
         console2.log("Current unlocked amount (in tokens): ", currentUnlocked / 10 ** 18);
         console2.log("Current circulating supply: ", currentCirculatingSupply);
         console2.log("Current circulating supply (in tokens): ", currentCirculatingSupply / 10 ** 18);
         console2.log("================================================");
 
+        // Calculate new unlocked value from new locked value
+        uint256 newUnlocked = Supply.INITIAL_SUPPLY - newLocked;
+
         if (gnosisExecute) {
             // Print Gnosis Safe transaction info for manual execution
-            _printGnosisSafeInfo(config.supplyCalculator, newUnlocked);
+            _printGnosisSafeInfo(config.supplyCalculator, newLocked);
 
-            // Calculate expected new circulating supply for display
+            // Calculate expected new values for display
             uint256 expectedNewCirculatingSupply = currentCirculatingSupply - currentUnlocked + newUnlocked;
 
             console2.log("Expected after update:");
+            console2.log("New locked amount: ", newLocked);
+            console2.log("New locked amount (in tokens): ", newLocked / 10 ** 18);
             console2.log("New unlocked amount: ", newUnlocked);
             console2.log("New unlocked amount (in tokens): ", newUnlocked / 10 ** 18);
             console2.log("New circulating supply: ", expectedNewCirculatingSupply);
@@ -261,51 +270,54 @@ contract UpdateSupplyCalculatorUnlocked is BaseDeployment {
         } else {
             vm.startBroadcast();
 
-            // Update the unlocked value
-            supplyCalculator.updateUnlockedValue(newUnlocked);
+            // Update the locked value (which will also update unlocked)
+            supplyCalculator.updateLockedValue(newLocked);
 
             // Get updated values
             uint256 updatedUnlocked = supplyCalculator.unlocked();
+            uint256 updatedLocked = supplyCalculator.locked();
             uint256 updatedCirculatingSupply = supplyCalculator.circulatingSupply();
 
             vm.stopBroadcast();
 
-            console2.log("Updated unlocked value!");
+            console2.log("Updated locked value!");
             console2.log("================================================");
+            console2.log("New locked amount: ", updatedLocked);
+            console2.log("New locked amount (in tokens): ", updatedLocked / 10 ** 18);
             console2.log("New unlocked amount: ", updatedUnlocked);
             console2.log("New unlocked amount (in tokens): ", updatedUnlocked / 10 ** 18);
             console2.log("New circulating supply: ", updatedCirculatingSupply);
             console2.log("New circulating supply (in tokens): ", updatedCirculatingSupply / 10 ** 18);
             console2.log("================================================");
-            console2.log("Change in unlocked: ", newUnlocked > currentUnlocked ? "+" : "-");
-            if (newUnlocked > currentUnlocked) {
-                console2.log("  Amount increased: ", (newUnlocked - currentUnlocked) / 10 ** 18, " tokens");
+            console2.log("Change in locked: ", newLocked > currentLocked ? "+" : "-");
+            if (newLocked > currentLocked) {
+                console2.log("  Amount increased: ", (newLocked - currentLocked) / 10 ** 18, " tokens");
             } else {
-                console2.log("  Amount decreased: ", (currentUnlocked - newUnlocked) / 10 ** 18, " tokens");
+                console2.log("  Amount decreased: ", (currentLocked - newLocked) / 10 ** 18, " tokens");
             }
         }
     }
 
     /// @notice Print Gnosis Safe transaction information for manual updates
     /// @param targetAddress The SupplyCalculator contract address (target for Gnosis Safe)
-    /// @param newUnlocked The new unlocked value to set
-    function _printGnosisSafeInfo(address targetAddress, uint256 newUnlocked) internal pure {
+    /// @param newLocked The new locked value to set
+    function _printGnosisSafeInfo(address targetAddress, uint256 newLocked) internal pure {
         console2.log("================================");
         console2.log("================================");
         console2.log("=== GNOSIS SAFE UPDATE INFO ===");
         console2.log("Target Address (To): ", targetAddress);
-        console2.log("Function: updateUnlockedValue(uint256)");
-        console2.log("New Unlocked Value: ", newUnlocked);
-        console2.log("New Unlocked Value (in tokens): ", newUnlocked / 10 ** 18);
+        console2.log("Function: updateLockedValue(uint256)");
+        console2.log("New Locked Value: ", newLocked);
+        console2.log("New Locked Value (in tokens): ", newLocked / 10 ** 18);
 
-        bytes memory callData = abi.encodeWithSignature("updateUnlockedValue(uint256)", newUnlocked);
+        bytes memory callData = abi.encodeWithSignature("updateLockedValue(uint256)", newLocked);
         console2.log("");
         console2.log("Calldata:");
         console2.logBytes(callData);
         console2.log("");
         console2.log("Expected Events on Successful Execution:");
-        console2.log("1. UnlockedValueUpdated(uint256 oldValue, uint256 newValue)");
-        console2.log("   - newValue: ", newUnlocked);
+        console2.log("1. LockedValueUpdated(uint256 oldValue, uint256 newValue)");
+        console2.log("   - newValue: ", newLocked);
         console2.log("================================");
     }
 }

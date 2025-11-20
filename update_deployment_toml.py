@@ -50,6 +50,7 @@ def main():
     parser.add_argument('--staking-minter', help='Staking minter address')
     parser.add_argument('--supply-calculator', help='SupplyCalculator proxy address')
     parser.add_argument('--supply-calculator-impl', help='SupplyCalculator implementation address')
+    parser.add_argument('--supply-calculator-impl-prev', help='Previous SupplyCalculator implementation address')
     parser.add_argument('--supply-calculator-admin', help='SupplyCalculator admin address')
 
     # Deployment metadata
@@ -119,6 +120,7 @@ def main():
             'staking_minter': args.staking_minter,
             'supply_calculator': args.supply_calculator,
             'supply_calculator_impl': args.supply_calculator_impl,
+            'supply_calculator_impl_prev': args.supply_calculator_impl_prev,
             'supply_calculator_admin': args.supply_calculator_admin,
             'zkc_commit': args.zkc_commit,
             'vezkc_commit': args.vezkc_commit,
