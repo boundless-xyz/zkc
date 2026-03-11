@@ -621,7 +621,9 @@ contract UpgradeSupplyCalculatorInitV2 is BaseDeployment {
             console2.log("Current implementation: ", currentImpl);
 
             // Perform upgrade with initializeV2 initializer
-            Upgrades.upgradeProxy(config.supplyCalculator, "SupplyCalculator.sol:SupplyCalculator", initializerData, opts);
+            Upgrades.upgradeProxy(
+                config.supplyCalculator, "SupplyCalculator.sol:SupplyCalculator", initializerData, opts
+            );
 
             newImpl = Upgrades.getImplementationAddress(config.supplyCalculator);
             console2.log("Upgraded SupplyCalculator implementation to: ", newImpl);
@@ -654,7 +656,9 @@ contract UpgradeSupplyCalculatorInitV2 is BaseDeployment {
             console2.log("Implementation updated: ", newImpl != config.supplyCalculatorImpl);
             console2.log("ZKC token still configured: ", address(supplyCalculatorContract.zkc()) == config.zkc);
             console2.log("Claimed total supply: ", supplyCalculatorContract.zkc().claimedTotalSupply());
-            console2.log("Claimed total supply (in tokens): ", supplyCalculatorContract.zkc().claimedTotalSupply() / 10 ** 18);
+            console2.log(
+                "Claimed total supply (in tokens): ", supplyCalculatorContract.zkc().claimedTotalSupply() / 10 ** 18
+            );
             console2.log("Locked value: ", supplyCalculatorContract.locked());
             console2.log("Locked value (in tokens): ", supplyCalculatorContract.locked() / 10 ** 18);
             console2.log("Unlocked value: ", supplyCalculatorContract.unlocked());

@@ -61,13 +61,13 @@ contract SupplyCalculator is Initializable, AccessControlUpgradeable, UUPSUpgrad
     /// @dev Sets locked to specified value and unlocked to INITIAL_SUPPLY - locked
     function initializeV2(uint256 newLocked) public reinitializer(2) {
         require(newLocked <= Supply.INITIAL_SUPPLY, "Locked cannot exceed initial supply");
-        
+
         uint256 oldLocked = locked;
         uint256 oldUnlocked = unlocked;
-        
+
         locked = newLocked;
         unlocked = Supply.INITIAL_SUPPLY - newLocked;
-        
+
         emit LockedValueUpdated(oldLocked, locked);
         emit UnlockedValueUpdated(oldUnlocked, unlocked);
     }

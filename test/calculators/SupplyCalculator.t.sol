@@ -293,7 +293,7 @@ contract SupplyCalculatorTest is Test {
         uint256 newUnlocked = 300_000_000e18;
         vm.prank(owner);
         supplyCalculator.updateUnlockedValue(newUnlocked);
-        
+
         assertEq(supplyCalculator.unlocked(), newUnlocked);
         assertEq(supplyCalculator.locked(), zkc.INITIAL_SUPPLY() - newUnlocked);
         assertEq(supplyCalculator.locked() + supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY());
@@ -302,7 +302,7 @@ contract SupplyCalculatorTest is Test {
         uint256 newLocked = 600_000_000e18;
         vm.prank(owner);
         supplyCalculator.updateLockedValue(newLocked);
-        
+
         assertEq(supplyCalculator.locked(), newLocked);
         assertEq(supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY() - newLocked);
         assertEq(supplyCalculator.locked() + supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY());
