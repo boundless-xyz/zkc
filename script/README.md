@@ -1,4 +1,4 @@
-# ZKC Scripts Guide
+# ZKC Scripts
 
 ## Prerequisites
 
