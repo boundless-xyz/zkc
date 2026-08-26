@@ -280,7 +280,6 @@ Commands:
   update-povw-minter     Set POVW_MINTER_ROLE in ZKC contract
   update-staking-minter  Set STAKING_MINTER_ROLE in ZKC contract
   remove-povw-minter        Revoke POVW_MINTER_ROLE from address in ZKC contract
-  update-supply-calculator  Update unlocked value in SupplyCalculator contract
   add-zkc-admin             Add admin to ZKC contract
   remove-zkc-admin       Remove admin from ZKC contract
   add-vezkc-admin        Add admin to veZKC contract
@@ -365,9 +364,6 @@ Examples:
 
   # Remove POVW minter role (requires POVW_MINTER env var)
   PRIVATE_KEY=0x... POVW_MINTER=0x123... CHAIN_KEY=anvil ./script/manage remove-povw-minter --broadcast
-
-  # Update SupplyCalculator unlocked value (requires NEW_UNLOCKED env var)
-  PRIVATE_KEY=0x... NEW_UNLOCKED="750000000000000000000000000" CHAIN_KEY=anvil ./script/manage update-supply-calculator --broadcast
   
   # Add admin to ZKC contract
   PRIVATE_KEY=0x... ADMIN_TO_ADD=0x123... CHAIN_KEY=anvil ./script/manage add-zkc-admin --broadcast
@@ -408,9 +404,6 @@ Gnosis Safe Examples (GNOSIS_EXECUTE=true):
   
   # Generate admin management for all contracts at once
   GNOSIS_EXECUTE=true ADMIN_TO_ADD=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage add-admin-all
-
-  # Generate SupplyCalculator update calldata for Gnosis Safe
-  GNOSIS_EXECUTE=true NEW_UNLOCKED="750000000000000000000000000" CHAIN_KEY=ethereum-mainnet ./script/manage update-supply-calculator
 
   # Generate role revoke calldata for Gnosis Safe
   GNOSIS_EXECUTE=true POVW_MINTER=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage remove-povw-minter
@@ -640,9 +633,6 @@ main() {
             ;;
         remove-povw-minter)
             forge_script "RemovePOVWMinter" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
-            ;;
-        update-supply-calculator)
-            forge_script "UpdateSupplyCalculatorLocked" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"
             ;;
         add-zkc-admin)
             forge_script "AddZKCAdmin" "${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}"

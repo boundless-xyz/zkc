@@ -102,4 +102,9 @@ interface IZKC {
     ///      as well as tokens that have been claimed (and thus minted) via PoVW or Staking rewards.
     /// @return The total amount of tokens that have been claimed
     function claimedTotalSupply() external view returns (uint256);
+
+    /// @notice Timestamp when epoch 0 started
+    /// @dev Zero or type(uint256).max means epochs have not started
+    /// @return Unix timestamp of epoch 0 start, or sentinel if not started
+    function epoch0StartTime() external view returns (uint256);
 }

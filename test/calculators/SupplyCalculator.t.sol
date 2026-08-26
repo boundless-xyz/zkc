@@ -3,6 +3,7 @@ pragma solidity 0.8.26;
 
 import "forge-std/Test.sol";
 import {SupplyCalculator} from "../../src/calculators/SupplyCalculator.sol";
+import {Supply} from "../../src/libraries/Supply.sol";
 import "../../src/ZKC.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
@@ -17,21 +18,26 @@ contract SupplyCalculatorTest is Test {
     address public stakingMinter = makeAddr("stakingMinter");
     address public user = makeAddr("user");
 
-    uint256 public constant INITIAL_UNLOCKED = 500_000_000e18; // 500M tokens initially unlocked
+    uint256 internal constant WARP_TIME = 1787677200; // 2026-08-25 17:00 UTC
+    uint256 internal constant ONE_WEEK = 7 days;
+    uint256 internal constant PRE_CLIFF_EPOCHS = 10;
+    uint256 internal constant UNLOCKED_6M = 253_286_190e18;
+    uint256 internal constant CLIFF_12M = 1789430400; // 2026-09-15
+    uint256 internal constant CLIFF_13M = 1792022400; // 2026-10-15
+    uint256 internal constant CLIFF_24M = 1820966400; // 2027-09-15
+    uint256 internal constant CLIFF_26M = 1826236800; // 2027-11-15
+    uint256 internal constant CLIFF_36M = 1852588800; // 2028-09-15
+    uint256 internal constant TGE = 1757894400; // 2025-09-15
 
     function setUp() public {
-        // Deploy ZKC
+        vm.warp(WARP_TIME);
         deployZKC();
-
-        // Deploy SupplyCalculator
         deploySupplyCalculator();
     }
 
     function deployZKC() internal {
-        // Deploy implementation
         ZKC implementation = new ZKC();
 
-        // Deploy proxy and initialize
         bytes memory initData = abi.encodeWithSelector(
             ZKC.initialize.selector, minter1, minter2, implementation.INITIAL_SUPPLY(), 0, owner
         );
@@ -39,14 +45,12 @@ contract SupplyCalculatorTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         zkc = ZKC(address(proxy));
 
-        // Initialize V2 and V3
         vm.prank(owner);
         zkc.initializeV2();
 
         vm.prank(owner);
         zkc.initializeV3();
 
-        // Perform initial mint
         address[] memory recipients = new address[](1);
         recipients[0] = user;
         uint256[] memory amounts = new uint256[](1);
@@ -54,7 +58,6 @@ contract SupplyCalculatorTest is Test {
         vm.prank(minter1);
         zkc.initialMint(recipients, amounts);
 
-        // Grant minter roles
         vm.startPrank(owner);
         zkc.grantRole(zkc.POVW_MINTER_ROLE(), povwMinter);
         zkc.grantRole(zkc.STAKING_MINTER_ROLE(), stakingMinter);
@@ -62,12 +65,10 @@ contract SupplyCalculatorTest is Test {
     }
 
     function deploySupplyCalculator() internal {
-        // Deploy implementation
         SupplyCalculator implementation = new SupplyCalculator();
 
-        // Deploy proxy and initialize
         bytes memory initData =
-            abi.encodeWithSelector(SupplyCalculator.initialize.selector, address(zkc), INITIAL_UNLOCKED, owner);
+            abi.encodeWithSelector(SupplyCalculator.initialize.selector, address(zkc), UNLOCKED_6M, owner);
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         supplyCalculator = SupplyCalculator(address(proxy));
@@ -75,236 +76,189 @@ contract SupplyCalculatorTest is Test {
 
     function testInitialization() public view {
         assertEq(address(supplyCalculator.zkc()), address(zkc));
-        assertEq(supplyCalculator.unlocked(), INITIAL_UNLOCKED);
-        assertEq(supplyCalculator.locked(), zkc.INITIAL_SUPPLY() - INITIAL_UNLOCKED);
         assertTrue(supplyCalculator.hasRole(supplyCalculator.ADMIN_ROLE(), owner));
     }
 
-    function testCirculatingSupplyAfterInitialMint() public {
-        // Circulating supply = claimedTotalSupply - locked
-        // claimedTotalSupply = INITIAL_SUPPLY (1B), locked = INITIAL_SUPPLY - INITIAL_UNLOCKED
-        uint256 claimedTotal = zkc.claimedTotalSupply();
-        uint256 expectedCirculating = claimedTotal - supplyCalculator.locked();
-        uint256 circulatingSupply = supplyCalculator.circulatingSupply();
-        assertEq(circulatingSupply, expectedCirculating);
-        assertEq(circulatingSupply, INITIAL_UNLOCKED);
+    function testCurrentUnlockedLockedCirculating() public view {
+        assertEq(supplyCalculator.unlocked(), UNLOCKED_6M);
+        assertEq(supplyCalculator.locked(), Supply.INITIAL_SUPPLY - UNLOCKED_6M);
+        assertEq(supplyCalculator.circulatingSupply(), UNLOCKED_6M);
+    }
+
+    function testScheduleCliffs() public view {
+        assertEq(supplyCalculator.unlockedAtTimestamp(CLIFF_12M - 1), UNLOCKED_6M);
+        assertEq(supplyCalculator.unlockedAtTimestamp(CLIFF_12M), 471_464_643e18);
+        assertEq(supplyCalculator.unlockedAtTimestamp(CLIFF_13M), 490_861_950e18);
+        assertEq(supplyCalculator.unlockedAtTimestamp(CLIFF_24M), 767_232_327e18);
+        assertEq(supplyCalculator.unlockedAtTimestamp(CLIFF_26M), 806_026_940e18);
+        assertEq(supplyCalculator.unlockedAtTimestamp(CLIFF_36M), Supply.INITIAL_SUPPLY);
+        assertEq(supplyCalculator.unlockedAtTimestamp(CLIFF_36M + 1 days), Supply.INITIAL_SUPPLY);
+    }
+
+    function testBeforeTge() public view {
+        assertEq(supplyCalculator.unlockedAtTimestamp(TGE - 1), 0);
+        assertEq(supplyCalculator.lockedAtTimestamp(TGE - 1), Supply.INITIAL_SUPPLY);
+    }
+
+    function testAtTimestampMatchesBlockTimestampGetters() public {
+        uint256[4] memory timestamps = [uint256(WARP_TIME), CLIFF_12M, CLIFF_24M, CLIFF_36M];
+
+        for (uint256 i = 0; i < timestamps.length; ++i) {
+            vm.warp(timestamps[i]);
+            assertEq(supplyCalculator.unlocked(), supplyCalculator.unlockedAtTimestamp(timestamps[i]));
+            assertEq(supplyCalculator.locked(), supplyCalculator.lockedAtTimestamp(timestamps[i]));
+        }
+    }
+
+    function testLockedPlusUnlockedEqualsInitialSupply() public view {
+        uint256[5] memory timestamps = [uint256(TGE - 1), WARP_TIME, CLIFF_12M, CLIFF_24M, CLIFF_36M];
+
+        for (uint256 i = 0; i < timestamps.length; ++i) {
+            assertEq(
+                supplyCalculator.unlockedAtTimestamp(timestamps[i]) + supplyCalculator.lockedAtTimestamp(timestamps[i]),
+                Supply.INITIAL_SUPPLY
+            );
+        }
+    }
+
+    function testCirculatingSupplyAfterInitialMint() public view {
+        uint256 expectedCirculating = zkc.claimedTotalSupply() - supplyCalculator.locked();
+        assertEq(supplyCalculator.circulatingSupply(), expectedCirculating);
+        assertEq(supplyCalculator.circulatingSupply(), UNLOCKED_6M);
+    }
+
+    function _warpPreCliffWithEpochs() internal {
+        vm.warp(WARP_TIME + PRE_CLIFF_EPOCHS * zkc.EPOCH_DURATION());
     }
 
     function testCirculatingSupplyAfterRewardsMinted() public {
-        // Skip forward in time to simulate epochs passing
-        vm.warp(block.timestamp + 4 weeks);
+        _warpPreCliffWithEpochs();
 
-        // Mint some PoVW rewards
-        uint256 povwRewards = 1_000_000e18; // 1M tokens
+        uint256 povwRewards = 1_000_000e18;
         vm.prank(povwMinter);
         zkc.mintPoVWRewardsForRecipient(user, povwRewards);
 
-        // Mint some staking rewards
-        uint256 stakingRewards = 500_000e18; // 500K tokens
+        uint256 stakingRewards = 500_000e18;
         vm.prank(stakingMinter);
         zkc.mintStakingRewardsForRecipient(user, stakingRewards);
 
-        // Circulating supply = claimedTotalSupply - locked
-        uint256 claimedTotal = zkc.claimedTotalSupply();
-        uint256 expectedCirculating = claimedTotal - supplyCalculator.locked();
-        uint256 circulatingSupply = supplyCalculator.circulatingSupply();
-        assertEq(circulatingSupply, expectedCirculating);
-        // Verify it matches: INITIAL_UNLOCKED + rewards
-        assertEq(circulatingSupply, INITIAL_UNLOCKED + povwRewards + stakingRewards);
-    }
-
-    function testUpdateUnlockedValue() public {
-        uint256 newUnlocked = 750_000_000e18; // 750M tokens
-        uint256 expectedLocked = zkc.INITIAL_SUPPLY() - newUnlocked;
-
-        vm.expectEmit(true, true, true, true);
-        emit SupplyCalculator.UnlockedValueUpdated(INITIAL_UNLOCKED, newUnlocked);
-        vm.prank(owner);
-        supplyCalculator.updateUnlockedValue(newUnlocked);
-
-        assertEq(supplyCalculator.unlocked(), newUnlocked);
-        assertEq(supplyCalculator.locked(), expectedLocked);
-        // Verify synchronization: locked + unlocked = INITIAL_SUPPLY
-        assertEq(supplyCalculator.locked() + supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY());
-
-        // Check circulating supply updated correctly
-        uint256 circulatingSupply = supplyCalculator.circulatingSupply();
-        uint256 claimedTotal = zkc.claimedTotalSupply();
-        assertEq(circulatingSupply, claimedTotal - supplyCalculator.locked());
-    }
-
-    function testUpdateUnlockedValueAccessControl() public {
-        uint256 newUnlocked = 750_000_000e18;
-
-        // Non-admin should not be able to update
-        vm.prank(user);
-        vm.expectRevert();
-        supplyCalculator.updateUnlockedValue(newUnlocked);
-
-        // Admin should be able to update
-        vm.prank(owner);
-        supplyCalculator.updateUnlockedValue(newUnlocked);
-        assertEq(supplyCalculator.unlocked(), newUnlocked);
-        assertEq(supplyCalculator.locked(), zkc.INITIAL_SUPPLY() - newUnlocked);
+        uint256 expectedCirculating = zkc.claimedTotalSupply() - supplyCalculator.locked();
+        assertEq(supplyCalculator.circulatingSupply(), expectedCirculating);
+        assertEq(supplyCalculator.circulatingSupply(), UNLOCKED_6M + povwRewards + stakingRewards);
     }
 
     function testUpgradeAccessControl() public {
-        // Deploy new implementation
         SupplyCalculator newImplementation = new SupplyCalculator();
 
-        // Non-admin should not be able to upgrade
         vm.prank(user);
         vm.expectRevert();
         supplyCalculator.upgradeToAndCall(address(newImplementation), "");
 
-        // Admin should be able to upgrade
         vm.prank(owner);
         supplyCalculator.upgradeToAndCall(address(newImplementation), "");
     }
 
     function testCirculatingSupplyWithBurnedTokens() public {
-        // Skip forward in time to simulate epochs passing
-        vm.warp(block.timestamp + 4 weeks);
+        _warpPreCliffWithEpochs();
 
-        // Mint some rewards
         uint256 rewards = 1_000_000e18;
         vm.prank(povwMinter);
         zkc.mintPoVWRewardsForRecipient(user, rewards);
 
-        // Burn some tokens
         uint256 burnAmount = 500_000e18;
         vm.prank(user);
         zkc.burn(burnAmount);
 
-        // Circulating supply = claimedTotalSupply - locked
-        uint256 claimedTotal = zkc.claimedTotalSupply();
-        uint256 expectedCirculating = claimedTotal - supplyCalculator.locked();
-        uint256 circulatingSupply = supplyCalculator.circulatingSupply();
-        assertEq(circulatingSupply, expectedCirculating);
-        // Verify it matches: INITIAL_UNLOCKED + rewards - burned
-        assertEq(circulatingSupply, INITIAL_UNLOCKED + rewards - burnAmount);
+        uint256 expectedCirculating = zkc.claimedTotalSupply() - supplyCalculator.locked();
+        assertEq(supplyCalculator.circulatingSupply(), expectedCirculating);
+        assertEq(supplyCalculator.circulatingSupply(), UNLOCKED_6M + rewards - burnAmount);
     }
 
     function testCirculatingSupplyRounded() public {
-        // Test with value that rounds down
-        uint256 valueRoundDown = 500_000_000e18 + 0.3e18;
-        vm.prank(owner);
-        supplyCalculator.updateUnlockedValue(valueRoundDown);
+        vm.warp(WARP_TIME + ONE_WEEK);
 
-        uint256 rounded18dp = supplyCalculator.circulatingSupplyRounded();
-        assertEq(rounded18dp, 500_000_000e18);
+        uint256 fractionalMint = 0.3e18;
+        vm.prank(povwMinter);
+        zkc.mintPoVWRewardsForRecipient(user, fractionalMint);
 
-        uint256 roundedAmount = supplyCalculator.circulatingSupplyAmountRounded();
-        assertEq(roundedAmount, 500_000_000);
+        assertEq(supplyCalculator.circulatingSupplyRounded(), UNLOCKED_6M);
+        assertEq(supplyCalculator.circulatingSupplyAmountRounded(), UNLOCKED_6M / 1e18);
 
-        // Test with value that rounds up
-        uint256 valueRoundUp = 500_000_000e18 + 0.7e18;
-        vm.prank(owner);
-        supplyCalculator.updateUnlockedValue(valueRoundUp);
+        uint256 extraMint = 0.4e18;
+        vm.prank(povwMinter);
+        zkc.mintPoVWRewardsForRecipient(user, extraMint);
 
-        rounded18dp = supplyCalculator.circulatingSupplyRounded();
-        assertEq(rounded18dp, 500_000_001e18);
+        assertEq(supplyCalculator.circulatingSupplyRounded(), UNLOCKED_6M + 1e18);
+        assertEq(supplyCalculator.circulatingSupplyAmountRounded(), UNLOCKED_6M / 1e18 + 1);
+    }
 
-        roundedAmount = supplyCalculator.circulatingSupplyAmountRounded();
-        assertEq(roundedAmount, 500_000_001);
+    function testTotalSupplyAtTimestampBeforeEpochs() public {
+        ZKC freshZkc = _deployZkcWithoutEpochs();
+        SupplyCalculator calc = _deployCalculatorForZkc(freshZkc);
+
+        assertEq(calc.totalSupplyAtTimestamp(WARP_TIME), Supply.INITIAL_SUPPLY);
+        assertEq(calc.totalSupplyAtTimestamp(type(uint256).max), Supply.INITIAL_SUPPLY);
+    }
+
+    function testTotalSupplyAtTimestampAfterEpochs() public {
+        uint256 epoch0Start = zkc.epoch0StartTime();
+        uint256 epoch17Timestamp = epoch0Start + 17 * zkc.EPOCH_DURATION();
+        uint256 epoch17Supply = zkc.getSupplyAtEpochStart(17);
+
+        assertEq(supplyCalculator.totalSupplyAtTimestamp(epoch0Start - 1), Supply.INITIAL_SUPPLY);
+        assertEq(supplyCalculator.totalSupplyAtTimestamp(epoch17Timestamp), epoch17Supply);
+    }
+
+    function testTotalSupplyRoundedAtTimestamp() public {
+        uint256 epoch0Start = zkc.epoch0StartTime();
+        uint256 epoch17Timestamp = epoch0Start + 17 * zkc.EPOCH_DURATION();
+        uint256 epoch17Supply = zkc.getSupplyAtEpochStart(17);
+
+        assertEq(supplyCalculator.totalSupplyRoundedAtTimestamp(epoch17Timestamp), 1006339776000000000000000000);
+        assertEq(supplyCalculator.totalSupplyAmountRoundedAtTimestamp(epoch17Timestamp), 1006339776);
+        assertEq(supplyCalculator.totalSupplyAtTimestamp(epoch17Timestamp), epoch17Supply);
     }
 
     function testTotalSupplyRounded() public {
-        // Skip forward to start epochs
+        uint256 epoch0Start = zkc.epoch0StartTime();
+        vm.warp(epoch0Start + 17 * zkc.EPOCH_DURATION());
+
         uint256 epoch17TotalSupply = zkc.getSupplyAtEpochStart(17);
-        uint256 epoch17ExpectedTotalSupply = 1006339775710604115000000000;
-        assertEq(epoch17TotalSupply, epoch17ExpectedTotalSupply);
+        assertEq(zkc.totalSupply(), epoch17TotalSupply);
 
-        vm.warp(block.timestamp + 17 * zkc.EPOCH_DURATION());
-
-        // Get the theoretical total supply
-        uint256 totalSupply = zkc.totalSupply();
-        console.logUint(totalSupply);
-        console.logUint(epoch17TotalSupply);
-        assertEq(totalSupply, epoch17TotalSupply);
-
-        // Get rounded values
-        uint256 rounded18dp = supplyCalculator.totalSupplyRounded();
-        uint256 roundedAmount = supplyCalculator.totalSupplyAmountRounded();
-
-        // Verify rounding is correct
-        assertEq(rounded18dp, 1006339776000000000000000000);
-        assertEq(roundedAmount, 1006339776);
+        assertEq(supplyCalculator.totalSupplyRounded(), 1006339776000000000000000000);
+        assertEq(supplyCalculator.totalSupplyAmountRounded(), 1006339776);
     }
 
     function testTotalClaimedSupplyRounded() public {
-        // Skip forward in time to simulate epochs passing
         vm.warp(block.timestamp + 4 weeks);
 
-        // Mint some rewards to create a claimed supply > initial supply
         uint256 rewards = 1_234_567.89e18;
         vm.prank(povwMinter);
         zkc.mintPoVWRewardsForRecipient(user, rewards);
 
-        // Get the claimed total supply
-        uint256 claimedSupply = zkc.claimedTotalSupply();
-        assertEq(claimedSupply, zkc.INITIAL_SUPPLY() + rewards);
-
-        // Get rounded values
-        uint256 rounded18dp = supplyCalculator.claimedTotalSupplyRounded();
-        uint256 roundedAmount = supplyCalculator.claimedTotalSupplyAmountRounded();
-
-        assertEq(rounded18dp, 1001234568000000000000000000);
-        assertEq(roundedAmount, 1001234568);
+        assertEq(zkc.claimedTotalSupply(), zkc.INITIAL_SUPPLY() + rewards);
+        assertEq(supplyCalculator.claimedTotalSupplyRounded(), 1001234568000000000000000000);
+        assertEq(supplyCalculator.claimedTotalSupplyAmountRounded(), 1001234568);
     }
 
-    function testUpdateLockedValue() public {
-        uint256 newLocked = 794_546_893e18; // 794,546,893 tokens
-        uint256 expectedUnlocked = zkc.INITIAL_SUPPLY() - newLocked;
-
-        vm.expectEmit(true, true, true, true);
-        emit SupplyCalculator.LockedValueUpdated(supplyCalculator.locked(), newLocked);
+    function _deployZkcWithoutEpochs() internal returns (ZKC) {
+        ZKC implementation = new ZKC();
+        bytes memory initData = abi.encodeWithSelector(
+            ZKC.initialize.selector, minter1, minter2, implementation.INITIAL_SUPPLY(), 0, owner
+        );
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        ZKC freshZkc = ZKC(address(proxy));
         vm.prank(owner);
-        supplyCalculator.updateLockedValue(newLocked);
-
-        assertEq(supplyCalculator.locked(), newLocked);
-        assertEq(supplyCalculator.unlocked(), expectedUnlocked);
-        // Verify synchronization: locked + unlocked = INITIAL_SUPPLY
-        assertEq(supplyCalculator.locked() + supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY());
-
-        // Check circulating supply updated correctly
-        uint256 claimedTotal = zkc.claimedTotalSupply();
-        uint256 circulatingSupply = supplyCalculator.circulatingSupply();
-        assertEq(circulatingSupply, claimedTotal - newLocked);
+        freshZkc.initializeV2();
+        return freshZkc;
     }
 
-    function testUpdateLockedValueAccessControl() public {
-        uint256 newLocked = 750_000_000e18;
-
-        // Non-admin should not be able to update
-        vm.prank(user);
-        vm.expectRevert();
-        supplyCalculator.updateLockedValue(newLocked);
-
-        // Admin should be able to update
-        vm.prank(owner);
-        supplyCalculator.updateLockedValue(newLocked);
-        assertEq(supplyCalculator.locked(), newLocked);
-        assertEq(supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY() - newLocked);
-    }
-
-    function testSynchronizationBetweenLockedAndUnlocked() public {
-        // Test that updating unlocked syncs locked
-        uint256 newUnlocked = 300_000_000e18;
-        vm.prank(owner);
-        supplyCalculator.updateUnlockedValue(newUnlocked);
-
-        assertEq(supplyCalculator.unlocked(), newUnlocked);
-        assertEq(supplyCalculator.locked(), zkc.INITIAL_SUPPLY() - newUnlocked);
-        assertEq(supplyCalculator.locked() + supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY());
-
-        // Test that updating locked syncs unlocked
-        uint256 newLocked = 600_000_000e18;
-        vm.prank(owner);
-        supplyCalculator.updateLockedValue(newLocked);
-
-        assertEq(supplyCalculator.locked(), newLocked);
-        assertEq(supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY() - newLocked);
-        assertEq(supplyCalculator.locked() + supplyCalculator.unlocked(), zkc.INITIAL_SUPPLY());
+    function _deployCalculatorForZkc(ZKC targetZkc) internal returns (SupplyCalculator) {
+        SupplyCalculator implementation = new SupplyCalculator();
+        bytes memory initData =
+            abi.encodeWithSelector(SupplyCalculator.initialize.selector, address(targetZkc), UNLOCKED_6M, owner);
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        return SupplyCalculator(address(proxy));
     }
 }
