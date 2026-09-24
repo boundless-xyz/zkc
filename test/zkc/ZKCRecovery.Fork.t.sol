@@ -38,6 +38,8 @@ contract ZKCRecoveryForkTest is Test {
 
     function test_recoverAndRollback() public {
         assertEq(_impl(), PREV_IMPL);
+        assertEq(recoveryImpl.RECOVERY_RECIPIENT(), RECIPIENT);
+        assertEq(recoveryImpl.RECOVERY_AMOUNT(), AMOUNT);
 
         // Snapshot state that must be untouched
         uint256 totalSupply = zkc.totalSupply();
@@ -57,9 +59,7 @@ contract ZKCRecoveryForkTest is Test {
         vm.expectEmit(true, true, false, true, address(zkc));
         emit IERC20.Transfer(address(zkc), RECIPIENT, AMOUNT);
         vm.startPrank(SAFE);
-        zkc.upgradeToAndCall(
-            address(recoveryImpl), abi.encodeCall(ZKCRecovery.recoverSelfTransfer, (RECIPIENT, AMOUNT))
-        );
+        zkc.upgradeToAndCall(address(recoveryImpl), abi.encodeCall(ZKCRecovery.recoverSelfTransfer, ()));
         zkc.upgradeToAndCall(PREV_IMPL, "");
         vm.stopPrank();
 
@@ -82,7 +82,7 @@ contract ZKCRecoveryForkTest is Test {
         // Recovery function is gone after rollback
         vm.prank(SAFE);
         vm.expectRevert();
-        ZKCRecovery(address(zkc)).recoverSelfTransfer(RECIPIENT, 1);
+        ZKCRecovery(address(zkc)).recoverSelfTransfer();
     }
 
     function test_recoverSelfTransfer_onlyAdmin() public {
@@ -95,6 +95,6 @@ contract ZKCRecoveryForkTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, attacker, adminRole)
         );
-        ZKCRecovery(address(zkc)).recoverSelfTransfer(attacker, AMOUNT);
+        ZKCRecovery(address(zkc)).recoverSelfTransfer();
     }
 }
