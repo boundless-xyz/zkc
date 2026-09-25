@@ -62,6 +62,8 @@ library RecoverZKCCalldata {
 contract RecoverZKC is Script {
     function run() public view {
         address zkc = RecoverZKCCalldata.ZKC;
+        require(block.chainid == 1, "not on Ethereum mainnet: pass --rpc-url <mainnet RPC>");
+        require(zkc.code.length > 0, "ZKC has no code: RPC is not a mainnet node");
         require(
             address(uint160(uint256(vm.load(zkc, RecoverZKCCalldata.IMPL_SLOT)))) == RecoverZKCCalldata.PREV_IMPL,
             "unexpected current ZKC impl"
