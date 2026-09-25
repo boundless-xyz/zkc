@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Simulates the ZKC recovery Safe transaction on Tenderly and prints a public share link.
+# Builds a Tenderly simulator link for the ZKC recovery Safe transaction. No Tenderly API key needed:
+# open the link while logged in to Tenderly (free plan works), click Simulate, then share the result.
 #
 # The simulation is the real Safe call: execTransaction(MultiSendCallOnly, 0, multiSend(...), DELEGATECALL, ...)
 # at the Safe's current nonce. Signatures are "pre-approved hash" (v = 1) signatures from `threshold` real owners,
 # made valid with a state override on the Safe's approvedHashes mapping. Nothing else is overridden.
 #
 # Required env: MAINNET_RPC_URL, ZKC_RECOVERY_IMPL
-# For Tenderly:  TENDERLY_ACCESS_KEY, TENDERLY_ACCOUNT, TENDERLY_PROJECT
-# DRY_RUN=1 runs only the local preflight eth_call and prints the Tenderly payload.
+# Optional env: TENDERLY_ACCOUNT, TENDERLY_PROJECT (open the simulator in that project; else your default one)
 set -euo pipefail
 
 : "${MAINNET_RPC_URL:?set MAINNET_RPC_URL}"
@@ -73,42 +73,24 @@ RESULT=$(cast call "$SAFE" "$EXEC" --from "$FROM" -r "$RPC" --override-state-dif
 echo "Preflight eth_call: execTransaction returned true"
 
 BLOCK=$(cast block-number -r "$RPC")
-STORAGE_JSON=$(for sl in "${SLOTS[@]}"; do printf '"%s":"%s",' "$sl" "$(cast to-uint256 1)"; done | sed 's/,$//')
-PAYLOAD=$(cat <<JSON
-{
-  "network_id": "1",
-  "block_number": $BLOCK,
-  "from": "$FROM",
-  "to": "$SAFE",
-  "input": "$EXEC",
-  "value": "0",
-  "gas": 3000000,
-  "gas_price": "0",
-  "save": true,
-  "save_if_fails": true,
-  "simulation_type": "full",
-  "state_objects": { "$SAFE": { "storage": { $STORAGE_JSON } } }
-}
-JSON
-)
+OVERRIDES_JSON=$(python3 -c '
+import json, sys
+safe, slots = sys.argv[1], sys.argv[2:]
+one = "0x" + "0" * 63 + "1"
+print(json.dumps([{"contractAddress": safe, "storage": [{"key": s, "value": one} for s in slots]}], separators=(",", ":")))
+' "$SAFE" "${SLOTS[@]}")
+ENC_OVERRIDES=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$OVERRIDES_JSON")
 
-if [ "${DRY_RUN:-0}" = "1" ]; then
-  echo "$PAYLOAD"
-  exit 0
+if [ -n "${TENDERLY_ACCOUNT:-}" ] && [ -n "${TENDERLY_PROJECT:-}" ]; then
+  BASE="https://dashboard.tenderly.co/$TENDERLY_ACCOUNT/$TENDERLY_PROJECT/simulator/new"
+else
+  BASE="https://dashboard.tenderly.co/simulator/new"
 fi
+URL="$BASE?network=1&block=$BLOCK&blockIndex=0&from=$FROM&contractAddress=$SAFE&value=0&gas=3000000&gasPrice=0&stateOverrides=$ENC_OVERRIDES&rawFunctionInput=$EXEC"
 
-: "${TENDERLY_ACCESS_KEY:?set TENDERLY_ACCESS_KEY}"
-: "${TENDERLY_ACCOUNT:?set TENDERLY_ACCOUNT}"
-: "${TENDERLY_PROJECT:?set TENDERLY_PROJECT}"
-API="https://api.tenderly.co/api/v1/account/$TENDERLY_ACCOUNT/project/$TENDERLY_PROJECT"
-
-RESP=$(curl -sS -X POST "$API/simulate" -H "X-Access-Key: $TENDERLY_ACCESS_KEY" -H "Content-Type: application/json" -d "$PAYLOAD")
-SIM_ID=$(echo "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin)["simulation"]["id"])') \
-  || { echo "Tenderly error: $RESP" >&2; exit 1; }
-STATUS=$(echo "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin)["simulation"]["status"])')
-echo "Tenderly simulation status: $STATUS"
-
-curl -sS -X POST "$API/simulations/$SIM_ID/share" -H "X-Access-Key: $TENDERLY_ACCESS_KEY" -o /dev/null
-echo "Dashboard: https://dashboard.tenderly.co/$TENDERLY_ACCOUNT/$TENDERLY_PROJECT/simulator/$SIM_ID"
-echo "Public:    https://dashboard.tenderly.co/shared/simulation/$SIM_ID"
-[ "$STATUS" = "True" ] || exit 1
+echo
+echo "State overrides (Safe approvedHashes[signer][safeTxHash] = 1):"
+echo "$OVERRIDES_JSON"
+echo
+echo "Tenderly simulator link (block $BLOCK, ${#URL} chars):"
+echo "$URL"
