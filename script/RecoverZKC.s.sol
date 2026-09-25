@@ -57,7 +57,7 @@ library RecoverZKCCalldata {
  *   1. ZKC.upgradeToAndCall(ZKCRecovery, recoverSelfTransfer())
  *   2. ZKC.upgradeToAndCall(PREV_IMPL, "")
  *
- * Deploy:  forge script script/RecoverZKC.s.sol:RecoverZKC --rpc-url $MAINNET_RPC_URL --account <keystore> --broadcast --verify
+ * Deploy:  forge script script/RecoverZKC.s.sol:RecoverZKC --rpc-url $MAINNET_RPC_URL --account <keystore> --broadcast
  * Print:   ZKC_RECOVERY_IMPL=<addr> forge script script/RecoverZKC.s.sol:RecoverZKC --rpc-url $MAINNET_RPC_URL
  */
 contract RecoverZKC is Script {
