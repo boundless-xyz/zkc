@@ -68,7 +68,8 @@ echo "Preflight eth_call: execTransaction returned true"
 
 BLOCK=$(cast block-number -r "$RPC")
 OVERRIDES_JSON="[{\"contractAddress\":\"$SAFE\",\"storage\":[{\"key\":\"$THRESHOLD_KEY\",\"value\":\"$ONE\"}]}]"
-ENC_OVERRIDES=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$OVERRIDES_JSON")
+# Encode only []{} like base/contracts Simulation.sol does; Tenderly ignores a fully percent-encoded value
+ENC_OVERRIDES=$(printf '%s' "$OVERRIDES_JSON" | sed -e 's/\[/%5B/g' -e 's/\]/%5D/g' -e 's/{/%7B/g' -e 's/}/%7D/g')
 
 if [ -n "${TENDERLY_ACCOUNT:-}" ] && [ -n "${TENDERLY_PROJECT:-}" ]; then
   BASE="https://dashboard.tenderly.co/$TENDERLY_ACCOUNT/$TENDERLY_PROJECT/simulator/new"
@@ -83,6 +84,9 @@ echo "$OVERRIDES_JSON"
 echo
 echo "Raw input data (paste into Tenderly's 'Raw input data' field if the link truncates it):"
 echo "$EXEC"
+echo
+echo "If the State overrides panel is empty after opening the link, add it manually:"
+echo "  contract $SAFE, storage key $THRESHOLD_KEY, value $ONE"
 echo
 echo "Tenderly simulator link (block $BLOCK, ${#URL} chars, raw input ${#EXEC} chars):"
 echo "$URL"
