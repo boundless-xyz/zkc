@@ -66,27 +66,42 @@ RESULT=$(cast call "$SAFE" "$EXEC" --from "$FROM" -r "$RPC" --override-state-dif
 [ "$(cast to-dec "$RESULT")" = "1" ] || { echo "preflight failed: $RESULT" >&2; exit 1; }
 echo "Preflight eth_call: execTransaction returned true"
 
-BLOCK=$(cast block-number -r "$RPC")
-OVERRIDES_JSON="[{\"contractAddress\":\"$SAFE\",\"storage\":[{\"key\":\"$THRESHOLD_KEY\",\"value\":\"$ONE\"}]}]"
-# Encode only []{} like base/contracts Simulation.sol does; Tenderly ignores a fully percent-encoded value
-ENC_OVERRIDES=$(printf '%s' "$OVERRIDES_JSON" | sed -e 's/\[/%5B/g' -e 's/\]/%5D/g' -e 's/{/%7B/g' -e 's/}/%7D/g')
-
+# --- Tenderly simulator draft link ---
+# Format (same as ethereum-optimism/superchain-ops MultisigTaskPrinter.sol): base64url(JSON), no padding, in ?draft=.
+# Tenderly won't open draft links over ~2000 chars, so the calldata is embedded only if it fits;
+# otherwise it is printed separately for the "Raw input data" field.
 if [ -n "${TENDERLY_ACCOUNT:-}" ] && [ -n "${TENDERLY_PROJECT:-}" ]; then
   BASE="https://dashboard.tenderly.co/$TENDERLY_ACCOUNT/$TENDERLY_PROJECT/simulator/new"
 else
   BASE="https://dashboard.tenderly.co/simulator/new"
 fi
-URL="$BASE?network=1&block=$BLOCK&blockIndex=0&from=$FROM&contractAddress=$SAFE&value=0&gas=3000000&gasPrice=0&stateOverrides=$ENC_OVERRIDES&rawFunctionInput=$EXEC"
+draft() { # $1 = include raw input (1/0)
+  python3 - "$1" "$SAFE" "$FROM" "$EXEC" "$THRESHOLD_KEY" "$ONE" <<'PY'
+import base64, json, sys
+inc, safe, frm, data, key, val = sys.argv[1:]
+row = {"contractAddress": safe, "from": frm, "inputDataType": "raw"}
+if inc == "1":
+    row["rawFunctionInput"] = data
+row["gas"] = "3000000"
+row["stateOverrides"] = [{"contractAddress": safe, "balance": "", "storage": [{"key": key, "value": val}]}]
+payload = {"v": 1, "network": {"id": "1"}, "row": row}
+print(base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("="))
+PY
+}
+URL="$BASE?draft=$(draft 1)"
+EMBEDDED=1
+if [ ${#URL} -gt 2000 ]; then
+  URL="$BASE?draft=$(draft 0)"
+  EMBEDDED=0
+fi
 
 echo
-echo "State override (Safe threshold = 1):"
-echo "$OVERRIDES_JSON"
+echo "State override (prefilled): Safe $SAFE storage $THRESHOLD_KEY = $ONE (threshold 1)"
 echo
-echo "Raw input data (paste into Tenderly's 'Raw input data' field if the link truncates it):"
-echo "$EXEC"
-echo
-echo "If the State overrides panel is empty after opening the link, add it manually:"
-echo "  contract $SAFE, storage key $THRESHOLD_KEY, value $ONE"
-echo
-echo "Tenderly simulator link (block $BLOCK, ${#URL} chars, raw input ${#EXEC} chars):"
+if [ "$EMBEDDED" = "0" ]; then
+  echo "Raw input data (paste into the Simulator's 'Raw input data' field):"
+  echo "$EXEC"
+  echo
+fi
+echo "Tenderly simulator draft link (${#URL} chars):"
 echo "$URL"
