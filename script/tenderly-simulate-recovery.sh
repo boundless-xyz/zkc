@@ -101,6 +101,10 @@ echo
 if [ "$EMBEDDED" = "0" ]; then
   echo "Raw input data (paste into the Simulator's 'Raw input data' field):"
   echo "$EXEC"
+  if command -v pbcopy >/dev/null; then
+    printf '%s' "$EXEC" | pbcopy
+    echo "(copied to clipboard: ${#EXEC} chars; don't copy it from the terminal, wrapping can corrupt it)"
+  fi
   echo
 fi
 echo "Tenderly simulator draft link (${#URL} chars):"
