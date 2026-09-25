@@ -52,28 +52,22 @@ library RecoverZKCCalldata {
 }
 
 /**
- * Deploys ZKCRecovery (if ZKC_RECOVERY_IMPL is unset) and prints the single Safe transaction for the
- * ZKC admin Safe (MultiSendCallOnly delegatecall batching both calls to ZKC):
+ * Read-only: prints the single Safe transaction for the ZKC admin Safe (MultiSendCallOnly delegatecall
+ * batching both calls to ZKC) for an already deployed ZKCRecovery. Never broadcasts.
  *   1. ZKC.upgradeToAndCall(ZKCRecovery, recoverSelfTransfer())
  *   2. ZKC.upgradeToAndCall(PREV_IMPL, "")
  *
- * Deploy:  forge script script/RecoverZKC.s.sol:RecoverZKC --rpc-url $MAINNET_RPC_URL --account <keystore> --broadcast
- * Print:   ZKC_RECOVERY_IMPL=<addr> forge script script/RecoverZKC.s.sol:RecoverZKC --rpc-url $MAINNET_RPC_URL
+ * ZKC_RECOVERY_IMPL=<addr> forge script script/RecoverZKC.s.sol:RecoverZKC --rpc-url $MAINNET_RPC_URL
  */
 contract RecoverZKC is Script {
-    function run() public {
+    function run() public view {
         address zkc = RecoverZKCCalldata.ZKC;
         require(
             address(uint160(uint256(vm.load(zkc, RecoverZKCCalldata.IMPL_SLOT)))) == RecoverZKCCalldata.PREV_IMPL,
             "unexpected current ZKC impl"
         );
 
-        address recoveryImpl = vm.envOr("ZKC_RECOVERY_IMPL", address(0));
-        if (recoveryImpl == address(0)) {
-            vm.startBroadcast();
-            recoveryImpl = address(new ZKCRecovery());
-            vm.stopBroadcast();
-        }
+        address recoveryImpl = vm.envAddress("ZKC_RECOVERY_IMPL");
         require(recoveryImpl.code.length > 0, "ZKC_RECOVERY_IMPL has no code");
 
         bytes memory data = RecoverZKCCalldata.multiSendData(recoveryImpl);
