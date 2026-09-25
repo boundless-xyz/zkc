@@ -3,8 +3,9 @@
 # open the link while logged in to Tenderly (free plan works), click Simulate, then share the result.
 #
 # The simulation is the real Safe call: execTransaction(MultiSendCallOnly, 0, multiSend(...), DELEGATECALL, ...)
-# at the Safe's current nonce. Signatures are "pre-approved hash" (v = 1) signatures from `threshold` real owners,
-# made valid with a state override on the Safe's approvedHashes mapping. Nothing else is overridden.
+# at the Safe's current nonce, sent by a real owner with its pre-validated (v = 1) signature. The only state
+# override is the Safe threshold set to 1 (same approach as base/contracts Simulation.sol), which keeps the
+# calldata short enough for Tenderly's URL handling. The fork test covers the full 3-of-6 threshold path.
 #
 # Required env: MAINNET_RPC_URL, ZKC_RECOVERY_IMPL
 # Optional env: TENDERLY_ACCOUNT, TENDERLY_PROJECT (open the simulator in that project; else your default one)
@@ -19,7 +20,7 @@ PREV_IMPL=0xe90A3bc5992d30b9909eeb6A8015A7bC402D7F98
 SAFE=0x3886eEaf95AA2bDDdf0C924925e290291f70447F
 MULTISEND=0x9641d764fc13c8B624c04430C7356C1C7C8102e2
 ZERO=0x0000000000000000000000000000000000000000
-APPROVED_HASHES_SLOT=8 # Safe v1.4.1: mapping(address => mapping(bytes32 => uint256)) approvedHashes
+THRESHOLD_SLOT=4 # Safe v1.4.1 OwnerManager.threshold
 
 [ "$(cast code "$ZKC_RECOVERY_IMPL" -r "$RPC")" != "0x" ] || { echo "no code at $ZKC_RECOVERY_IMPL" >&2; exit 1; }
 
@@ -39,21 +40,14 @@ SAFE_TX_HASH=$(cast call "$SAFE" \
   "getTransactionHash(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,uint256)(bytes32)" \
   "$MULTISEND" 0 "$DATA" 1 0 0 0 "$ZERO" "$ZERO" "$NONCE" -r "$RPC")
 
-# First `threshold` owners in ascending order (Safe requires sorted signers)
-SIGNERS=$(cast call "$SAFE" "getOwners()(address[])" -r "$RPC" | tr -d '[] ' | tr ',' '\n' \
-  | python3 -c 'import sys; print("\n".join(sorted((l.strip() for l in sys.stdin if l.strip()), key=lambda a: int(a,16))))' \
-  | head -n "$THRESHOLD")
-
-SIGS=0x
-OVERRIDES=()
-SLOTS=()
-for s in $SIGNERS; do
-  SIGS=$(cast concat-hex "$SIGS" "$(cast to-uint256 "$s")" "$(cast to-uint256 0)" 0x01)
-  SLOT=$(cast index bytes32 "$SAFE_TX_HASH" "$(cast index address "$s" $APPROVED_HASHES_SLOT)")
-  SLOTS+=("$SLOT")
-  OVERRIDES+=("$SAFE:$SLOT:$(cast to-uint256 1)")
-done
-FROM=$(echo "$SIGNERS" | head -n1)
+# Lowest-address owner signs (v = 1: valid because msg.sender == that owner)
+FROM=$(cast call "$SAFE" "getOwners()(address[])" -r "$RPC" | tr -d '[] ' | tr ',' '\n' \
+  | python3 -c 'import sys; print(sorted((l.strip() for l in sys.stdin if l.strip()), key=lambda a: int(a,16))[0])')
+SIGS=$(cast concat-hex "$(cast to-uint256 "$FROM")" "$(cast to-uint256 0)" 0x01)
+ONE=$(cast to-uint256 1)
+THRESHOLD_KEY=$(cast to-uint256 $THRESHOLD_SLOT)
+[ "$(cast storage "$SAFE" $THRESHOLD_SLOT -r "$RPC")" = "$(cast to-uint256 "$THRESHOLD")" ] \
+  || { echo "threshold slot mismatch" >&2; exit 1; }
 
 EXEC=$(cast calldata \
   "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)" \
@@ -63,22 +57,17 @@ echo "Safe:           $SAFE (nonce $NONCE, threshold $THRESHOLD)"
 echo "to:             $MULTISEND (MultiSendCallOnly v1.4.1), operation 1, value 0"
 echo "ZKCRecovery:    $ZKC_RECOVERY_IMPL"
 echo "safeTxHash:     $SAFE_TX_HASH"
-echo "signers (sim):  $(echo $SIGNERS)"
+echo "signer (sim):   $FROM (threshold overridden $THRESHOLD -> 1)"
 echo "data:           $DATA"
 echo
 
 # --- Local preflight: same call + overrides via eth_call ---
-RESULT=$(cast call "$SAFE" "$EXEC" --from "$FROM" -r "$RPC" --override-state-diff "$(IFS=,; echo "${OVERRIDES[*]}")")
+RESULT=$(cast call "$SAFE" "$EXEC" --from "$FROM" -r "$RPC" --override-state-diff "$SAFE:$THRESHOLD_KEY:$ONE")
 [ "$(cast to-dec "$RESULT")" = "1" ] || { echo "preflight failed: $RESULT" >&2; exit 1; }
 echo "Preflight eth_call: execTransaction returned true"
 
 BLOCK=$(cast block-number -r "$RPC")
-OVERRIDES_JSON=$(python3 -c '
-import json, sys
-safe, slots = sys.argv[1], sys.argv[2:]
-one = "0x" + "0" * 63 + "1"
-print(json.dumps([{"contractAddress": safe, "storage": [{"key": s, "value": one} for s in slots]}], separators=(",", ":")))
-' "$SAFE" "${SLOTS[@]}")
+OVERRIDES_JSON="[{\"contractAddress\":\"$SAFE\",\"storage\":[{\"key\":\"$THRESHOLD_KEY\",\"value\":\"$ONE\"}]}]"
 ENC_OVERRIDES=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$OVERRIDES_JSON")
 
 if [ -n "${TENDERLY_ACCOUNT:-}" ] && [ -n "${TENDERLY_PROJECT:-}" ]; then
@@ -89,8 +78,11 @@ fi
 URL="$BASE?network=1&block=$BLOCK&blockIndex=0&from=$FROM&contractAddress=$SAFE&value=0&gas=3000000&gasPrice=0&stateOverrides=$ENC_OVERRIDES&rawFunctionInput=$EXEC"
 
 echo
-echo "State overrides (Safe approvedHashes[signer][safeTxHash] = 1):"
+echo "State override (Safe threshold = 1):"
 echo "$OVERRIDES_JSON"
 echo
-echo "Tenderly simulator link (block $BLOCK, ${#URL} chars):"
+echo "Raw input data (paste into Tenderly's 'Raw input data' field if the link truncates it):"
+echo "$EXEC"
+echo
+echo "Tenderly simulator link (block $BLOCK, ${#URL} chars, raw input ${#EXEC} chars):"
 echo "$URL"
