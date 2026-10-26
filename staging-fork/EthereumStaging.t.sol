@@ -17,6 +17,36 @@ interface IStagePovw {
     function mint(bytes calldata, bytes calldata) external;
     function upgradeToAndCall(address, bytes calldata) external payable;
     function initialize(address) external;
+    function VERIFIER() external view returns (address);
+    function MINT_CALCULATOR_ID() external view returns (bytes32);
+    function workLogCommit(address) external view returns (bytes32);
+}
+
+// Test-only ABI shapes from market/contracts/src/povw/IPovwMint.sol and Steel.Commitment.
+struct StageMint {
+    address recipient;
+    uint256 value;
+}
+
+struct StageUpdate {
+    address workLogId;
+    bytes32 initialCommit;
+    bytes32 updatedCommit;
+}
+
+struct StageCommitment {
+    uint256 id;
+    bytes32 digest;
+    bytes32 configID;
+}
+
+struct StageJournal {
+    StageMint[] mints;
+    StageUpdate[] updates;
+    address povwAccountingAddress;
+    address zkcRewardsAddress;
+    address zkcAddress;
+    StageCommitment steelCommit;
 }
 
 contract StagingEthereumForkTest is StagingSafeFork {
@@ -134,6 +164,72 @@ contract StagingEthereumForkTest is StagingSafeFork {
             vm.expectRevert(PoVWSunset.selector);
             token.mintPoVWRewardsForRecipient(user, 0);
             assertEq(token.poVWClaimed(), claimed);
+        }
+    }
+
+    function mintJournal(address logId, bytes32 initialCommit, bytes32 nextCommit)
+        internal
+        view
+        returns (bytes memory)
+    {
+        StageJournal memory journal;
+        journal.povwAccountingAddress = accounting;
+        journal.zkcRewardsAddress = address(staking);
+        journal.zkcAddress = address(token);
+        journal.steelCommit = StageCommitment(
+            block.number - 1,
+            blockhash(block.number - 1),
+            0x5c9552dc9bfad8572ded4f818bb35b0f4260660c1554236986b768ae999b4b60
+        );
+        journal.updates = new StageUpdate[](1);
+        journal.updates[0] = StageUpdate(logId, initialCommit, nextCommit);
+        journal.mints = new StageMint[](1);
+        journal.mints[0] = StageMint(user, 100);
+        return abi.encode(journal);
+    }
+
+    function testStagePreCutoffWorkAndMintAndOldUnclaimedJournalRejected() public {
+        bytes32 emptyRoot = 0xb26927f749929e8484785e36e7ec93d5eeae4b58182f76f1e760263ab67f540c;
+        address verifier = IStagePovw(minter).VERIFIER();
+        bytes memory seal = hex"12345678deadbeef";
+        // Prepare the unclaimed journal before the upgrade. This is a local fixture, not a historical zk proof.
+        address oldLog = vm.addr(0xabc124);
+        bytes memory oldJournal = mintJournal(oldLog, emptyRoot, bytes32(uint256(4)));
+        upgrade();
+        vm.warp(T - 1);
+        assertEq(IStagePovw(accounting).VERIFIER(), verifier);
+        // Only the proof gate is mocked. Steel checks and Accounting, Mint and ZKC transitions stay real.
+        bytes memory gate = abi.encodeWithSignature(
+            "verify(bytes,bytes32,bytes32)", seal, IStagePovw(minter).MINT_CALCULATOR_ID(), sha256(oldJournal)
+        );
+        vm.mockCall(verifier, abi.encodeWithSelector(bytes4(keccak256("verify(bytes,bytes32,bytes32)"))), "");
+        IStagePovw(accounting).finalizeEpoch();
+        (uint96 beforeWork,) = IStagePovw(accounting).pendingEpoch();
+        IStagePovw(accounting).updateWorkLog(user, bytes32(uint256(2)), 7, user, seal);
+        assertEq(IStagePovw(accounting).workLogCommit(user), bytes32(uint256(2)));
+        (uint96 afterWork,) = IStagePovw(accounting).pendingEpoch();
+        assertEq(afterWork, beforeWork + 7);
+        uint256 balance = token.balanceOf(user);
+        uint256 claimed = token.poVWClaimed();
+        IStagePovw(minter).mint(mintJournal(user, emptyRoot, bytes32(uint256(3))), seal);
+        assertEq(token.balanceOf(user), balance + 100);
+        assertEq(token.poVWClaimed(), claimed + 100);
+        assertEq(IStagePovw(minter).workLogCommit(user), bytes32(uint256(3)));
+        // Prove this exact unclaimed journal is accepted at T-1, then restore its unclaimed state.
+        uint256 snapshot = vm.snapshotState();
+        vm.expectCall(verifier, gate);
+        IStagePovw(minter).mint(oldJournal, seal);
+        assertEq(IStagePovw(minter).workLogCommit(oldLog), bytes32(uint256(4)));
+        assertTrue(vm.revertToState(snapshot));
+        vm.clearMockedCalls();
+        vm.mockCallRevert(verifier, gate, bytes("proof gate must not be reached"));
+        for (uint256 i; i < 2; ++i) {
+            vm.warp(T + i);
+            vm.expectRevert(STOP);
+            IStagePovw(minter).mint(oldJournal, seal);
+            assertEq(IStagePovw(minter).workLogCommit(oldLog), emptyRoot);
+            assertEq(token.balanceOf(user), balance + 100);
+            assertEq(token.poVWClaimed(), claimed + 100);
         }
     }
 
@@ -255,6 +351,11 @@ contract StagingEthereumForkTest is StagingSafeFork {
         vm.prank(user);
         vm.expectRevert(unauthorized);
         token.upgradeToAndCall(baselines[2], "");
+        uint256 initialSupply = token.INITIAL_SUPPLY();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        token.initialize(user, address(0), initialSupply, 0, user);
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        ZKC(candidates[2]).initialize(user, address(0), initialSupply, 0, user);
     }
 
     function testStageReinitializerBehaviorMatchesOriginal() public {
