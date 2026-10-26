@@ -7,7 +7,7 @@ Production changes are confined to `src/ZKC.sol` and the supply getter's `pure` 
 ## Tests
 
 ```sh
-forge test --offline --match-contract PoVWSunsetTest --fuzz-runs 256
+forge test --offline --match-contract ZKCSunsetTest --fuzz-runs 256
 fork-test/run.sh
 ```
 

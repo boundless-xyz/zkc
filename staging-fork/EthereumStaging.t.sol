@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 import {IERC5267} from "@openzeppelin/contracts/interfaces/IERC5267.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {IForkSafe} from "./SafeFork.sol";
+import {IForkSafe} from "../fork-test/SafeFork.sol";
 import {StagingSafeFork} from "./StagingSafeFork.sol";
 import {ZKC, PoVWSunset} from "../src/ZKC.sol";
 import {veZKC} from "../src/veZKC.sol";
