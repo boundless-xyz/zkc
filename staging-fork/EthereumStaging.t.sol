@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {IERC5267} from "@openzeppelin/contracts/interfaces/IERC5267.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IForkSafe} from "./SafeFork.sol";
@@ -18,6 +19,7 @@ interface IStagePovw {
     function upgradeToAndCall(address, bytes calldata) external payable;
     function initialize(address) external;
     function VERIFIER() external view returns (address);
+    function LOG_UPDATER_ID() external view returns (bytes32);
     function MINT_CALCULATOR_ID() external view returns (bytes32);
     function workLogCommit(address) external view returns (bytes32);
 }
@@ -188,6 +190,30 @@ contract StagingEthereumForkTest is StagingSafeFork {
         return abi.encode(journal);
     }
 
+    function accountingProofCall(bytes memory seal) internal view returns (bytes memory) {
+        (bytes1 fields, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
+            IERC5267(accounting).eip712Domain();
+        assertEq(fields, hex"0f");
+        assertEq(chainId, block.chainid);
+        assertEq(verifyingContract, accounting);
+        bytes32 domain = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes(name)),
+                keccak256(bytes(version)),
+                chainId,
+                verifyingContract
+            )
+        );
+        // Journal and WorkLogUpdate contain only static fields, so this is their exact ABI encoding.
+        bytes32 journalHash = sha256(
+            abi.encode(user, IStagePovw(accounting).workLogCommit(user), bytes32(uint256(2)), uint64(7), user, domain)
+        );
+        return abi.encodeWithSignature(
+            "verify(bytes,bytes32,bytes32)", seal, IStagePovw(accounting).LOG_UPDATER_ID(), journalHash
+        );
+    }
+
     function testStagePreCutoffWorkAndMintAndOldUnclaimedJournalRejected() public {
         bytes32 emptyRoot = 0xb26927f749929e8484785e36e7ec93d5eeae4b58182f76f1e760263ab67f540c;
         address verifier = IStagePovw(minter).VERIFIER();
@@ -205,16 +231,17 @@ contract StagingEthereumForkTest is StagingSafeFork {
         vm.mockCall(verifier, abi.encodeWithSelector(bytes4(keccak256("verify(bytes,bytes32,bytes32)"))), "");
         IStagePovw(accounting).finalizeEpoch();
         (uint96 beforeWork,) = IStagePovw(accounting).pendingEpoch();
+        vm.expectCall(verifier, accountingProofCall(seal));
         IStagePovw(accounting).updateWorkLog(user, bytes32(uint256(2)), 7, user, seal);
         assertEq(IStagePovw(accounting).workLogCommit(user), bytes32(uint256(2)));
         (uint96 afterWork,) = IStagePovw(accounting).pendingEpoch();
         assertEq(afterWork, beforeWork + 7);
         uint256 balance = token.balanceOf(user);
         uint256 claimed = token.poVWClaimed();
-        IStagePovw(minter).mint(mintJournal(user, emptyRoot, bytes32(uint256(3))), seal);
+        IStagePovw(minter).mint(mintJournal(user, emptyRoot, bytes32(uint256(2))), seal);
         assertEq(token.balanceOf(user), balance + 100);
         assertEq(token.poVWClaimed(), claimed + 100);
-        assertEq(IStagePovw(minter).workLogCommit(user), bytes32(uint256(3)));
+        assertEq(IStagePovw(minter).workLogCommit(user), bytes32(uint256(2)));
         // Prove this exact unclaimed journal is accepted at T-1, then restore its unclaimed state.
         uint256 snapshot = vm.snapshotState();
         vm.expectCall(verifier, gate);
