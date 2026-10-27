@@ -4,9 +4,7 @@ pragma solidity 0.8.26;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import {SunsetTransaction} from "../script/sunset/SunsetTransaction.sol";
-import {ZKCSunset} from "../script/sunset/ZKCSunset.sol";
-import {RuntimeCheck} from "../script/sunset/RuntimeCheck.sol";
+import {UpgradeZKC} from "../script/Upgrade.s.sol";
 
 import {SafeFork} from "./SafeFork.sol";
 import {ZKC, PoVWSunset} from "../src/ZKC.sol";
@@ -24,7 +22,6 @@ contract ZKCForkTest is SafeFork {
     address constant POVW_MINTER = 0xBFCE7c2d5e7EdDEab71B3eeED770713c8b755397;
     address constant BASELINE = 0xe90A3bc5992d30b9909eeb6A8015A7bC402D7F98;
     address candidate;
-    SunsetTransaction.Transaction transaction;
 
     function setUp() public {
         assertEq(block.chainid, 1, "Ethereum fork required");
@@ -39,7 +36,7 @@ contract ZKCForkTest is SafeFork {
         (uint256 amount, uint256 withdrawableAt) = staking.getStakedAmountAndWithdrawalTime(STAKER);
         assertEq(amount, 10 ether);
         assertEq(withdrawableAt, 0);
-        (transaction, candidate) = ZKCSunset.prepare(vm.envOr("SUNSET_IMPL", address(0)));
+        candidate = prepareCandidate(vm.envOr("SUNSET_IMPL", address(0)));
     }
 
     function upgrade() internal {
@@ -50,7 +47,7 @@ contract ZKCForkTest is SafeFork {
         uint256 s = token.stakingClaimed();
         uint256 nonce = token.nonces(STAKER);
         vm.record();
-        executeSafe(transaction.safe, transaction.to, transaction.data, transaction.operation, true);
+        executeSafe(FOUNDATION, address(token), upgradeCall(candidate), 0, true);
         assertOnlyImplementationWritten(address(token));
         assertEq(implementation(address(token)), candidate);
         assertEq(token.claimedTotalSupply(), supply);
@@ -194,30 +191,58 @@ contract ZKCForkTest is SafeFork {
         executeSafe(FOUNDATION, address(token), abi.encodeCall(token.upgradeToAndCall, (BASELINE, bytes(""))), 0, true);
         assertEq(implementation(address(token)), BASELINE);
         assertEq(token.balanceOf(STAKER), balance);
-        executeSafe(transaction.safe, transaction.to, transaction.data, transaction.operation, true);
+        executeSafe(FOUNDATION, address(token), upgradeCall(candidate), 0, true);
         assertEq(implementation(address(token)), candidate);
     }
 
+    function prepareCandidate(address requested) internal returns (address result) {
+        if (requested != address(0)) {
+            requireExisting(requested);
+            address expectedImplementation = address(new ZKC());
+            checkRuntime(
+                expectedImplementation,
+                requested,
+                string.concat(vm.projectRoot(), "/", vm.envString("SUNSET_ARTIFACT_ROOT"), "/ZKC.sol/ZKC.json")
+            );
+            return requested;
+        }
+        vm.setEnv("CHAIN_KEY", "ethereum-mainnet");
+        vm.setEnv("STACK_TAG", "");
+        vm.setEnv("GNOSIS_EXECUTE", "true");
+        // OZ validation runs separately; this suite exercises deployment and the real Safe.
+        vm.setEnv("SKIP_SAFETY_CHECKS", "true");
+        string memory config = vm.readFile("deployment.toml");
+        address local = new UpgradeZKC().run();
+        assertEq(vm.readFile("deployment.toml"), config, "preparation changed deployment config");
+        assertEq(implementation(address(token)), BASELINE, "preparation upgraded proxy");
+        result = requested == address(0) ? local : requested;
+        checkRuntime(
+            local,
+            result,
+            string.concat(vm.projectRoot(), "/", vm.envString("SUNSET_ARTIFACT_ROOT"), "/ZKC.sol/ZKC.json")
+        );
+    }
+
     function checkCandidate(address value) external {
-        ZKCSunset.prepare(value);
+        prepareCandidate(value);
     }
 
     function testForkCandidateRuntimeValidation() public {
         this.checkCandidate(candidate);
-        vm.expectRevert(abi.encodeWithSelector(RuntimeCheck.RuntimeMismatch.selector, BASELINE));
+        vm.expectRevert(abi.encodeWithSelector(RuntimeMismatch.selector, BASELINE));
         this.checkCandidate(BASELINE);
-        vm.expectRevert(abi.encodeWithSelector(RuntimeCheck.RuntimeMismatch.selector, address(1)));
+        vm.expectRevert(abi.encodeWithSelector(RuntimeMismatch.selector, address(1)));
         this.checkCandidate(address(1));
     }
 
     function checkUndeployedReferenceAddress() external {
         address predicted = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
         assertEq(predicted.code.length, 0);
-        ZKCSunset.prepare(predicted);
+        prepareCandidate(predicted);
     }
 
     function testForkRejectsUndeployedReferenceAddress() public {
-        vm.expectPartialRevert(RuntimeCheck.RuntimeMismatch.selector);
+        vm.expectPartialRevert(RuntimeMismatch.selector);
         this.checkUndeployedReferenceAddress();
     }
 }
