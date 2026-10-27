@@ -95,17 +95,11 @@ abstract contract SafeFork is Test {
         return abi.encodeWithSignature("upgradeToAndCall(address,bytes)", candidate, bytes(""));
     }
 
-    function packedCall(address target, bytes memory data) internal pure returns (bytes memory) {
-        return abi.encodePacked(uint8(0), target, uint256(0), uint256(data.length), data);
-    }
-
     function implementation(address proxy) internal view returns (address) {
         return address(uint160(uint256(vm.load(proxy, IMPLEMENTATION_SLOT))));
     }
 
-    function executeSafe(address safeAddress, address target, bytes memory data, uint8 operation, bool expectSuccess)
-        internal
-    {
+    function executeSafe(address safeAddress, address target, bytes memory data, uint8 operation) internal {
         IForkSafe safe = IForkSafe(safeAddress);
         address[] memory owners = safe.getOwners();
         uint256 threshold = safe.getThreshold();
@@ -117,21 +111,15 @@ abstract contract SafeFork is Test {
             }
         }
         uint256 nonce = safe.nonce();
-        // Nonzero safeTxGas lets the real Safe return false for an intentionally failing batch.
-        uint256 safeTxGas = expectSuccess ? 0 : 5_000_000;
-        bytes32 hash =
-            safe.getTransactionHash(target, 0, data, operation, safeTxGas, 0, 0, address(0), address(0), nonce);
+        bytes32 hash = safe.getTransactionHash(target, 0, data, operation, 0, 0, 0, address(0), address(0), nonce);
         bytes memory signatures;
         for (uint256 i; i < threshold; ++i) {
             vm.prank(owners[i]);
             safe.approveHash(hash);
             signatures = abi.encodePacked(signatures, bytes32(uint256(uint160(owners[i]))), bytes32(0), uint8(1));
         }
-        assertEq(
-            safe.execTransaction(
-                target, 0, data, operation, safeTxGas, 0, 0, address(0), payable(address(0)), signatures
-            ),
-            expectSuccess
+        assertTrue(
+            safe.execTransaction(target, 0, data, operation, 0, 0, 0, address(0), payable(address(0)), signatures)
         );
         assertEq(safe.nonce(), nonce + 1);
     }

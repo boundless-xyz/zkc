@@ -63,11 +63,11 @@ abstract contract StagingSafeFork is SafeFork {
         return block.chainid == 11155111 ? 5 : 6;
     }
 
-    function executeStaging(address target, bytes memory data, uint8 operation, bool success) internal {
-        executeSafe(stagingSafe, target, data, operation, success);
+    function executeStaging(address target, bytes memory data, uint8 operation) internal {
+        executeSafe(stagingSafe, target, data, operation);
     }
 
     function executeBundle() internal {
-        executeStaging(bundleTarget, bundleData, bundleOperation, true);
+        executeStaging(bundleTarget, bundleData, bundleOperation);
     }
 }

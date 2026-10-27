@@ -351,7 +351,7 @@ contract StagingEthereumForkTest is StagingSafeFork {
     }
 
     function executeInvalidBatch(bytes calldata data) external {
-        executeStaging(bundleTarget, data, 1, true);
+        executeStaging(bundleTarget, data, 1);
     }
 
     function testStageUnauthorizedAndInitializers() public {
@@ -409,7 +409,7 @@ contract StagingEthereumForkTest is StagingSafeFork {
     function testStageRollbackAllThree() public {
         upgrade();
         bytes32 state = stateHash();
-        executeStaging(bundleTarget, packedUpgrade(baselines), 1, true);
+        executeStaging(bundleTarget, packedUpgrade(baselines), 1);
         for (uint256 i; i < 3; ++i) {
             assertEq(implementation(proxies[i]), baselines[i]);
         }

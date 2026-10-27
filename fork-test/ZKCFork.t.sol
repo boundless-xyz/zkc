@@ -47,7 +47,7 @@ contract ZKCForkTest is SafeFork {
         uint256 s = token.stakingClaimed();
         uint256 nonce = token.nonces(STAKER);
         vm.record();
-        executeSafe(FOUNDATION, address(token), upgradeCall(candidate), 0, true);
+        executeSafe(FOUNDATION, address(token), upgradeCall(candidate), 0);
         assertOnlyImplementationWritten(address(token));
         assertEq(implementation(address(token)), candidate);
         assertEq(token.claimedTotalSupply(), supply);
@@ -188,10 +188,10 @@ contract ZKCForkTest is SafeFork {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         replacement.initializeV3();
         uint256 balance = token.balanceOf(STAKER);
-        executeSafe(FOUNDATION, address(token), abi.encodeCall(token.upgradeToAndCall, (BASELINE, bytes(""))), 0, true);
+        executeSafe(FOUNDATION, address(token), abi.encodeCall(token.upgradeToAndCall, (BASELINE, bytes(""))), 0);
         assertEq(implementation(address(token)), BASELINE);
         assertEq(token.balanceOf(STAKER), balance);
-        executeSafe(FOUNDATION, address(token), upgradeCall(candidate), 0, true);
+        executeSafe(FOUNDATION, address(token), upgradeCall(candidate), 0);
         assertEq(implementation(address(token)), candidate);
     }
 
