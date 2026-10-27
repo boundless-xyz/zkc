@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ZKC, PoVWSunset} from "../../src/ZKC.sol";
+import {IZKC} from "../../src/interfaces/IZKC.sol";
 import {ZKCOriginal} from "../reference/ZKCOriginal.sol";
 import {veZKC} from "../../src/veZKC.sol";
 import {StakingRewards} from "../../src/rewards/StakingRewards.sol";
@@ -387,5 +388,109 @@ contract ZKCSunsetTest is Test {
         token.mintPoVWRewardsForRecipient(user, 0);
         vm.stopPrank();
         assertEq(token.poVWClaimed(), budget);
+    }
+
+    function testFuzzCutoffWithDifferentEpochStarts(uint16 rawCutoffEpoch, uint32 rawOffset, uint16 rawEpoch) public {
+        uint256 cutoffEpoch = bound(uint256(rawCutoffEpoch), 0, 5000);
+        uint256 offset = bound(uint256(rawOffset), 0, 2 days - 1);
+        uint256 epoch = bound(uint256(rawEpoch), 0, 10000);
+        checkCutoffForEpochStart(T - cutoffEpoch * 2 days - offset, cutoffEpoch, epoch);
+    }
+
+    function testCutoffOnEpochBoundaryAndOneSecondEitherSide() public {
+        for (uint256 i; i < 3; ++i) {
+            checkCutoffForEpochStart(T - CUTOFF_EPOCH * 2 days - 1 + i, i == 2 ? 209 : 210, 210);
+        }
+    }
+
+    function checkCutoffForEpochStart(uint256 start, uint256 cutoffEpoch, uint256 epoch) internal {
+        vm.warp(start);
+        (token,,) = deploySystem();
+        upgrade();
+
+        uint256 cappedEpoch = epoch < cutoffEpoch ? epoch : cutoffEpoch;
+        assertEq(
+            token.getTotalPoVWEmissionsAtEpochStart(epoch), original.getTotalPoVWEmissionsAtEpochStart(cappedEpoch)
+        );
+        assertEq(
+            token.getPoVWEmissionsForEpoch(epoch), epoch < cutoffEpoch ? original.getPoVWEmissionsForEpoch(epoch) : 0
+        );
+        assertEq(token.getStakingEmissionsForEpoch(epoch), original.getStakingEmissionsForEpoch(epoch));
+        assertEq(
+            token.getSupplyAtEpochStart(epoch),
+            original.INITIAL_SUPPLY() + original.getTotalPoVWEmissionsAtEpochStart(cappedEpoch)
+                + original.getTotalStakingEmissionsAtEpochStart(epoch)
+        );
+        if (start < T) {
+            vm.warp(T - 1);
+            uint256 budget = original.getTotalPoVWEmissionsAtEpochStart(token.getCurrentEpoch());
+            vm.prank(minter);
+            token.mintPoVWRewardsForRecipient(user, budget);
+            assertEq(token.poVWClaimed(), budget);
+        }
+        vm.warp(T);
+        assertEq(token.getCurrentEpoch(), cutoffEpoch);
+        assertEq(token.getPoVWEmissionsForEpoch(cutoffEpoch), 0);
+        vm.prank(minter);
+        vm.expectRevert(PoVWSunset.selector);
+        token.mintPoVWRewardsForRecipient(user, 0);
+    }
+
+    function testFullStakingBudgetAndNextEpochRemainIdentical() public {
+        vm.startPrank(owner);
+        token.grantRole(token.STAKING_MINTER_ROLE(), minter);
+        original.grantRole(original.STAKING_MINTER_ROLE(), minter);
+        vm.stopPrank();
+        upgrade();
+        uint256[7] memory timestamps =
+            [T - 1, T, T + 1, START + 211 * 2 days, START + 364 * 2 days, START + 1456 * 2 days, START + 1820 * 2 days];
+        for (uint256 i; i < timestamps.length; ++i) {
+            vm.warp(timestamps[i]);
+            uint256 budget = original.getTotalStakingEmissionsAtEpochStart(original.getCurrentEpoch());
+            uint256 remaining = budget - original.stakingClaimed();
+            vm.startPrank(minter);
+            original.mintStakingRewardsForRecipient(user, remaining);
+            token.mintStakingRewardsForRecipient(user, remaining);
+            vm.expectRevert(IZKC.TotalAllocationExceeded.selector);
+            original.mintStakingRewardsForRecipient(user, 1);
+            vm.expectRevert(IZKC.TotalAllocationExceeded.selector);
+            token.mintStakingRewardsForRecipient(user, 1);
+            vm.stopPrank();
+            assertEq(token.stakingClaimed(), budget);
+            assertEq(token.stakingClaimed(), original.stakingClaimed());
+            assertEq(token.balanceOf(user), original.balanceOf(user));
+            assertEq(token.claimedTotalSupply(), original.claimedTotalSupply());
+            assertLe(token.claimedTotalSupply(), token.totalSupply());
+        }
+    }
+
+    function testEveryEpochThroughTenYearsMatchesOriginalStakingAndFrozenPoVW() public {
+        upgrade();
+        uint256 frozenPoVW = original.getTotalPoVWEmissionsAtEpochStart(CUTOFF_EPOCH);
+        uint256 stakingPaid;
+        for (uint256 epoch; epoch <= 1820; ++epoch) {
+            uint256 stakingEmission = original.getStakingEmissionsForEpoch(epoch);
+            assertEq(token.getStakingEmissionsForEpoch(epoch), stakingEmission);
+            assertEq(
+                token.getTotalStakingEmissionsAtEpochStart(epoch), original.getTotalStakingEmissionsAtEpochStart(epoch)
+            );
+            if (epoch < CUTOFF_EPOCH) {
+                assertEq(token.getSupplyAtEpochStart(epoch), original.getSupplyAtEpochStart(epoch));
+                assertEq(token.getEmissionsForEpoch(epoch), original.getEmissionsForEpoch(epoch));
+            } else {
+                assertEq(token.getTotalPoVWEmissionsAtEpochStart(epoch), frozenPoVW);
+                assertEq(token.getPoVWEmissionsForEpoch(epoch), 0);
+                assertEq(token.getEmissionsForEpoch(epoch), stakingEmission);
+                assertEq(
+                    token.getSupplyAtEpochStart(epoch),
+                    original.INITIAL_SUPPLY() + frozenPoVW + original.getTotalStakingEmissionsAtEpochStart(epoch)
+                );
+            }
+            // Per-epoch rounding can leave dust relative to the cumulative budget.
+            stakingPaid += stakingEmission;
+            uint256 cumulativeBudget = token.getTotalStakingEmissionsAtEpochStart(epoch + 1);
+            assertLe(stakingPaid, cumulativeBudget);
+            assertLe(cumulativeBudget - stakingPaid, epoch + 1);
+        }
     }
 }

@@ -8,6 +8,7 @@ import {UpgradeZKC} from "../script/Upgrade.s.sol";
 
 import {SafeFork} from "./SafeFork.sol";
 import {ZKC, PoVWSunset} from "../src/ZKC.sol";
+import {IZKC} from "../src/interfaces/IZKC.sol";
 import {veZKC} from "../src/veZKC.sol";
 import {StakingRewards} from "../src/rewards/StakingRewards.sol";
 import {SupplyCalculator} from "../src/calculators/SupplyCalculator.sol";
@@ -142,6 +143,35 @@ contract ZKCForkTest is SafeFork {
         (uint256 actualReward, uint256 actualPrincipal) = claimAndWithdraw();
         assertEq(actualReward, expectedReward);
         assertEq(actualPrincipal, expectedPrincipal);
+    }
+
+    function testForkFullStakingBudgetAcrossCutoffMatchesOriginal() public {
+        uint256 snapshot = vm.snapshotState();
+        uint256[] memory expected = mintRemainingStakingBudgets();
+        assertTrue(vm.revertToState(snapshot));
+        upgrade();
+        uint256[] memory actual = mintRemainingStakingBudgets();
+        assertEq(actual, expected);
+    }
+
+    function mintRemainingStakingBudgets() internal returns (uint256[] memory amounts) {
+        uint256 start = token.epoch0StartTime();
+        uint256[5] memory timestamps = [T - 1, T, start + 211 * 2 days, start + 364 * 2 days, start + 1456 * 2 days];
+        amounts = new uint256[](timestamps.length);
+        for (uint256 i; i < timestamps.length; ++i) {
+            vm.warp(timestamps[i]);
+            uint256 budget = token.getTotalStakingEmissionsAtEpochStart(token.getCurrentEpoch());
+            amounts[i] = budget - token.stakingClaimed();
+            uint256 beforeBalance = token.balanceOf(STAKER);
+            vm.startPrank(address(rewards));
+            token.mintStakingRewardsForRecipient(STAKER, amounts[i]);
+            vm.expectRevert(IZKC.TotalAllocationExceeded.selector);
+            token.mintStakingRewardsForRecipient(STAKER, 1);
+            vm.stopPrank();
+            assertEq(token.balanceOf(STAKER) - beforeBalance, amounts[i]);
+            assertEq(token.stakingClaimed(), budget);
+            assertLe(token.claimedTotalSupply(), token.totalSupply());
+        }
     }
 
     function testForkPendingWithdrawalSurvivesUpgrade() public {
