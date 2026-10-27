@@ -10,7 +10,7 @@ import {SafeFork} from "./SafeFork.sol";
 import {ZKC, PoVWSunset} from "../src/ZKC.sol";
 import {IZKC} from "../src/interfaces/IZKC.sol";
 import {veZKC} from "../src/veZKC.sol";
-import {StakingRewards} from "../src/rewards/StakingRewards.sol";
+import {StakingRewards, AlreadyClaimed} from "../src/rewards/StakingRewards.sol";
 import {SupplyCalculator} from "../src/calculators/SupplyCalculator.sol";
 
 contract ZKCForkTest is SafeFork {
@@ -187,6 +187,56 @@ contract ZKCForkTest is SafeFork {
         vm.prank(STAKER);
         staking.completeUnstake();
         assertEq(token.balanceOf(STAKER) - balance, 10 ether);
+    }
+
+    function testForkRollbackPreservesClaimedRewardsAndPendingWithdrawal() public {
+        vm.startPrank(STAKER);
+        staking.delegate(STAKER);
+        staking.delegateRewards(STAKER);
+        vm.stopPrank();
+        uint256 originalPoVW = token.getTotalPoVWEmissionsAtEpochStart(364);
+        uint256 originalStaking = token.getTotalStakingEmissionsAtEpochStart(364);
+        upgrade();
+        vm.warp(T + 6 days);
+        uint256[] memory epochs = new uint256[](2);
+        epochs[0] = 209;
+        epochs[1] = 212;
+        vm.startPrank(STAKER);
+        assertGt(rewards.claimRewards(epochs), 0);
+        staking.initiateUnstake();
+        vm.stopPrank();
+        uint256 supply = token.claimedTotalSupply();
+        uint256 claimed = token.stakingClaimed();
+        uint256 balance = token.balanceOf(STAKER);
+        uint256 escrow = token.balanceOf(address(staking));
+        (uint256 amount, uint256 readyAt) = staking.getStakedAmountAndWithdrawalTime(STAKER);
+        vm.record();
+        executeSafe(FOUNDATION, address(token), upgradeCall(BASELINE), 0);
+        assertOnlyImplementationWritten(address(token));
+        assertEq(implementation(address(token)), BASELINE);
+        assertEq(token.claimedTotalSupply(), supply);
+        assertEq(token.stakingClaimed(), claimed);
+        assertEq(token.balanceOf(STAKER), balance);
+        assertEq(token.balanceOf(address(staking)), escrow);
+        (uint256 afterAmount, uint256 afterReadyAt) = staking.getStakedAmountAndWithdrawalTime(STAKER);
+        assertEq(afterAmount, amount);
+        assertEq(afterReadyAt, readyAt);
+        assertEq(token.getTotalStakingEmissionsAtEpochStart(364), originalStaking);
+        assertEq(token.getTotalPoVWEmissionsAtEpochStart(364), originalPoVW);
+        vm.prank(STAKER);
+        vm.expectRevert(abi.encodeWithSelector(AlreadyClaimed.selector, epochs[0]));
+        rewards.claimRewards(epochs);
+        epochs = new uint256[](1);
+        epochs[0] = 211;
+        vm.prank(STAKER);
+        uint256 reward = rewards.claimRewards(epochs);
+        assertGt(reward, 0, "unclaimed staking rewards remain claimable after rollback");
+        assertEq(token.stakingClaimed(), claimed + reward);
+        assertEq(token.balanceOf(STAKER), balance + reward);
+        vm.warp(readyAt);
+        vm.prank(STAKER);
+        staking.completeUnstake();
+        assertEq(token.balanceOf(STAKER), balance + reward + 10 ether);
     }
 
     function testForkUnauthorizedUpgradeAndLocalRollback() public {

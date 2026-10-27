@@ -93,6 +93,14 @@ ZKC with solc 0.8.26 targeting Cancun, matching the reviewed candidate. Passive 
 rewards and withdrawals remain available; only PoVW minting and future allocation stop.
 No veZKC, StakingRewards or SupplyCalculator upgrade is part of the sunset.
 
+The shared preparer exports the atomic Accounting/Mint/ZKC rollback alongside each
+upgrade, including previous implementation hashes and the next Safe nonce. Follow the
+[rollback instructions](../../market/contracts/fork-test/README.md#rollback); use the same
+tool with `--rollback` to refresh after installation, even after cutoff. No initializer or
+storage migration is needed. Rollback restores the original PoVW emission schedule.
+Fork coverage checks exact rollback calldata and atomic failure, and verifies already-claimed
+staking rewards and pending withdrawals survive rollback. Generated packets are not committed.
+
 The existing recovery fork suite requires Ethereum block **26085537**. Recovery happened
 at 26085538, so running against latest state cannot reproduce its original balance assumption.
 From `zkc/`, after the shared setup, run this in a Bash shell:
