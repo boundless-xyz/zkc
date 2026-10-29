@@ -104,24 +104,26 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
 }
 
 contract UpgradeZKC is BaseZKCUpgrade {
-    function run() public {
+    function run() public returns (address newImpl) {
         (DeploymentConfig memory config, string memory deploymentKey) = ConfigLoader.loadDeploymentConfig(vm);
         require(config.zkc != address(0), "ZKC not deployed");
 
         vm.startBroadcast();
 
         address currentImpl = _getImplementationAddress(config.zkc);
-        address newImpl = _deployImplementationAndUpgrade(config.zkc, ""); // No initializer
+        newImpl = _deployImplementationAndUpgrade(config.zkc, ""); // No initializer
 
         vm.stopBroadcast();
 
-        // Update deployment.toml with new implementation and store previous
-        _updateDeploymentConfig(deploymentKey, "zkc-impl-prev", currentImpl);
-        _updateDeploymentConfig(deploymentKey, "zkc-impl", newImpl);
-        _updateZKCCommit(deploymentKey);
+        bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
+        // A prepared implementation is not yet the proxy implementation.
+        if (!gnosisExecute) {
+            _updateDeploymentConfig(deploymentKey, "zkc-impl-prev", currentImpl);
+            _updateDeploymentConfig(deploymentKey, "zkc-impl", newImpl);
+            _updateZKCCommit(deploymentKey);
+        }
 
         // Print Gnosis Safe transaction info (only if not in GNOSIS_EXECUTE mode)
-        bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
         if (!gnosisExecute) {
             _printGnosisSafeInfo(config.zkc, newImpl, "");
         }

@@ -18,6 +18,7 @@ deployment_secrets.toml
 
 # Reference builds for upgrades
 build-info-reference/
+build-info-reference-*/
 out-reference/
 cache-reference/
 
