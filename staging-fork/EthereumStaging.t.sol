@@ -64,7 +64,7 @@ contract StagingEthereumForkTest is StagingSafeFork {
     uint256 internal cutoffEpoch;
     uint256 internal duration;
     uint256 internal constant AMOUNT = 10 ether;
-    address constant MULTISEND = 0x40A2aCCbd92BCA938b02010E17A5b8929b49130D;
+    address constant MULTISEND = 0x9641d764fc13c8B624c04430C7356C1C7C8102e2;
     bytes4 constant STOP = bytes4(keccak256("ProtocolSunset()"));
 
     function setUp() public {
@@ -78,7 +78,7 @@ contract StagingEthereumForkTest is StagingSafeFork {
         proxies = [accounting, minter, address(token)];
         assertEq(bundleTarget, MULTISEND);
         assertEq(bundleOperation, 1);
-        assertEq(MULTISEND.codehash, 0xa9865ac2d9c7a1591619b188c4d88167b50df6cc0c5327fcbd1c8c75f7c066ad);
+        assertEq(MULTISEND.codehash, 0xecd5bd14a08c5d2122379900b2f272bdf107a7e92423c10dd5fe3254386c9939);
         for (uint256 i; i < 3; ++i) {
             candidates[i] = checkStage(i, proxies[i]);
             baselines[i] = stageAddress(i, "baseline");
