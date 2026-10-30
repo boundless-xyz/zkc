@@ -26,6 +26,21 @@ build_info = true
 build_info_path = "out-reference/build-info"
 extra_output = ["storageLayout"]
 
+# Profile for the ZKCFreeze deployment: no CBOR metadata / IPFS hash in the runtime code,
+# so the deployed bytecode carries no fingerprint of the source or compiler metadata.
+# Build, test and deploy ZKCFreeze only with FOUNDRY_PROFILE=freeze.
+[profile.freeze]
+out = "out-freeze"
+cache_path = "cache-freeze"
+build_info_path = "out-freeze/build-info"
+bytecode_hash = "none"
+cbor_metadata = false
+fs_permissions = [
+  { access = "read", path = "out-freeze" },
+  { access = "read-write", path = "deployment.toml" },
+  { access = "read", path = "build-info-reference" }
+]
+
 # Profile for deployment testing
 [profile.deployment-test]
 src = "src"

@@ -303,6 +303,7 @@ Environment Variables:
   PRIVATE_KEY            Required. Private key for transaction signing (0x...)
   GNOSIS_EXECUTE         Optional. Set to 'true' to generate Gnosis Safe calldata without executing transactions
   SKIP_SAFETY_CHECKS     Optional. Set to 'true' to skip upgrade safety checks (WARNING: unsafe!)
+  ZKC_IMPL_CONTRACT      Optional (upgrade-zkc). ZKC-derived implementation to deploy, e.g. ZKCFreeze.sol:ZKCFreeze. --verify is refused.
   INITIAL_LOCKED         Required for upgrade-supply-calculator-initv2. Locked value in wei (e.g., 794546893000000000000000000)
   ADMIN_TO_ADD           Required for add-*-admin commands. Admin address to grant role to (0x...)
   ADMIN_TO_REMOVE        Required for remove-*-admin commands. Admin address to revoke role from (0x...)
@@ -407,6 +408,10 @@ Gnosis Safe Examples (GNOSIS_EXECUTE=true):
 
   # Generate role revoke calldata for Gnosis Safe
   GNOSIS_EXECUTE=true POVW_MINTER=0x123... CHAIN_KEY=ethereum-mainnet ./script/manage remove-povw-minter
+
+  # Deploy ZKCFreeze for a Safe upgrade: metadata-free bytecode, no verification, proxy and deployment.toml untouched
+  GNOSIS_EXECUTE=true ZKC_IMPL_CONTRACT=ZKCFreeze.sol:ZKCFreeze FOUNDRY_PROFILE=freeze FOUNDRY_OUT=out-freeze \
+  PRIVATE_KEY=0x... CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc --broadcast
 
 Notes:
   - Network configuration is loaded from deployment.toml and deployment_secrets.toml
@@ -540,6 +545,12 @@ main() {
     fi
     echo "✅ Chain ID verified: $CHAIN_ID"
     
+    # A ZKC-derived implementation (e.g. ZKCFreeze) must never be source-verified.
+    if [[ -n "${ZKC_IMPL_CONTRACT:-}" ]] && [[ " ${SCRIPT_ARGS[*]+"${SCRIPT_ARGS[*]}"} " == *" --verify "* ]]; then
+        echo "❌ --verify is not allowed when ZKC_IMPL_CONTRACT is set"
+        exit 1
+    fi
+
     # Create reference build for upgrade commands (unless skipping safety checks)
     if [[ "$COMMAND" == upgrade-* ]]; then
         if [[ "${SKIP_SAFETY_CHECKS:-false}" == "true" ]]; then

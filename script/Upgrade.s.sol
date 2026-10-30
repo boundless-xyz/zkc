@@ -37,6 +37,19 @@ import {SupplyCalculator} from "../src/calculators/SupplyCalculator.sol";
  *     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
  *     --broadcast \
  *     --rpc-url http://127.0.0.1:8545
+ *
+ * # Option 3: Deploy a ZKC-derived implementation for a Safe upgrade (proxy untouched, deployment.toml untouched).
+ * # Used for ZKCFreeze. The `freeze` profile strips CBOR metadata from the bytecode; FOUNDRY_OUT must point at its
+ * # out dir because openzeppelin-foundry-upgrades reads artifacts from $FOUNDRY_OUT (default "out"), not the profile.
+ * # Never pass --verify for this deployment. `script/manage upgrade-zkc` builds the reference from zkc-commit first.
+ * GNOSIS_EXECUTE=true ZKC_IMPL_CONTRACT="ZKCFreeze.sol:ZKCFreeze" FOUNDRY_PROFILE=freeze FOUNDRY_OUT=out-freeze \
+ * PRIVATE_KEY=0x... CHAIN_KEY=ethereum-mainnet ./script/manage upgrade-zkc --broadcast
+ *
+ * # Then confirm the deployed code is the reviewed artifact (only the UUPS __self immutable may differ) and that
+ * # it carries no CBOR metadata:
+ * IMPL=0x...; diff <(cast code $IMPL -r $RPC | sed "s/${IMPL#0x}/0000000000000000000000000000000000000000/gI") \
+ *   <(jq -r .deployedBytecode.object out-freeze/ZKCFreeze.sol/ZKCFreeze.json) && echo "bytecode matches"
+ * cast code $IMPL -r $RPC | grep -c a2646970667358   # must print 0
  */
 // Base contract with common upgrade logic
 abstract contract BaseZKCUpgrade is BaseDeployment {
@@ -51,6 +64,9 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
         // Check for deployment mode flags
         bool gnosisExecute = vm.envOr("GNOSIS_EXECUTE", false);
         bool skipSafetyChecks = vm.envOr("SKIP_SAFETY_CHECKS", false);
+        // Implementation to deploy; must inherit ZKC. Defaults to ZKC itself.
+        string memory implContract = vm.envOr("ZKC_IMPL_CONTRACT", string("ZKC.sol:ZKC"));
+        console2.log("Implementation contract: ", implContract);
 
         // Prepare upgrade options
         Options memory opts;
@@ -78,7 +94,7 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
             console2.log("Current implementation: ", currentImpl);
 
             // Use prepareUpgrade for validation + deployment
-            newImpl = Upgrades.prepareUpgrade("ZKC.sol:ZKC", opts);
+            newImpl = Upgrades.prepareUpgrade(implContract, opts);
             console2.log("New implementation deployed: ", newImpl);
 
             // Print Gnosis Safe transaction info
@@ -89,11 +105,7 @@ abstract contract BaseZKCUpgrade is BaseDeployment {
             console2.log("Current implementation: ", currentImpl);
 
             // Perform upgrade with optional initializer
-            if (initializerData.length > 0) {
-                Upgrades.upgradeProxy(proxyAddress, "ZKC.sol:ZKC", initializerData, opts);
-            } else {
-                Upgrades.upgradeProxy(proxyAddress, "ZKC.sol:ZKC", "", opts);
-            }
+            Upgrades.upgradeProxy(proxyAddress, implContract, initializerData, opts);
 
             newImpl = Upgrades.getImplementationAddress(proxyAddress);
             console2.log("Upgraded ZKC implementation to: ", newImpl);
