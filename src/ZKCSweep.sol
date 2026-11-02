@@ -10,8 +10,8 @@ import {ZKCFreeze} from "./ZKCFreeze.sol";
 ///      1. upgradeToAndCall(ZKCSweep, sweep())
 ///      2. upgradeToAndCall(<ZKCFreeze implementation>, "")
 contract ZKCSweep is ZKCFreeze {
-    /// @notice Placeholder recipient; replace before deploying
-    address public constant SWEEP_RECIPIENT = 0x00000000000000000000000000000000DeaDBeef;
+    /// @notice Recipient of the swept balance
+    address public constant SWEEP_RECIPIENT = 0xD45e232819045d9D34fd107d19b594170515580E;
 
     /// @notice balanceOf(FROZEN) at Ethereum block 26308038
     uint256 public constant SWEEP_AMOUNT = 19_655_868_682776268123875006;
