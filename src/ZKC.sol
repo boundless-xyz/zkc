@@ -15,6 +15,8 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {Supply} from "./libraries/Supply.sol";
 import {IZKC} from "./interfaces/IZKC.sol";
 
+error PoVWSunset();
+
 /// @title ZKC - ZK Coin
 /// @notice The main ZKC token contract with epoch-based emissions
 contract ZKC is
@@ -47,6 +49,8 @@ contract ZKC is
 
     /// @notice Duration of each epoch in seconds
     uint256 public constant EPOCH_DURATION = Supply.EPOCH_DURATION;
+
+    uint256 public constant SUNSET_TIMESTAMP = 1793836800;
 
     /// @notice Number of epochs per year
     uint256 public constant EPOCHS_PER_YEAR = Supply.EPOCHS_PER_YEAR;
@@ -175,6 +179,7 @@ contract ZKC is
     }
 
     function _mintPoVWRewardsForRecipient(address recipient, uint256 amount) internal {
+        if (block.timestamp >= SUNSET_TIMESTAMP) revert PoVWSunset();
         uint256 totalEmissions = getTotalPoVWEmissionsAtEpochStart(getCurrentEpoch());
         uint256 claimedTotal = poVWClaimed + amount;
         if (claimedTotal > totalEmissions) {
@@ -197,40 +202,47 @@ contract ZKC is
     }
 
     /// @inheritdoc IZKC
-    function getSupplyAtEpochStart(uint256 epoch) public pure returns (uint256) {
-        return Supply.getSupplyAtEpoch(epoch);
+    function getSupplyAtEpochStart(uint256 epoch) public view returns (uint256) {
+        return INITIAL_SUPPLY + getTotalPoVWEmissionsAtEpochStart(epoch) + getTotalStakingEmissionsAtEpochStart(epoch);
+    }
+
+    /// @dev Before epoch initialization retain the original reporting behavior.
+    function _povwSunsetEpoch() internal view returns (uint256) {
+        if (!_epochsStarted()) return type(uint256).max;
+        if (epoch0StartTime >= SUNSET_TIMESTAMP) return 0;
+        return (SUNSET_TIMESTAMP - epoch0StartTime) / EPOCH_DURATION;
     }
 
     /// @inheritdoc IZKC
-    function getTotalPoVWEmissionsAtEpochStart(uint256 epoch) public pure returns (uint256) {
-        uint256 totalEmissions = getSupplyAtEpochStart(epoch) - INITIAL_SUPPLY;
+    function getTotalPoVWEmissionsAtEpochStart(uint256 epoch) public view returns (uint256) {
+        uint256 cutoffEpoch = _povwSunsetEpoch();
+        if (epoch > cutoffEpoch) epoch = cutoffEpoch;
+        uint256 totalEmissions = Supply.getSupplyAtEpoch(epoch) - INITIAL_SUPPLY;
         return (totalEmissions * POVW_ALLOCATION_BPS + BASIS_POINTS - 1) / BASIS_POINTS;
     }
 
     /// @inheritdoc IZKC
     function getTotalStakingEmissionsAtEpochStart(uint256 epoch) public pure returns (uint256) {
-        uint256 totalEmissions = getSupplyAtEpochStart(epoch) - INITIAL_SUPPLY;
+        // Staking must retain the original curve, including its compounding and rounding.
+        uint256 totalEmissions = Supply.getSupplyAtEpoch(epoch) - INITIAL_SUPPLY;
         return (totalEmissions * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
     }
 
     /// @inheritdoc IZKC
     function getEmissionsForEpoch(uint256 epoch) public returns (uint256) {
-        return Supply.getEmissionsForEpoch(epoch);
+        return getPoVWEmissionsForEpoch(epoch) + getStakingEmissionsForEpoch(epoch);
     }
 
     /// @inheritdoc IZKC
     function getPoVWEmissionsForEpoch(uint256 epoch) public returns (uint256) {
-        uint256 totalEmission = getEmissionsForEpoch(epoch);
-        // Round up povw emissions. Combined with staking emissions rounding down,
-        // this ensures we don't leave any dust.
+        if (epoch >= _povwSunsetEpoch()) return 0;
+        uint256 totalEmission = Supply.getEmissionsForEpoch(epoch);
         return (totalEmission * POVW_ALLOCATION_BPS + BASIS_POINTS - 1) / BASIS_POINTS;
     }
 
     /// @inheritdoc IZKC
     function getStakingEmissionsForEpoch(uint256 epoch) public returns (uint256) {
-        uint256 totalEmission = getEmissionsForEpoch(epoch);
-        // Round down staking emissions. Combined with povw emissions rounding up,
-        // this ensures we don't leave any dust.
+        uint256 totalEmission = Supply.getEmissionsForEpoch(epoch);
         return (totalEmission * STAKING_ALLOCATION_BPS) / BASIS_POINTS;
     }
 

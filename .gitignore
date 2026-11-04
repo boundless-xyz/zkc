@@ -18,9 +18,15 @@ deployment_secrets.toml
 
 # Reference builds for upgrades
 build-info-reference/
+build-info-reference-*/
 out-reference/
 cache-reference/
 
 .claude
 
 token-release-schedule.csv
+# ZKCFreeze deployment artifacts contain the full implementation bytecode; never commit them.
+/broadcast/Upgrade.s.sol/1/
+out-freeze/
+cache-freeze/
+/broadcast/DeployZKCSweep.s.sol/1/
